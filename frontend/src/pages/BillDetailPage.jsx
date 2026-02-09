@@ -277,7 +277,9 @@ function BillDetailPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {item.employee?.full_name || '-'}
+                      {item.employees && item.employees.length > 0
+                        ? item.employees.map(e => e.full_name).join(', ')
+                        : item.employee?.full_name || '-'}
                     </TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
                     <TableCell className="text-right">

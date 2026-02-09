@@ -130,9 +130,13 @@ function BillsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button onClick={() => navigate('/bills/new')}>
+          <Button variant="outline" onClick={() => navigate('/bills/new?type=previous')}>
             <Plus className="h-4 w-4 mr-2" />
-            New Bill
+            Previous Bill
+          </Button>
+          <Button onClick={() => navigate('/bills/new?type=current')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Current Bill
           </Button>
         </div>
       </div>

@@ -136,7 +136,7 @@ exports.getBranchEmployees = catchAsync(async (req, res) => {
   const employees = await prisma.user.findMany({
     where: {
       branchId: req.params.id,
-      role: 'employee',
+      role: { in: ['employee', 'manager', 'cashier'] },
       isActive: true,
     },
     select: {

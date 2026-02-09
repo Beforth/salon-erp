@@ -11,7 +11,6 @@ import CustomerDetailPage from './pages/CustomerDetailPage'
 import BillsPage from './pages/BillsPage'
 import BillCreatePage from './pages/BillCreatePage'
 import BillDetailPage from './pages/BillDetailPage'
-import BillImportPage from './pages/BillImportPage'
 import ServicesPage from './pages/ServicesPage'
 import PackagesPage from './pages/PackagesPage'
 import ProductsPage from './pages/ProductsPage'
@@ -73,7 +72,6 @@ function App() {
         <Route path="bills" element={<BillsPage />} />
         <Route path="bills/new" element={<BillCreatePage />} />
         <Route path="bills/:id" element={<BillDetailPage />} />
-        <Route path="bills/import" element={<BillImportPage />} />
         <Route path="services" element={<ServicesPage />} />
         <Route path="packages" element={<PackagesPage />} />
         <Route path="products" element={<ProductsPage />} />

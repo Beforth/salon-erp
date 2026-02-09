@@ -62,8 +62,8 @@ class UserService {
           },
         },
         orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (parseInt(page) - 1) * parseInt(limit),
+        take: parseInt(limit),
       }),
       prisma.user.count({ where }),
     ]);
@@ -71,10 +71,10 @@ class UserService {
     return {
       data: users.map(this.formatUser),
       pagination: {
-        page,
-        limit,
+        page: parseInt(page),
+        limit: parseInt(limit),
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
       },
     };
   }

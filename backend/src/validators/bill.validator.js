@@ -10,6 +10,7 @@ const billItemSchema = z.object({
   package_id: z.string().uuid().optional().nullable(),
   product_id: z.string().uuid().optional().nullable(),
   employee_id: z.string().uuid().optional().nullable(),
+  employee_ids: z.array(z.string().uuid()).optional().nullable(),
   chair_id: z.string().uuid().optional().nullable(),
   quantity: z.number().int().positive('Quantity must be positive'),
   unit_price: z.number().nonnegative('Unit price must be non-negative'),
@@ -40,6 +41,8 @@ const createBillSchema = z.object({
   body: z.object({
     customer_id: z.string().uuid('Invalid customer ID'),
     branch_id: z.string().uuid('Invalid branch ID'),
+    bill_type: z.enum(['current', 'previous']).default('current'),
+    bill_date: z.string().optional().nullable(),
     items: z.array(billItemSchema).min(1, 'At least one item is required'),
     payments: z.array(paymentSchema).min(1, 'At least one payment is required'),
     discount_amount: z.number().nonnegative('Discount must be non-negative').default(0),

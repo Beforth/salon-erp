@@ -199,13 +199,15 @@ class ServiceService {
           description: data.description,
           imageUrl: data.image_url,
           isActive: data.is_active ?? true,
-          packageServices: {
-            create: data.services.map((s) => ({
-              serviceId: s.service_id,
-              quantity: s.quantity || 1,
-              servicePrice: s.service_price,
-            })),
-          },
+          ...(data.services.length > 0 && {
+            packageServices: {
+              create: data.services.map((s) => ({
+                serviceId: s.service_id,
+                quantity: s.quantity || 1,
+                servicePrice: s.service_price,
+              })),
+            },
+          }),
         },
         include: {
           packageServices: {

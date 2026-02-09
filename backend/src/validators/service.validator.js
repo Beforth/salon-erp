@@ -61,13 +61,13 @@ const packageServiceSchema = z.object({
 
 const createPackageSchema = z.object({
   body: z.object({
-    package_name: z.string().min(1, 'Package name is required').max(100),
+    package_name: z.string().min(1, 'Package name is required').max(255),
     package_price: z.number().nonnegative('Price must be non-negative'),
     validity_days: z.number().int().positive().optional().nullable(),
     description: z.string().max(1000).optional().nullable(),
     image_url: z.string().url().optional().nullable(),
     is_active: z.boolean().default(true),
-    services: z.array(packageServiceSchema).min(1, 'At least one service is required'),
+    services: z.array(packageServiceSchema).default([]),
   }),
   query: z.object({}).optional(),
   params: z.object({}).optional(),

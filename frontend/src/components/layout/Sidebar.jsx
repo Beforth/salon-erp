@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { cn } from '@/lib/utils'
 import {
@@ -12,10 +13,11 @@ import {
   Settings,
   Building2,
   ShoppingBag,
-  Upload,
   ArrowRightLeft,
   UserCog,
   Calculator,
+  ChevronDown,
+  BoxesIcon,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -69,28 +71,26 @@ const getNavItemsByRole = (role) => {
       roles: ['owner', 'developer', 'manager'],
     },
     {
-      title: 'Products',
-      href: '/products',
-      icon: ShoppingBag,
-      roles: ['owner', 'developer', 'manager'],
-    },
-    {
       title: 'Inventory',
-      href: '/inventory',
-      icon: Warehouse,
+      icon: BoxesIcon,
       roles: ['owner', 'developer', 'manager'],
-    },
-    {
-      title: 'Stock Transfers',
-      href: '/inventory/transfers',
-      icon: ArrowRightLeft,
-      roles: ['owner', 'developer', 'manager'],
-    },
-    {
-      title: 'Import Bills',
-      href: '/bills/import',
-      icon: Upload,
-      roles: ['owner', 'developer', 'manager'],
+      children: [
+        {
+          title: 'Products',
+          href: '/products',
+          icon: ShoppingBag,
+        },
+        {
+          title: 'Stock Levels',
+          href: '/inventory',
+          icon: Warehouse,
+        },
+        {
+          title: 'Stock Transfers',
+          href: '/inventory/transfers',
+          icon: ArrowRightLeft,
+        },
+      ],
     },
     {
       title: 'Reports',
@@ -129,7 +129,18 @@ const getNavItemsByRole = (role) => {
 
 function Sidebar() {
   const { user } = useSelector((state) => state.auth)
+  const location = useLocation()
   const navItems = getNavItemsByRole(user?.role || 'employee')
+
+  // Auto-expand inventory group if current path matches
+  const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products')
+  const [expandedGroups, setExpandedGroups] = useState(
+    isInventoryPath ? { Inventory: true } : {}
+  )
+
+  const toggleGroup = (title) => {
+    setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }))
+  }
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
@@ -146,23 +157,63 @@ function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-2 py-4 space-y-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.href}
-              to={item.href}
-              className={({ isActive }) =>
-                cn(
-                  'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                )
-              }
-            >
-              <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
-              {item.title}
-            </NavLink>
-          ))}
+          {navItems.map((item) =>
+            item.children ? (
+              <div key={item.title}>
+                <button
+                  onClick={() => toggleGroup(item.title)}
+                  className="group flex items-center w-full px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                  {item.title}
+                  <ChevronDown
+                    className={cn(
+                      'ml-auto h-4 w-4 transition-transform',
+                      expandedGroups[item.title] && 'rotate-180'
+                    )}
+                  />
+                </button>
+                {expandedGroups[item.title] && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {item.children.map((child) => (
+                      <NavLink
+                        key={child.href}
+                        to={child.href}
+                        end={child.href === '/inventory'}
+                        className={({ isActive }) =>
+                          cn(
+                            'group flex items-center px-3 py-1.5 text-sm rounded-md transition-colors',
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                          )
+                        }
+                      >
+                        <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
+                        {child.title}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <NavLink
+                key={item.href}
+                to={item.href}
+                className={({ isActive }) =>
+                  cn(
+                    'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  )
+                }
+              >
+                <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                {item.title}
+              </NavLink>
+            )
+          )}
         </nav>
 
         {/* User info at bottom */}

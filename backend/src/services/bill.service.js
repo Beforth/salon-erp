@@ -3,7 +3,7 @@ const AppError = require('../utils/AppError');
 
 class BillService {
   async createBill(data, createdById) {
-    const { customer_id, branch_id, items, payments, notes, discount_amount = 0, discount_reason } = data;
+    const { customer_id, branch_id, items, payments, notes, discount_amount = 0, discount_reason, bill_type = 'current', bill_date } = data;
 
     // Verify customer exists
     const customer = await prisma.customer.findUnique({
@@ -56,7 +56,7 @@ class BillService {
           billNumber,
           customerId: customer_id,
           branchId: branch_id,
-          billDate: new Date(),
+          billDate: bill_date ? new Date(bill_date) : new Date(),
           subtotal,
           discountAmount: totalDiscount,
           totalAmount,
@@ -100,12 +100,30 @@ class BillService {
               package: true,
               product: true,
               employee: { select: { id: true, fullName: true } },
+              employees: {
+                include: {
+                  employee: { select: { id: true, fullName: true } },
+                },
+              },
             },
           },
           payments: true,
           createdBy: { select: { id: true, fullName: true } },
         },
       });
+
+      // Save multi-employee assignments for current bills
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.employee_ids && item.employee_ids.length > 0) {
+          await tx.billItemEmployee.createMany({
+            data: item.employee_ids.map(empId => ({
+              billItemId: newBill.billItems[i].id,
+              employeeId: empId,
+            })),
+          });
+        }
+      }
 
       // Update customer statistics
       await tx.customer.update({
@@ -272,6 +290,11 @@ class BillService {
             package: true,
             product: true,
             employee: { select: { id: true, fullName: true } },
+            employees: {
+              include: {
+                employee: { select: { id: true, fullName: true } },
+              },
+            },
             chair: { select: { id: true, chairNumber: true, chairName: true } },
           },
         },
@@ -399,6 +422,10 @@ class BillService {
         employee: item.employee
           ? { employee_id: item.employee.id, full_name: item.employee.fullName }
           : null,
+        employees: (item.employees || []).map(e => ({
+          employee_id: e.employee.id,
+          full_name: e.employee.fullName,
+        })),
         chair: item.chair
           ? { chair_id: item.chair.id, chair_number: item.chair.chairNumber }
           : null,

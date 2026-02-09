@@ -136,12 +136,6 @@ function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Demo credentials:</p>
-            <p className="font-mono text-xs mt-1">
-              owner / Password123!
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

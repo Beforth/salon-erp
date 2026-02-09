@@ -61,7 +61,7 @@ function StaffModal({ open, onOpenChange, staff = null }) {
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
     queryFn: () => branchService.getBranches({ is_active: 'true' }),
-    enabled: isOwner && open,
+    enabled: open,
   })
 
   const branches = branchesData?.data || []
@@ -271,37 +271,35 @@ function StaffModal({ open, onOpenChange, staff = null }) {
                 </div>
               </div>
 
-              {isOwner && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="branch_id">Branch</Label>
-                    <select
-                      id="branch_id"
-                      className="w-full h-10 px-3 border rounded-md"
-                      value={formData.branch_id}
-                      onChange={(e) => handleChange('branch_id', e.target.value)}
-                    >
-                      <option value="">All Branches (Owner only)</option>
-                      {branches.map((branch) => (
-                        <option key={branch.branch_id} value={branch.branch_id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2 flex items-end">
-                    <label className="flex items-center gap-2 h-10">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_active}
-                        onChange={(e) => handleChange('is_active', e.target.checked)}
-                        className="h-4 w-4 rounded"
-                      />
-                      <span>Active</span>
-                    </label>
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="branch_id">Branch *</Label>
+                  <select
+                    id="branch_id"
+                    className="w-full h-10 px-3 border rounded-md"
+                    value={formData.branch_id}
+                    onChange={(e) => handleChange('branch_id', e.target.value)}
+                  >
+                    <option value="">Select Branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch.branch_id} value={branch.branch_id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
+                <div className="space-y-2 flex items-end">
+                  <label className="flex items-center gap-2 h-10">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active}
+                      onChange={(e) => handleChange('is_active', e.target.checked)}
+                      className="h-4 w-4 rounded"
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+              </div>
             </TabsContent>
 
             {/* Employment Tab */}

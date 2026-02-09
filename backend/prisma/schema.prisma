@@ -224,6 +224,7 @@ model User {
   createdPayments Payment[]        @relation("PaymentCreatedBy")
   createdCustomers Customer[]
   billItems       BillItem[]       @relation("BillItemEmployee")
+  billItemEmployees BillItemEmployee[] @relation("BillItemEmployees")
   importLogs      BillImportLog[]
   inventoryTransactions InventoryTransaction[]
   stockTransfersRequested StockTransfer[] @relation("TransferRequestedBy")
@@ -361,6 +362,7 @@ model BillItem {
   package            Package?            @relation(fields: [packageId], references: [id])
   product            Product?            @relation(fields: [productId], references: [id])
   employee           User?               @relation("BillItemEmployee", fields: [employeeId], references: [id])
+  employees          BillItemEmployee[]
   chair              Chair?              @relation(fields: [chairId], references: [id])
   packageRedemptions PackageRedemption[]
 
@@ -369,6 +371,21 @@ model BillItem {
   @@index([employeeId])
   @@index([status])
   @@map("bill_items")
+}
+
+model BillItemEmployee {
+  id         String   @id @default(uuid()) @db.Uuid
+  billItemId String   @map("bill_item_id") @db.Uuid
+  employeeId String   @map("employee_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  billItem BillItem @relation(fields: [billItemId], references: [id], onDelete: Cascade)
+  employee User     @relation("BillItemEmployees", fields: [employeeId], references: [id])
+
+  @@unique([billItemId, employeeId])
+  @@index([billItemId])
+  @@index([employeeId])
+  @@map("bill_item_employees")
 }
 
 model Payment {
@@ -468,7 +485,7 @@ model Service {
 
 model Package {
   id           String   @id @default(uuid()) @db.Uuid
-  packageName  String   @map("package_name") @db.VarChar(100)
+  packageName  String   @map("package_name") @db.VarChar(255)
   packagePrice Decimal  @map("package_price") @db.Decimal(10, 2)
   validityDays Int?     @map("validity_days")
   description  String?  @db.Text
