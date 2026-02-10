@@ -73,9 +73,9 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/prisma:/app/prisma
-    # Migrate always; seed only in non-production (e.g. local dev). Set NODE_ENV=production in deployment to skip seed.
+    # Migrate on startup; seed is never run automatically (run manually with: docker exec salon-erp-backend npx prisma db seed)
     command: >
-      sh -c "npx prisma migrate deploy && ( [ \"$$NODE_ENV\" = 'production' ] || npx prisma db seed ) && node src/server.js"
+      sh -c "npx prisma migrate deploy && node src/server.js"
 
   frontend:
     build:

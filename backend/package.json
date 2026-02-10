@@ -9,6 +9,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "db:unseed": "node prisma/unseed.js",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "test": "jest --coverage",
