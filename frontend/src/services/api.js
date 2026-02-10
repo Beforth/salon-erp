@@ -1,7 +1,16 @@
 import axios from 'axios'
 
+// Use env if set; otherwise same origin (so on server it calls the domain, not localhost)
+function getApiBaseUrl() {
+  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL
+  if (typeof window !== 'undefined') return window.location.origin + '/api/v1'
+  return 'http://localhost:5001/api/v1'
+}
+
+const baseURL = getApiBaseUrl()
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -43,7 +52,7 @@ api.interceptors.response.use(
         }
 
         const response = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1'}/auth/refresh`,
+          `${baseURL}/auth/refresh`,
           { refresh_token: refreshToken }
         )
 
