@@ -5,9 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.nginx
-      args:
-        # API base URL for frontend build (same-origin when served by nginx)
-        VITE_API_BASE_URL: /api/v1
     container_name: salon-erp-proxy
     ports:
       - "80:80"

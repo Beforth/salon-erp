@@ -28,10 +28,13 @@ If you use one wildcard cert, point both nginx `ssl_certificate` / `ssl_certific
 
 ## 2. Build and run with nginx
 
-The nginx image **builds the frontend** and serves it; no separate frontend container is required for production.
+The nginx image **does not build the frontend**; it uses the pre-built `frontend/dist/`. Build the frontend locally (or in CI) before building the nginx image, and ensure `frontend/dist/` exists (e.g. commit dist to the repo or copy it into the build context).
 
 ```bash
-# From repo root
+# From repo root — build frontend first (if not already in repo)
+cd frontend && npm run build && cd ..
+
+# Then build nginx image (copies frontend/dist into image) and run
 docker compose -f docker-compose.yml -f docker-compose.nginx.yml build nginx
 docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
 ```
