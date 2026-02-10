@@ -1,18 +1,6 @@
 # Production with nginx: docker compose -f docker-compose.yml -f docker-compose.nginx.yml up
-# Nginx proxies main app to Vite dev server (no dist), /api to backend, and pgAdmin subdomain to pgadmin.
+# Nginx serves built frontend (from Dockerfile.nginx), proxies /api to backend, and pgAdmin subdomain to pgadmin.
 services:
-  frontend:
-    environment:
-      VITE_API_BASE_URL: https://api-ksagar-aetosvision-ai.encryptedbar.com/api/v1
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - ./frontend/index.html:/app/index.html
-      - ./frontend/vite.config.js:/app/vite.config.js
-      - ./frontend/tailwind.config.js:/app/tailwind.config.js
-      - ./frontend/postcss.config.js:/app/postcss.config.js
-      - ./frontend/components.json:/app/components.json
-
   nginx:
     build:
       context: .
@@ -23,7 +11,6 @@ services:
       - "443:443"
     depends_on:
       - backend
-      - frontend
       - pgadmin
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
