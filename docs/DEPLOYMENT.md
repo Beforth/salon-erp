@@ -3,6 +3,7 @@
 ## Domains
 
 - **App:** https://ksagar-aetosvision-ai.encryptedbar.com  
+- **API:** https://api-ksagar-aetosvision-ai.encryptedbar.com  
 - **pgAdmin:** https://pgadmin.ksagar-aetosvision-ai.encryptedbar.com  
 
 ## 1. SSL certificates (Let's Encrypt)
@@ -13,6 +14,8 @@ Create certificates for both hostnames (or use a wildcard `*.encryptedbar.com` a
 # Example with certbot (adjust for your setup)
 sudo certbot certonly --webroot -w /var/www/certbot \
   -d ksagar-aetosvision-ai.encryptedbar.com
+sudo certbot certonly --webroot -w /var/www/certbot \
+  -d api-ksagar-aetosvision-ai.encryptedbar.com
 sudo certbot certonly --webroot -w /var/www/certbot \
   -d pgadmin.ksagar-aetosvision-ai.encryptedbar.com
 ```
@@ -41,7 +44,10 @@ docker compose -f docker-compose.yml -f docker-compose.nginx.yml build nginx
 docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
 ```
 
-Ensure DNS for both hostnames points to this server. Ports 80 and 443 must be open.
+**Stopping:** Use the same two compose files so nginx is stopped and the `backend` network is removed:
+`docker compose -f docker-compose.yml -f docker-compose.nginx.yml down`. Running only `docker compose down` stops backend/postgres/redis/pgadmin but leaves nginx running.
+
+Ensure DNS for all hostnames (app, API, pgAdmin) points to this server. Ports 80 and 443 must be open.
 
 ## 3. Build frontend only (for static deploy elsewhere)
 
