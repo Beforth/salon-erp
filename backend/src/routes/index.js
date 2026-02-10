@@ -1,6 +1,30 @@
 const express = require('express');
 const router = express.Router();
 
+// API root – confirms API is up (match both '' and '/' for GET /api/v1)
+router.get(['/', ''], (req, res) => {
+  res.json({
+    success: true,
+    message: 'Salon ERP API',
+    version: 'v1',
+    endpoints: [
+      '/auth',
+      '/customers',
+      '/bills',
+      '/services',
+      '/packages',
+      '/branches',
+      '/products',
+      '/inventory',
+      '/reports',
+      '/users',
+      '/settings',
+      '/cash',
+    ],
+    meta: { timestamp: new Date().toISOString() },
+  });
+});
+
 // Import route modules
 const authRoutes = require('./auth.routes');
 const customerRoutes = require('./customer.routes');
