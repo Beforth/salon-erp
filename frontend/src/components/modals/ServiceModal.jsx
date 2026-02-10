@@ -31,6 +31,8 @@ const initialFormData = {
   duration_minutes: '',
   star_points: '',
   description: '',
+  is_multi_employee: false,
+  employee_count: null,
   is_active: true,
 }
 
@@ -42,6 +44,17 @@ function ServiceModal({ open, onOpenChange, service = null }) {
 
   const [formData, setFormData] = useState(initialFormData)
 
+  // When editing, fetch full service details so form has is_multi_employee, employee_count, etc.
+  const { data: serviceDetailsResponse, isLoading: isLoadingServiceDetails } = useQuery({
+    queryKey: ['service', service?.service_id],
+    queryFn: () => serviceService.getServiceById(service.service_id),
+    enabled: open && !!service?.service_id,
+  })
+  const serviceDetails = serviceDetailsResponse?.data
+
+  // Use fetched details when editing (so type field is populated); otherwise use list item or null
+  const serviceForForm = isEditing && serviceDetails ? serviceDetails : service
+
   // Fetch branches for owner
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
@@ -49,27 +62,35 @@ function ServiceModal({ open, onOpenChange, service = null }) {
     enabled: !userBranchId && open,
   })
 
-  // Fetch categories based on selected branch
+  // Branch for category fetch: form value, or user's branch, or (when editing) service's branch
+  const branchIdForCategories = formData.branch_id || userBranchId || (serviceForForm?.branch_id ?? null)
+
+  // Fetch categories when modal is open. With branch filter when we have one; otherwise all active categories (so owners see categories before selecting branch)
   const { data: categoriesData } = useQuery({
-    queryKey: ['categories', formData.branch_id || userBranchId],
-    queryFn: () => serviceService.getCategories({ branch_id: formData.branch_id || userBranchId }),
-    enabled: open && !!(formData.branch_id || userBranchId),
+    queryKey: ['service-categories', branchIdForCategories || 'all'],
+    queryFn: () =>
+      serviceService.getCategories(
+        branchIdForCategories ? { branch_id: branchIdForCategories } : {}
+      ),
+    enabled: open,
   })
 
   const branches = branchesData?.data || []
   const categories = categoriesData?.data || []
 
   useEffect(() => {
-    if (service) {
+    if (serviceForForm) {
       setFormData({
-        service_name: service.service_name || '',
-        category_id: service.category?.category_id || '',
-        branch_id: service.branch_id || userBranchId || '',
-        price: service.price?.toString() || '',
-        duration_minutes: service.duration_minutes?.toString() || '',
-        star_points: service.star_points?.toString() || '',
-        description: service.description || '',
-        is_active: service.is_active ?? true,
+        service_name: serviceForForm.service_name || '',
+        category_id: serviceForForm.category?.category_id || '',
+        branch_id: serviceForForm.branch_id || userBranchId || '',
+        price: serviceForForm.price?.toString() ?? '',
+        duration_minutes: serviceForForm.duration_minutes?.toString() ?? '',
+        star_points: serviceForForm.star_points?.toString() ?? '',
+        description: serviceForForm.description || '',
+        is_multi_employee: serviceForForm.is_multi_employee === true,
+        employee_count: serviceForForm.employee_count ?? null,
+        is_active: serviceForForm.is_active ?? true,
       })
     } else {
       setFormData({
@@ -77,7 +98,7 @@ function ServiceModal({ open, onOpenChange, service = null }) {
         branch_id: userBranchId || '',
       })
     }
-  }, [service, open, userBranchId])
+  }, [serviceForForm, open, userBranchId])
 
   const createMutation = useMutation({
     mutationFn: serviceService.createService,
@@ -122,19 +143,21 @@ function ServiceModal({ open, onOpenChange, service = null }) {
       return
     }
 
-    if (!formData.branch_id && !userBranchId) {
-      toast.error('Please select a branch')
+    if (formData.is_multi_employee && (!formData.employee_count || formData.employee_count < 2)) {
+      toast.error('Number of employees must be at least 2 for multiple-employee services')
       return
     }
 
     const data = {
       service_name: formData.service_name,
       category_id: formData.category_id || null,
-      branch_id: formData.branch_id || userBranchId,
+      branch_id: formData.branch_id || userBranchId || null,
       price: parseFloat(formData.price),
-      duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
-      star_points: formData.star_points ? parseInt(formData.star_points) : 0,
+      duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes, 10) : null,
+      star_points: Math.max(0, parseInt(formData.star_points, 10) || 0) || 0,
       description: formData.description || null,
+      is_multi_employee: !!(formData.is_multi_employee),
+      employee_count: formData.is_multi_employee && formData.employee_count ? parseInt(formData.employee_count, 10) : null,
       is_active: formData.is_active,
     }
 
@@ -154,22 +177,28 @@ function ServiceModal({ open, onOpenChange, service = null }) {
           </DialogTitle>
         </DialogHeader>
 
+        {isEditing && isLoadingServiceDetails ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Branch (for owner only) */}
+          {/* Branch (optional; for owner only) */}
           {!userBranchId && (
             <div className="space-y-2">
-              <Label>Branch *</Label>
+              <Label>Branch (optional)</Label>
               <Select
-                value={formData.branch_id}
+                value={formData.branch_id || 'none'}
                 onValueChange={(value) => {
-                  handleChange('branch_id', value)
+                  handleChange('branch_id', value === 'none' ? '' : value)
                   handleChange('category_id', '') // Reset category when branch changes
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select branch" />
+                  <SelectValue placeholder="No specific branch" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">No specific branch</SelectItem>
                   {branches.map((branch) => (
                     <SelectItem key={branch.branch_id} value={branch.branch_id}>
                       {branch.name}
@@ -251,6 +280,45 @@ function ServiceModal({ open, onOpenChange, service = null }) {
             />
           </div>
 
+          {/* Single vs Multiple Employee */}
+          <div className="space-y-2">
+            <Label>Employee Type</Label>
+            <Select
+              value={formData.is_multi_employee ? 'multiple' : 'single'}
+              onValueChange={(value) => {
+                const isMulti = value === 'multiple'
+                handleChange('is_multi_employee', isMulti)
+                if (!isMulti) handleChange('employee_count', null)
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">Single employee (one staff does this service)</SelectItem>
+                <SelectItem value="multiple">Multiple employees (can be done by multiple staff)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {formData.is_multi_employee && (
+            <div className="space-y-2">
+              <Label htmlFor="employee_count">Number of employees</Label>
+              <Input
+                id="employee_count"
+                type="number"
+                min={2}
+                max={20}
+                value={formData.employee_count ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value
+                  handleChange('employee_count', v === '' ? null : (parseInt(v, 10) || null))
+                }}
+                placeholder="e.g. 2"
+              />
+            </div>
+          )}
+
           {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
@@ -291,6 +359,7 @@ function ServiceModal({ open, onOpenChange, service = null }) {
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   )

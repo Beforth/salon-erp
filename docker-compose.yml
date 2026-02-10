@@ -2,6 +2,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: salon-erp-postgres
+    networks:
+      - backend
     environment:
       POSTGRES_USER: salon_erp
       POSTGRES_PASSWORD: salon_erp_password
@@ -15,6 +17,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: salon-erp-pgadmin
+    networks:
+      - backend
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -34,6 +50,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: salon-erp-backend
+    networks:
+      - backend
     environment:
       NODE_ENV: development
       PORT: 5001
@@ -55,14 +73,17 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/prisma:/app/prisma
+    # Migrate always; seed only in non-production (e.g. local dev). Set NODE_ENV=production in deployment to skip seed.
     command: >
-      sh -c "npx prisma migrate deploy && npx prisma db seed && node src/server.js"
+      sh -c "npx prisma migrate deploy && ( [ \"$$NODE_ENV\" = 'production' ] || npx prisma db seed ) && node src/server.js"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: salon-erp-frontend
+    networks:
+      - backend
     environment:
       VITE_API_BASE_URL: http://localhost:5001/api/v1
     ports:
@@ -72,6 +93,10 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+
+networks:
+  backend:
+    driver: bridge
 
 volumes:
   postgres_data:

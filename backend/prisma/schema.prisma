@@ -466,6 +466,8 @@ model Service {
   starPoints      Int      @default(0) @map("star_points")
   description     String?  @db.Text
   imageUrl        String?  @map("image_url") @db.Text
+  isMultiEmployee Boolean  @default(false) @map("is_multi_employee")
+  employeeCount   Int?     @map("employee_count")
   isActive        Boolean  @default(true) @map("is_active")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
@@ -486,7 +488,7 @@ model Service {
 model Package {
   id           String   @id @default(uuid()) @db.Uuid
   packageName  String   @map("package_name") @db.VarChar(255)
-  packagePrice Decimal  @map("package_price") @db.Decimal(10, 2)
+  packagePrice Decimal? @map("package_price") @db.Decimal(10, 2)
   validityDays Int?     @map("validity_days")
   description  String?  @db.Text
   imageUrl     String?  @map("image_url") @db.Text
@@ -494,28 +496,44 @@ model Package {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  packageServices  PackageService[]
-  billItems        BillItem[]
-  customerPackages CustomerPackage[]
+  packageServices      PackageService[]
+  packageServiceGroups PackageServiceGroup[]
+  billItems            BillItem[]
+  customerPackages     CustomerPackage[]
 
   @@index([isActive])
   @@map("packages")
+}
+
+model PackageServiceGroup {
+  id        String   @id @default(uuid()) @db.Uuid
+  packageId String   @map("package_id") @db.Uuid
+  groupLabel String @map("group_label") @db.VarChar(255)
+  sortOrder Int      @default(0) @map("sort_order")
+
+  package   Package         @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  services  PackageService[]
+
+  @@index([packageId])
+  @@map("package_service_groups")
 }
 
 model PackageService {
   id           String   @id @default(uuid()) @db.Uuid
   packageId    String   @map("package_id") @db.Uuid
   serviceId    String   @map("service_id") @db.Uuid
+  groupId      String?  @map("group_id") @db.Uuid
   quantity     Int      @default(1)
   servicePrice Decimal? @map("service_price") @db.Decimal(10, 2)
   createdAt    DateTime @default(now()) @map("created_at")
 
-  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  service Service @relation(fields: [serviceId], references: [id])
+  package Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  service Service  @relation(fields: [serviceId], references: [id])
+  group   PackageServiceGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  @@unique([packageId, serviceId])
   @@index([packageId])
   @@index([serviceId])
+  @@index([groupId])
   @@map("package_services")
 }
 

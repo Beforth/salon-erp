@@ -18,6 +18,7 @@ import {
   Calculator,
   ChevronDown,
   BoxesIcon,
+  TrendingUp,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -109,6 +110,12 @@ const getNavItemsByRole = (role) => {
       href: '/staff',
       icon: UserCog,
       roles: ['owner', 'developer', 'manager'],
+    },
+    {
+      title: 'Staff Performance',
+      href: '/staff-performance',
+      icon: TrendingUp,
+      roles: ['owner', 'developer'],
     },
     {
       title: 'Branches',

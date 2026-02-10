@@ -161,6 +161,7 @@ function ServicesPage() {
                   {!userBranchId && <TableHead>Branch</TableHead>}
                   <TableHead>Price</TableHead>
                   <TableHead>Duration</TableHead>
+                  <TableHead>Employee Type</TableHead>
                   <TableHead>Star Points</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -190,6 +191,13 @@ function ServicesPage() {
                       {service.duration_minutes
                         ? `${service.duration_minutes} min`
                         : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={service.is_multi_employee ? 'default' : 'outline'}>
+                        {service.is_multi_employee
+                          ? (service.employee_count ? `Multiple (${service.employee_count})` : 'Multiple')
+                          : 'Single'}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">

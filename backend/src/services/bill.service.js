@@ -64,21 +64,26 @@ class BillService {
           notes,
           createdById,
           billItems: {
-            create: items.map((item) => ({
-              itemType: item.item_type,
-              serviceId: item.service_id,
-              packageId: item.package_id,
-              productId: item.product_id,
-              employeeId: item.employee_id,
-              chairId: item.chair_id,
-              quantity: item.quantity,
-              unitPrice: item.unit_price,
-              discountAmount: item.discount_amount || 0,
-              discountPercent: item.discount_percentage || 0,
-              totalPrice: item.unit_price * item.quantity - (item.discount_amount || 0),
-              status: 'completed',
-              notes: item.notes,
-            })),
+            create: items.map((item) => {
+              // Support multiple employees for any item: use employee_ids[0] when employee_id not set
+              const firstEmployeeId = item.employee_id ?? (Array.isArray(item.employee_ids) && item.employee_ids.length > 0 ? item.employee_ids[0] : null);
+              const itemStatus = item.status && ['pending', 'in_progress', 'completed', 'rejected'].includes(item.status) ? item.status : 'completed';
+              return {
+                itemType: item.item_type,
+                serviceId: item.service_id,
+                packageId: item.package_id,
+                productId: item.product_id,
+                employeeId: firstEmployeeId,
+                chairId: item.chair_id,
+                quantity: item.quantity,
+                unitPrice: item.unit_price,
+                discountAmount: item.discount_amount || 0,
+                discountPercent: item.discount_percentage || 0,
+                totalPrice: item.unit_price * item.quantity - (item.discount_amount || 0),
+                status: itemStatus,
+                notes: item.notes,
+              };
+            }),
           },
           payments: {
             create: payments.map((payment) => ({
@@ -112,12 +117,15 @@ class BillService {
         },
       });
 
-      // Save multi-employee assignments for current bills
+      // Save multiple employee assignments for any item (not limited to multi-employee services)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        if (item.employee_ids && item.employee_ids.length > 0) {
+        const ids = (Array.isArray(item.employee_ids) ? item.employee_ids : [])
+          .filter((id) => id && typeof id === 'string' && uuidRegex.test(id));
+        if (ids.length > 0) {
           await tx.billItemEmployee.createMany({
-            data: item.employee_ids.map(empId => ({
+            data: ids.map((empId) => ({
               billItemId: newBill.billItems[i].id,
               employeeId: empId,
             })),
@@ -346,9 +354,17 @@ class BillService {
     if (data.status) updateData.status = data.status;
     if (data.notes !== undefined) updateData.notes = data.notes;
 
-    const updatedBill = await prisma.bill.update({
+    if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+      for (const { item_id, status } of data.items) {
+        await prisma.billItem.updateMany({
+          where: { id: item_id, billId: id },
+          data: { status },
+        });
+      }
+    }
+
+    const updatedBill = await prisma.bill.findUnique({
       where: { id },
-      data: updateData,
       include: {
         customer: true,
         branch: true,
@@ -358,6 +374,11 @@ class BillService {
             package: true,
             product: true,
             employee: { select: { id: true, fullName: true } },
+            employees: {
+              include: {
+                employee: { select: { id: true, fullName: true } },
+              },
+            },
           },
         },
         payments: true,
@@ -407,35 +428,57 @@ class BillService {
         branch_code: bill.branch.code,
       },
       bill_date: bill.billDate,
-      items: bill.billItems.map((item) => ({
-        item_id: item.id,
-        item_type: item.itemType,
-        service: item.service
-          ? { service_id: item.service.id, service_name: item.service.serviceName }
-          : null,
-        package: item.package
-          ? { package_id: item.package.id, package_name: item.package.packageName }
-          : null,
-        product: item.product
-          ? { product_id: item.product.id, product_name: item.product.productName }
-          : null,
-        employee: item.employee
-          ? { employee_id: item.employee.id, full_name: item.employee.fullName }
-          : null,
-        employees: (item.employees || []).map(e => ({
-          employee_id: e.employee.id,
-          full_name: e.employee.fullName,
-        })),
-        chair: item.chair
-          ? { chair_id: item.chair.id, chair_number: item.chair.chairNumber }
-          : null,
-        quantity: item.quantity,
-        unit_price: parseFloat(item.unitPrice),
-        discount_amount: parseFloat(item.discountAmount),
-        total_price: parseFloat(item.totalPrice),
-        status: item.status,
-        notes: item.notes,
-      })),
+      items: bill.billItems.map((item) => {
+        const serviceName = item.service?.serviceName ?? (item.serviceId && (item.notes || 'Unknown Service'));
+        const packageName = item.package?.packageName ?? (item.packageId && (item.notes || 'Unknown Package'));
+        const productName = item.product?.productName ?? (item.productId && (item.notes || 'Unknown Product'));
+        const item_name =
+          (item.itemType === 'service' && serviceName) ||
+          (item.itemType === 'package' && packageName) ||
+          (item.itemType === 'product' && productName) ||
+          serviceName ||
+          packageName ||
+          productName ||
+          item.notes ||
+          'Unknown Item';
+        return {
+          item_id: item.id,
+          item_type: item.itemType,
+          item_name,
+          service:
+            item.service
+              ? { service_id: item.service.id, service_name: item.service.serviceName }
+              : item.serviceId
+                ? { service_id: item.serviceId, service_name: item.notes || 'Unknown Service' }
+                : null,
+          package: item.package
+            ? { package_id: item.package.id, package_name: item.package.packageName }
+            : item.packageId
+              ? { package_id: item.packageId, package_name: item.notes || 'Unknown Package' }
+              : null,
+          product: item.product
+            ? { product_id: item.product.id, product_name: item.product.productName }
+            : item.productId
+              ? { product_id: item.productId, product_name: item.notes || 'Unknown Product' }
+              : null,
+          employee: item.employee
+            ? { employee_id: item.employee.id, full_name: item.employee.fullName }
+            : null,
+          employees: (item.employees || []).map(e => ({
+            employee_id: e.employee.id,
+            full_name: e.employee.fullName,
+          })),
+          chair: item.chair
+            ? { chair_id: item.chair.id, chair_number: item.chair.chairNumber }
+            : null,
+          quantity: item.quantity,
+          unit_price: parseFloat(item.unitPrice),
+          discount_amount: parseFloat(item.discountAmount),
+          total_price: parseFloat(item.totalPrice),
+          status: item.status,
+          notes: item.notes,
+        };
+      }),
       subtotal: parseFloat(bill.subtotal),
       discount_amount: parseFloat(bill.discountAmount),
       tax_amount: parseFloat(bill.taxAmount),

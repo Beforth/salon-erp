@@ -1,6 +1,6 @@
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { billService } from '@/services/bill.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,13 @@ import {
 } from '@/components/ui/table'
 import { formatDateTime, formatCurrency, formatDate } from '@/lib/utils'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
   ArrowLeft,
   Printer,
   Receipt,
@@ -30,7 +37,10 @@ import {
   FileText,
   Banknote,
   Smartphone,
+  Trash2,
+  Pencil,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 const statusColors = {
   completed: 'success',
@@ -48,7 +58,18 @@ const paymentIcons = {
 function BillDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const printRef = useRef(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editItemStatuses, setEditItemStatuses] = useState({})
+
+  const deleteBillMutation = useMutation({
+    mutationFn: () => billService.cancelBill(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bills'] })
+      navigate('/bills')
+    },
+  })
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['bill', id],
@@ -57,6 +78,29 @@ function BillDetailPage() {
   })
 
   const bill = data?.data
+
+  const updateBillMutation = useMutation({
+    mutationFn: (data) => billService.updateBill(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bill', id] })
+      queryClient.invalidateQueries({ queryKey: ['bills'] })
+      setEditModalOpen(false)
+      toast.success('Bill updated')
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error?.message || 'Failed to update bill')
+    },
+  })
+
+  useEffect(() => {
+    if (bill?.items && editModalOpen) {
+      const statuses = {}
+      bill.items.forEach((item) => {
+        statuses[item.item_id] = item.status || 'completed'
+      })
+      setEditItemStatuses(statuses)
+    }
+  }, [bill?.items, editModalOpen])
 
   const handlePrint = () => {
     const printContent = printRef.current
@@ -152,11 +196,35 @@ function BillDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
+          {bill.status !== 'cancelled' && (
+            <Button
+              variant="outline"
+              onClick={() => setEditModalOpen(true)}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          )}
+          {bill.status !== 'cancelled' && (
+            <Button
+              variant="outline"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+              onClick={() => {
+                if (window.confirm(`Delete bill ${bill.bill_number}? This will cancel the bill.`)) {
+                  deleteBillMutation.mutate()
+                }
+              }}
+              disabled={deleteBillMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          )}
           <Badge
             variant={statusColors[bill.status] || 'secondary'}
             className="h-9 px-4 text-sm"
@@ -259,6 +327,7 @@ function BillDetailPage() {
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-right">Discount</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-center no-print">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -267,9 +336,14 @@ function BillDetailPage() {
                     <TableCell className="text-gray-500">{index + 1}</TableCell>
                     <TableCell>
                       <div className="font-medium">
-                        {item.service?.service_name ||
-                          item.package?.package_name ||
-                          item.product?.product_name ||
+                        {item.item_name ??
+                          item.service?.service_name ??
+                          item.service?.serviceName ??
+                          item.package?.package_name ??
+                          item.package?.packageName ??
+                          item.product?.product_name ??
+                          item.product?.productName ??
+                          item.notes ??
                           'Unknown Item'}
                       </div>
                       <div className="text-sm text-gray-500 capitalize">
@@ -293,12 +367,20 @@ function BillDetailPage() {
                     <TableCell className="text-right font-medium">
                       {formatCurrency(item.total_price)}
                     </TableCell>
+                    <TableCell className="text-center no-print">
+                      <Badge
+                        variant={item.status === 'pending' ? 'warning' : 'success'}
+                        className="text-xs capitalize"
+                      >
+                        {item.status || 'completed'}
+                      </Badge>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-right font-medium">
+                  <TableCell colSpan={7} className="text-right font-medium">
                     Subtotal
                   </TableCell>
                   <TableCell className="text-right">
@@ -307,7 +389,7 @@ function BillDetailPage() {
                 </TableRow>
                 {bill.discount_amount > 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-right font-medium text-red-500">
+                    <TableCell colSpan={7} className="text-right font-medium text-red-500">
                       Discount
                     </TableCell>
                     <TableCell className="text-right text-red-500">
@@ -317,7 +399,7 @@ function BillDetailPage() {
                 )}
                 {bill.tax_amount > 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-right font-medium">
+                    <TableCell colSpan={7} className="text-right font-medium">
                       Tax
                     </TableCell>
                     <TableCell className="text-right">
@@ -326,7 +408,7 @@ function BillDetailPage() {
                   </TableRow>
                 )}
                 <TableRow className="bg-gray-50">
-                  <TableCell colSpan={6} className="text-right font-bold text-lg">
+                  <TableCell colSpan={7} className="text-right font-bold text-lg">
                     Total Amount
                   </TableCell>
                   <TableCell className="text-right font-bold text-lg text-primary">
@@ -401,6 +483,80 @@ function BillDetailPage() {
           <p>Bill generated on {formatDateTime(new Date())}</p>
         </div>
       </div>
+
+      {/* Edit Bill — item status (pending / completed) */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit Bill — Item Status
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500">
+            Mark items as Pending (to be done later) or Completed.
+          </p>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {bill?.items?.map((item) => (
+              <div
+                key={item.item_id}
+                className="flex items-center justify-between p-2 rounded border bg-gray-50"
+              >
+                <span className="text-sm font-medium truncate flex-1">
+                  {item.item_name ??
+                    item.service?.service_name ??
+                    item.service?.serviceName ??
+                    item.package?.package_name ??
+                    item.package?.packageName ??
+                    item.product?.product_name ??
+                    item.product?.productName ??
+                    item.notes ??
+                    'Unknown'}
+                </span>
+                <select
+                  className="ml-2 h-8 px-2 text-sm border rounded-md min-w-[100px]"
+                  value={editItemStatuses[item.item_id] || item.status || 'completed'}
+                  onChange={(e) =>
+                    setEditItemStatuses((prev) => ({
+                      ...prev,
+                      [item.item_id]: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditModalOpen(false)}
+              disabled={updateBillMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const items = bill.items.map((i) => ({
+                  item_id: i.item_id,
+                  status: editItemStatuses[i.item_id] ?? i.status ?? 'completed',
+                }))
+                updateBillMutation.mutate({ items })
+              }}
+              disabled={updateBillMutation.isPending}
+            >
+              {updateBillMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

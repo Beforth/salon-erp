@@ -39,6 +39,9 @@ import {
   Pencil,
   ArrowLeft,
   Package,
+  ChevronRight,
+  ChevronLeft,
+  Star,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -80,6 +83,7 @@ function BillCreatePage() {
 
   // Cart
   const [cartItems, setCartItems] = useState([])
+  const [cartCollapsed, setCartCollapsed] = useState(false)
 
   // Edit modal
   const [editingItemIndex, setEditingItemIndex] = useState(null)
@@ -89,6 +93,10 @@ function BillCreatePage() {
   // Checkout
   const [billDiscountPercent, setBillDiscountPercent] = useState(0)
   const [discountReason, setDiscountReason] = useState('')
+  const [addDiscountPercent, setAddDiscountPercent] = useState(0)
+  const [addDiscountAmount, setAddDiscountAmount] = useState('')
+  const [addPackageServiceDiscounts, setAddPackageServiceDiscounts] = useState({}) // { [idx]: { percent: number, amount: string } }
+  const [packageGroupSelections, setPackageGroupSelections] = useState({}) // { [packageId]: [ serviceId for group0, ... ] }
   const [payments, setPayments] = useState([{ payment_mode: 'cash', amount: '' }])
   const [notes, setNotes] = useState('')
 
@@ -145,15 +153,19 @@ function BillCreatePage() {
         price: s.price,
         duration: s.duration_minutes,
         category: s.category?.name,
+        star_points: s.star_points ?? 0,
+        is_multi_employee: s.is_multi_employee ?? false,
+        employee_count: s.employee_count ?? null,
       }))
     }
     if (selectedCategory === 'packages') {
       return packages.map((p) => ({
         id: p.package_id,
         name: p.package_name,
-        price: p.package_price,
+        price: p.package_price ?? p.individual_price ?? 0,
         description: p.description,
         services: p.services,
+        service_groups: p.service_groups,
         individual_price: p.individual_price,
         savings: p.savings,
       }))
@@ -176,12 +188,26 @@ function BillCreatePage() {
     return itemOptions.find((o) => o.id === selectedItemId)
   }, [selectedItemId, itemOptions])
 
+  // Star points for a package service: use package API value, or fallback to services list by service_id
+  const getPackageServiceStarPoints = (ps) => {
+    const fromPackage = ps.star_points ?? ps.starPoints ?? 0
+    if (fromPackage > 0) return fromPackage
+    const fromService = services.find((s) => s.service_id === ps.service_id)
+    return fromService?.star_points ?? 0
+  }
+
+  // Item discount: either fixed amount (discount_amount_override) or percent
+  const getItemDiscount = (item) => {
+    const lineTotal = item.unit_price * item.quantity
+    if (item.discount_amount_override != null && item.discount_amount_override >= 0) {
+      return Math.min(Number(item.discount_amount_override), lineTotal)
+    }
+    return (lineTotal * (item.discount_percent || 0)) / 100
+  }
+
   // Calculate totals
   const subtotal = cartItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
-  const itemsDiscount = cartItems.reduce((sum, item) => {
-    const itemTotal = item.unit_price * item.quantity
-    return sum + (itemTotal * (item.discount_percent || 0)) / 100
-  }, 0)
+  const itemsDiscount = cartItems.reduce((sum, item) => sum + getItemDiscount(item), 0)
   const billDiscount =
     subtotal > 0 ? (subtotal - itemsDiscount) * (billDiscountPercent / 100) : 0
   const totalDiscount = itemsDiscount + billDiscount
@@ -219,7 +245,15 @@ function BillCreatePage() {
       return
     }
     const item = itemOptions.find((o) => o.id === id)
-    if (item) setItemPrice(item.price.toString())
+    if (item) {
+      setItemPrice(item.price.toString())
+      if (selectedCategory === 'packages' && item.service_groups?.length) {
+        setPackageGroupSelections((prev) => ({
+          ...prev,
+          [id]: item.service_groups.map((g) => g.services?.[0]?.service_id ?? null),
+        }))
+      }
+    }
     setItemQuantity(1)
   }
 
@@ -230,32 +264,86 @@ function BillCreatePage() {
       const pkg = selectedItem
       if (!pkg) return
 
-      if (pkg.services && pkg.services.length > 0) {
-        // Expand package into individual services (linked)
-        const packagePrice = parseFloat(itemPrice)
+      const standaloneServices = pkg.services || []
+      const serviceGroups = pkg.service_groups || []
+      const hasGroups = serviceGroups.length > 0
+
+      if (hasGroups) {
+        const selections = packageGroupSelections[pkg.id] || []
+        const missing = serviceGroups.some((g, i) => !selections[i] && (g.services?.length ?? 0) > 0)
+        if (missing) {
+          toast.error('Choose one service for each "OR" group before adding to cart')
+          return
+        }
+      }
+
+      if (standaloneServices.length > 0 || hasGroups) {
         const totalIndividualPrice = pkg.individual_price || 0
+        const packagePrice = parseFloat(itemPrice) || totalIndividualPrice
         const ratio = totalIndividualPrice > 0 ? packagePrice / totalIndividualPrice : 1
         const groupId = crypto.randomUUID()
 
-        const expandedItems = pkg.services.map((ps, idx) => ({
-          cart_id: crypto.randomUUID(),
-          item_type: 'service',
-          service_id: ps.service_id,
-          item_name: ps.service_name,
-          unit_price: parseFloat((ps.service_price * ratio).toFixed(2)),
-          quantity: ps.quantity,
-          employee_ids: componentEmployees[idx] || [],
-          employee_id: null,
-          discount_percent: 0,
-          source_package_id: pkg.id,
-          source_package_name: pkg.name,
-          package_group_id: groupId,
-        }))
-
-        setCartItems([...cartItems, ...expandedItems])
+        const expanded = []
+        let idx = 0
+        standaloneServices.forEach((ps) => {
+          const d = addPackageServiceDiscounts[idx]
+          const useAmount = d?.amount && parseFloat(d.amount) > 0
+          expanded.push({
+            cart_id: crypto.randomUUID(),
+            item_type: 'service',
+            service_id: ps.service_id,
+            item_name: ps.service_name,
+            unit_price: parseFloat((ps.service_price * ratio).toFixed(2)),
+            quantity: ps.quantity,
+            employee_ids: (componentEmployees[idx] || []).filter(Boolean),
+            employee_id: null,
+            discount_percent: useAmount ? 0 : (d?.percent ?? 0),
+            discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
+            star_points: getPackageServiceStarPoints(ps),
+            source_package_id: pkg.id,
+            source_package_name: pkg.name,
+            source_individual_price: totalIndividualPrice,
+            package_group_id: groupId,
+            is_multi_employee: ps.is_multi_employee ?? false,
+            employee_count: ps.employee_count ?? null,
+            item_status: 'completed',
+          })
+          idx += 1
+        })
+        serviceGroups.forEach((g, gi) => {
+          const selectedId = (packageGroupSelections[pkg.id] || [])[gi]
+          const chosen = (g.services || []).find((s) => s.service_id === selectedId)
+          if (chosen) {
+            const d = addPackageServiceDiscounts[idx]
+            const useAmount = d?.amount && parseFloat(d.amount) > 0
+            expanded.push({
+              cart_id: crypto.randomUUID(),
+              item_type: 'service',
+              service_id: chosen.service_id,
+              item_name: chosen.service_name,
+              unit_price: parseFloat((chosen.service_price * ratio).toFixed(2)),
+              quantity: chosen.quantity,
+              employee_ids: (componentEmployees[idx] || []).filter(Boolean),
+              employee_id: null,
+              discount_percent: useAmount ? 0 : (d?.percent ?? 0),
+              discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
+              star_points: getPackageServiceStarPoints(chosen),
+              source_package_id: pkg.id,
+              source_package_name: pkg.name,
+              source_individual_price: totalIndividualPrice,
+              package_group_id: groupId,
+              is_multi_employee: chosen.is_multi_employee ?? false,
+              employee_count: chosen.employee_count ?? null,
+              item_status: 'completed',
+            })
+            idx += 1
+          }
+        })
+        setCartItems([...cartItems, ...expanded])
       } else {
         // Flat package — parse name by "+" to extract components
-        const packagePrice = parseFloat(itemPrice)
+        const totalIndividualPrice = pkg.individual_price || 0
+        const packagePrice = parseFloat(itemPrice) || totalIndividualPrice
         const components = pkg.name
           .split('+')
           .map((s) => s.trim())
@@ -265,6 +353,8 @@ function BillCreatePage() {
 
         if (components.length <= 1) {
           // Single component or unparseable — add as single item
+          const d = addPackageServiceDiscounts[0]
+          const useAmount = d?.amount && parseFloat(d.amount) > 0
           setCartItems([
             ...cartItems,
             {
@@ -276,36 +366,46 @@ function BillCreatePage() {
               quantity: 1,
               employee_ids: componentEmployees[0] || [],
               employee_id: null,
-              discount_percent: 0,
+              discount_percent: useAmount ? 0 : (d?.percent ?? 0),
+              discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
               source_package_name: pkg.name,
+              source_individual_price: totalIndividualPrice,
               package_group_id: flatGroupId,
+              item_status: 'completed',
             },
           ])
         } else {
-          // Split price equally across components
+          // Split price equally across components — discount per component
           const pricePerComponent = parseFloat((packagePrice / components.length).toFixed(2))
           const lastPrice = parseFloat(
             (packagePrice - pricePerComponent * (components.length - 1)).toFixed(2)
           )
 
-          const expandedItems = components.map((name, idx) => ({
-            cart_id: crypto.randomUUID(),
-            item_type: 'package',
-            package_id: selectedItemId,
-            item_name: name,
-            unit_price: idx === components.length - 1 ? lastPrice : pricePerComponent,
-            quantity: 1,
-            employee_ids: componentEmployees[idx] || [],
-            employee_id: null,
-            discount_percent: 0,
-            source_package_name: pkg.name,
-            package_group_id: flatGroupId,
-          }))
-
+          const expandedItems = components.map((name, idx) => {
+            const d = addPackageServiceDiscounts[idx]
+            const useAmount = d?.amount && parseFloat(d.amount) > 0
+            return {
+              cart_id: crypto.randomUUID(),
+              item_type: 'package',
+              package_id: selectedItemId,
+              item_name: name,
+              unit_price: idx === components.length - 1 ? lastPrice : pricePerComponent,
+              quantity: 1,
+              employee_ids: componentEmployees[idx] || [],
+              employee_id: null,
+              discount_percent: useAmount ? 0 : (d?.percent ?? 0),
+              discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
+              source_package_name: pkg.name,
+              source_individual_price: totalIndividualPrice,
+              package_group_id: flatGroupId,
+              item_status: 'completed',
+            }
+          })
           setCartItems([...cartItems, ...expandedItems])
         }
       }
     } else if (selectedCategory === 'services') {
+      const empIds = (componentEmployees[0] || []).filter(Boolean)
       setCartItems([
         ...cartItems,
         {
@@ -315,9 +415,14 @@ function BillCreatePage() {
           item_name: selectedItem?.name || '',
           unit_price: parseFloat(itemPrice),
           quantity: itemQuantity,
-          employee_ids: componentEmployees[0] || [],
+          employee_ids: empIds,
           employee_id: null,
-          discount_percent: 0,
+          star_points: selectedItem?.star_points ?? 0,
+          discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
+          discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
+          is_multi_employee: selectedItem?.is_multi_employee ?? false,
+          employee_count: selectedItem?.employee_count ?? null,
+          item_status: 'completed',
         },
       ])
     } else if (selectedCategory === 'products') {
@@ -330,9 +435,11 @@ function BillCreatePage() {
           item_name: selectedItem?.name || '',
           unit_price: parseFloat(itemPrice),
           quantity: itemQuantity,
-          employee_ids: componentEmployees[0] || [],
+          employee_ids: (componentEmployees[0] || []).filter(Boolean),
           employee_id: null,
-          discount_percent: 0,
+          discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
+          discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
+          item_status: 'completed',
         },
       ])
     }
@@ -341,12 +448,34 @@ function BillCreatePage() {
     setSelectedItemId(null)
     setItemPrice('')
     setItemQuantity(1)
+    setAddDiscountPercent(0)
+    setAddDiscountAmount('')
+    setAddPackageServiceDiscounts({})
     setComponentEmployees({})
   }
 
   const updateCartItem = (index, field, value) => {
     setCartItems((items) =>
       items.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    )
+  }
+
+  const toggleItemPending = (index) => {
+    setCartItems((items) =>
+      items.map((item, i) =>
+        i === index
+          ? { ...item, item_status: item.item_status === 'pending' ? 'completed' : 'pending' }
+          : item
+      )
+    )
+  }
+
+  const setPackageGroupPending = (groupId, pending) => {
+    const nextStatus = pending ? 'pending' : 'completed'
+    setCartItems((items) =>
+      items.map((item) =>
+        item.package_group_id === groupId ? { ...item, item_status: nextStatus } : item
+      )
     )
   }
 
@@ -361,9 +490,40 @@ function BillCreatePage() {
   const updatePackageGroupDiscount = (groupId, discountPercent) => {
     setCartItems((items) =>
       items.map((item) =>
-        item.package_group_id === groupId ? { ...item, discount_percent: discountPercent } : item
+        item.package_group_id === groupId
+          ? { ...item, discount_percent: discountPercent, discount_amount_override: undefined }
+          : item
       )
     )
+  }
+
+  const updatePackageGroupDiscountAmount = (groupId, amount) => {
+    const num = parseFloat(amount)
+    if (!Number.isFinite(num) || num <= 0) {
+      setCartItems((items) =>
+        items.map((item) =>
+          item.package_group_id === groupId
+            ? { ...item, discount_amount_override: undefined }
+            : item
+        )
+      )
+      return
+    }
+    setCartItems((items) => {
+      const groupItems = items.filter((i) => i.package_group_id === groupId)
+      const groupSubtotal = groupItems.reduce((s, gi) => s + gi.unit_price * gi.quantity, 0)
+      const totalAmount = Math.min(num, groupSubtotal)
+      return items.map((item) => {
+        if (item.package_group_id !== groupId) return item
+        const itemSubtotal = item.unit_price * item.quantity
+        const proportion = groupSubtotal > 0 ? itemSubtotal / groupSubtotal : 0
+        return {
+          ...item,
+          discount_amount_override: totalAmount * proportion,
+          discount_percent: 0,
+        }
+      })
+    })
   }
 
   // Group cart items: packages grouped together, standalone items separate
@@ -377,14 +537,27 @@ function BillCreatePage() {
         const groupItems = cartItems
           .map((ci, i) => ({ ...ci, _index: i }))
           .filter((ci) => ci.package_group_id === item.package_group_id)
-        const groupTotal = groupItems.reduce((sum, gi) => sum + gi.unit_price * gi.quantity, 0)
+        const groupSubtotal = groupItems.reduce((sum, gi) => sum + gi.unit_price * gi.quantity, 0)
+        const groupDiscountTotal = groupItems.reduce(
+          (sum, gi) => sum + getItemDiscount(gi),
+          0
+        )
+        const groupTotal = groupSubtotal - groupDiscountTotal
+        const groupIndividualPrice = groupItems[0]?.source_individual_price
+        const groupSavings = groupIndividualPrice != null && groupIndividualPrice > groupTotal
+          ? groupIndividualPrice - groupTotal
+          : 0
         groups.push({
           type: 'package',
           package_group_id: item.package_group_id,
           package_name: item.source_package_name,
           items: groupItems,
           total: groupTotal,
+          groupSubtotal: groupSubtotal,
+          groupDiscountTotal,
           discount_percent: groupItems[0]?.discount_percent || 0,
+          individual_price: groupIndividualPrice,
+          savings: groupSavings,
         })
       } else {
         groups.push({ type: 'single', item, index })
@@ -470,14 +643,18 @@ function BillCreatePage() {
         package_id: item.package_id || null,
         product_id: item.product_id || null,
         employee_id: null,
-        employee_ids: item.employee_ids.length > 0 ? item.employee_ids : null,
+        employee_ids: (item.employee_ids || []).filter(Boolean).length > 0 ? (item.employee_ids || []).filter(Boolean) : null,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        discount_amount: parseFloat(
-          ((item.unit_price * item.quantity * (item.discount_percent || 0)) / 100).toFixed(2)
-        ),
-        discount_percentage: item.discount_percent || 0,
+        discount_amount: parseFloat(getItemDiscount(item).toFixed(2)),
+        discount_percentage:
+          item.unit_price * item.quantity > 0
+            ? parseFloat(
+                ((getItemDiscount(item) / (item.unit_price * item.quantity)) * 100).toFixed(2)
+              )
+            : 0,
         notes: item.source_package_name ? item.item_name : null,
+        status: item.item_status === 'pending' ? 'pending' : 'completed',
       })),
       payments: validPayments.map((p) => ({
         payment_mode: p.payment_mode,
@@ -503,6 +680,16 @@ function BillCreatePage() {
     setCartItems([])
   }, [selectedBranch])
 
+  // Default OR group selections when a package with service_groups is selected (e.g. after branch switch)
+  useEffect(() => {
+    if (selectedCategory !== 'packages' || !selectedItemId || !selectedItem?.service_groups?.length) return
+    const current = packageGroupSelections[selectedItemId] || []
+    const defaults = selectedItem.service_groups.map((g, i) => current[i] ?? g.services?.[0]?.service_id ?? null)
+    if (defaults.some((d, i) => d !== current[i])) {
+      setPackageGroupSelections((prev) => ({ ...prev, [selectedItemId]: defaults }))
+    }
+  }, [selectedCategory, selectedItemId, selectedItem?.service_groups, packageGroupSelections])
+
   // Auto-set payment amount when total changes (single payment)
   useEffect(() => {
     if (payments.length === 1 && totalAmount >= 0) {
@@ -514,7 +701,7 @@ function BillCreatePage() {
   const todayStr = new Date().toISOString().split('T')[0]
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] gap-4">
+    <div className="flex flex-col h-[calc(100vh-5rem)] gap-4 min-h-0">
       {/* Back button + title */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/bills')}>
@@ -682,6 +869,7 @@ function BillCreatePage() {
                   {itemOptions.map((opt) => (
                     <option key={opt.id} value={opt.id}>
                       {opt.description ? `[${opt.description}] ` : ''}{opt.name} - {formatCurrency(opt.price)}
+                      {selectedCategory === 'services' && opt.star_points != null && opt.star_points > 0 ? ` (⭐ ${opt.star_points})` : ''}
                     </option>
                   ))}
                 </select>
@@ -692,10 +880,16 @@ function BillCreatePage() {
                 <div className="p-4 bg-gray-50 rounded-lg space-y-3 border">
                   <div>
                     <div className="font-semibold text-lg">{selectedItem.name}</div>
-                    {selectedCategory === 'services' && selectedItem.category && (
-                      <div className="text-sm text-gray-500">
-                        Category: {selectedItem.category}
-                        {selectedItem.duration && ` | Duration: ${selectedItem.duration} min`}
+                    {selectedCategory === 'services' && (
+                      <div className="text-sm text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        {selectedItem.category && <span>Category: {selectedItem.category}</span>}
+                        {selectedItem.duration != null && <span>Duration: {selectedItem.duration} min</span>}
+                        {(selectedItem.star_points ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 text-amber-600">
+                            <Star className="h-3.5 w-3.5 fill-amber-500" />
+                            {selectedItem.star_points} stars
+                          </span>
+                        )}
                       </div>
                     )}
                     {selectedCategory === 'products' && (
@@ -705,21 +899,31 @@ function BillCreatePage() {
                       </div>
                     )}
                     {selectedCategory === 'packages' && (
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-gray-500 space-y-1">
                         {selectedItem.description && (
                           <span className="text-primary font-medium">{selectedItem.description}</span>
                         )}
-                        {selectedItem.savings > 0 && (
-                          <span className="text-green-600 ml-2">
-                            Save {formatCurrency(selectedItem.savings)}
-                          </span>
+                        {selectedItem.service_groups?.length > 0 && (
+                          <p className="text-amber-700 font-medium">
+                            Choose one service per group below before adding to cart.
+                          </p>
                         )}
+                        {(() => {
+                          const ind = selectedItem.individual_price || 0
+                          const current = parseFloat(itemPrice) || 0
+                          const savings = ind - current
+                          return savings > 0 ? (
+                            <span className="text-green-600 ml-2">
+                              Save {formatCurrency(savings)}
+                            </span>
+                          ) : null
+                        })()}
                       </div>
                     )}
                   </div>
 
-                  <div className="flex gap-3">
-                    <div className="flex-1">
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex-1 min-w-[100px]">
                       <Label className="mb-1 block text-sm">Price</Label>
                       <Input
                         type="number"
@@ -739,44 +943,320 @@ function BillCreatePage() {
                         />
                       </div>
                     )}
+                    <div className="w-24">
+                      <Label className="mb-1 block text-sm">Discount %</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={addDiscountPercent || ''}
+                        onChange={(e) => {
+                          setAddDiscountPercent(
+                            Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                          )
+                          setAddDiscountAmount('')
+                        }}
+                      />
+                    </div>
+                    <div className="w-24">
+                      <Label className="mb-1 block text-sm">Discount ₹</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        value={addDiscountAmount}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setAddDiscountAmount(v)
+                          if (parseFloat(v) > 0) setAddDiscountPercent(0)
+                        }}
+                      />
+                    </div>
                   </div>
 
-                  {/* Package services list with employee assignment */}
-                  {selectedCategory === 'packages' && selectedItem.services?.length > 0 && (
-                    <div className="text-sm">
-                      <p className="font-medium text-gray-700 mb-2">Services & Employee Assignment:</p>
-                      <div className="space-y-2">
-                        {selectedItem.services.map((ps, idx) => (
-                          <div key={ps.service_id} className="flex items-center gap-2 p-2 bg-white rounded border">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-gray-700 truncate">{ps.service_name}</div>
-                              <div className="text-xs text-gray-400">x{ps.quantity} - {formatCurrency(ps.service_price)}</div>
-                            </div>
+                  {/* OR groups: choose one service per group — show first so it's always visible */}
+                  {selectedCategory === 'packages' && selectedItem.service_groups?.length > 0 && (
+                    <div className="text-sm space-y-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="font-semibold text-amber-800">Choose one option per group</p>
+                      <p className="text-xs text-amber-700">Select one service from each group below. You must pick one per group before adding to cart.</p>
+                      {selectedItem.service_groups.map((group, groupIdx) => {
+                        const selectedId = (packageGroupSelections[selectedItemId] || [])[groupIdx]
+                        const groupServices = group.services || []
+                        return (
+                          <div key={group.group_id || groupIdx} className="p-2 bg-white rounded border border-amber-100">
+                            <Label className="text-xs font-medium text-gray-700">{group.group_label || `Group ${groupIdx + 1}`}</Label>
                             <select
-                              className="h-8 px-2 text-xs border rounded-md min-w-[120px]"
-                              value={(componentEmployees[idx] || [])[0] || ''}
+                              className="mt-1.5 w-full h-9 px-2 border rounded-md text-sm border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                              value={selectedId || ''}
                               onChange={(e) => {
-                                setComponentEmployees((prev) => ({
-                                  ...prev,
-                                  [idx]: e.target.value ? [e.target.value] : [],
-                                }))
+                                const sid = e.target.value || null
+                                setPackageGroupSelections((prev) => {
+                                  const arr = [...(prev[selectedItemId] || [])]
+                                  while (arr.length <= groupIdx) arr.push(null)
+                                  arr[groupIdx] = sid
+                                  return { ...prev, [selectedItemId]: arr }
+                                })
                               }}
                             >
-                              <option value="">Employee</option>
-                              {employees.map((emp) => (
-                                <option key={emp.employee_id} value={emp.employee_id}>
-                                  {emp.full_name}
+                              <option value="">— Select one —</option>
+                              {groupServices.map((s) => (
+                                <option key={s.service_id} value={s.service_id}>
+                                  {s.service_name} — {formatCurrency(s.service_price)}
                                 </option>
                               ))}
                             </select>
                           </div>
-                        ))}
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Package services list with employee assignment */}
+                  {selectedCategory === 'packages' && selectedItem.services?.length > 0 && (
+                    <div className="text-sm">
+                      <p className="font-medium text-gray-700 mb-2">Services — discount & employees (per service):</p>
+                      <div className="space-y-2">
+                        {selectedItem.services.map((ps, idx) => {
+                          const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                          const d = addPackageServiceDiscounts[idx] || { percent: 0, amount: '' }
+                          return (
+                            <div key={ps.service_id} className="p-2 bg-white rounded border space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="min-w-0">
+                                  <div className="text-gray-700 truncate flex items-center gap-1.5 flex-wrap">
+                                    {ps.service_name}
+                                    <span className="inline-flex items-center text-amber-600 text-xs shrink-0">
+                                      <Star className="h-3 w-3 fill-amber-500" />
+                                      {getPackageServiceStarPoints(ps)}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-400">x{ps.quantity} - {formatCurrency(ps.service_price)}</div>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-500">Discount %</span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.5"
+                                    className="h-7 w-14 text-xs px-1.5"
+                                    value={d.amount ? '' : (d.percent ?? '')}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                      setAddPackageServiceDiscounts((prev) => ({
+                                        ...prev,
+                                        [idx]: { ...prev[idx], percent: v, amount: '' },
+                                      }))
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-500">Discount ₹</span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    className="h-7 w-14 text-xs px-1.5"
+                                    value={d.amount}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const v = e.target.value
+                                      setAddPackageServiceDiscounts((prev) => ({
+                                        ...prev,
+                                        [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
+                                      }))
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {slots.map((_, slotIdx) => (
+                                  <div key={slotIdx} className="flex items-center gap-1">
+                                    <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
+                                    <select
+                                      className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
+                                      value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                      onChange={(e) => {
+                                        const current = [...(componentEmployees[idx] || [])]
+                                        while (current.length <= slotIdx) current.push('')
+                                        current[slotIdx] = e.target.value || ''
+                                        setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                      }}
+                                    >
+                                      <option value="">—</option>
+                                      {employees.map((emp) => (
+                                        <option key={emp.employee_id} value={emp.employee_id}>
+                                          {emp.full_name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
+                                      onClick={() => {
+                                        const current = [...(componentEmployees[idx] || [])]
+                                        const next = current.filter((_, i) => i !== slotIdx)
+                                        setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
+                                      }}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ))}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  onClick={() => {
+                                    const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                                    setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                                  }}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" /> Add
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
+
+                  {/* OR group selections: discount & employees for chosen service per group */}
+                  {selectedCategory === 'packages' &&
+                    selectedItem.service_groups?.length > 0 &&
+                    (() => {
+                      const standaloneLen = (selectedItem.services || []).length
+                      return (
+                        <div className="text-sm">
+                          <p className="font-medium text-gray-700 mb-2">OR group choices — discount & employees:</p>
+                          <div className="space-y-2">
+                            {selectedItem.service_groups.map((group, groupIdx) => {
+                              const selectedId = (packageGroupSelections[selectedItemId] || [])[groupIdx]
+                              const chosen = (group.services || []).find((s) => s.service_id === selectedId)
+                              const idx = standaloneLen + groupIdx
+                              const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                              const d = addPackageServiceDiscounts[idx] || { percent: 0, amount: '' }
+                              if (!chosen) return null
+                              return (
+                                <div key={group.group_id || groupIdx} className="p-2 bg-white rounded border space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="min-w-0">
+                                      <div className="text-gray-700 truncate flex items-center gap-1.5 flex-wrap">
+                                        {chosen.service_name}
+                                        <span className="text-xs text-gray-400">({group.group_label})</span>
+                                      </div>
+                                      <div className="text-xs text-gray-400">x{chosen.quantity} — {formatCurrency(chosen.service_price)}</div>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-500">Discount %</span>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.5"
+                                        className="h-7 w-14 text-xs px-1.5"
+                                        value={d.amount ? '' : (d.percent ?? '')}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                          setAddPackageServiceDiscounts((prev) => ({
+                                            ...prev,
+                                            [idx]: { ...prev[idx], percent: v, amount: '' },
+                                          }))
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-500">Discount ₹</span>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        className="h-7 w-14 text-xs px-1.5"
+                                        value={d.amount}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const v = e.target.value
+                                          setAddPackageServiceDiscounts((prev) => ({
+                                            ...prev,
+                                            [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
+                                          }))
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {slots.map((_, slotIdx) => (
+                                      <div key={slotIdx} className="flex items-center gap-1">
+                                        <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
+                                        <select
+                                          className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
+                                          value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                          onChange={(e) => {
+                                            const current = [...(componentEmployees[idx] || [])]
+                                            while (current.length <= slotIdx) current.push('')
+                                            current[slotIdx] = e.target.value || ''
+                                            setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                          }}
+                                        >
+                                          <option value="">—</option>
+                                          {employees.map((emp) => (
+                                            <option key={emp.employee_id} value={emp.employee_id}>
+                                              {emp.full_name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
+                                          onClick={() => {
+                                            const current = [...(componentEmployees[idx] || [])]
+                                            const next = current.filter((_, i) => i !== slotIdx)
+                                            setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
+                                          }}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs"
+                                      onClick={() => {
+                                        const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                                        setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                                      }}
+                                    >
+                                      <Plus className="h-3 w-3 mr-1" /> Add
+                                    </Button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                   {/* Flat package — show parsed components with employee assignment */}
                   {selectedCategory === 'packages' &&
-                    (!selectedItem.services || selectedItem.services.length === 0) && (() => {
+                    (!selectedItem.services || selectedItem.services.length === 0) &&
+                    !(selectedItem.service_groups?.length > 0) && (() => {
                       const components = selectedItem.name
                         .split('+')
                         .map((s) => s.trim())
@@ -784,55 +1264,168 @@ function BillCreatePage() {
                       if (components.length === 0) return null
                       return (
                         <div className="text-sm">
-                          <p className="font-medium text-gray-700 mb-2">Services & Employee Assignment:</p>
+                          <p className="font-medium text-gray-700 mb-2">Components — discount & employees (per item):</p>
                           <div className="space-y-2">
-                            {components.map((name, idx) => (
-                              <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded border">
-                                <div className="flex-1 min-w-0 text-gray-700 truncate">{name}</div>
-                                <select
-                                  className="h-8 px-2 text-xs border rounded-md min-w-[120px]"
-                                  value={(componentEmployees[idx] || [])[0] || ''}
-                                  onChange={(e) => {
-                                    setComponentEmployees((prev) => ({
-                                      ...prev,
-                                      [idx]: e.target.value ? [e.target.value] : [],
-                                    }))
-                                  }}
-                                >
-                                  <option value="">Employee</option>
-                                  {employees.map((emp) => (
-                                    <option key={emp.employee_id} value={emp.employee_id}>
-                                      {emp.full_name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            ))}
+                            {components.map((name, idx) => {
+                              const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                              const d = addPackageServiceDiscounts[idx] || { percent: 0, amount: '' }
+                              return (
+                                <div key={idx} className="p-2 bg-white rounded border space-y-2">
+                                  <div className="text-gray-700 truncate font-medium">{name}</div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-500">%</span>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.5"
+                                        className="h-7 w-14 text-xs px-1.5"
+                                        value={d.amount ? '' : (d.percent ?? '')}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                          setAddPackageServiceDiscounts((prev) => ({
+                                            ...prev,
+                                            [idx]: { ...prev[idx], percent: v, amount: '' },
+                                          }))
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-gray-500">₹</span>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        className="h-7 w-14 text-xs px-1.5"
+                                        value={d.amount}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const v = e.target.value
+                                          setAddPackageServiceDiscounts((prev) => ({
+                                            ...prev,
+                                            [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
+                                          }))
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {slots.map((_, slotIdx) => (
+                                      <div key={slotIdx} className="flex items-center gap-1">
+                                        <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
+                                        <select
+                                          className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
+                                          value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                          onChange={(e) => {
+                                            const current = [...(componentEmployees[idx] || [])]
+                                            while (current.length <= slotIdx) current.push('')
+                                            current[slotIdx] = e.target.value || ''
+                                            setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                          }}
+                                        >
+                                          <option value="">—</option>
+                                          {employees.map((emp) => (
+                                            <option key={emp.employee_id} value={emp.employee_id}>
+                                              {emp.full_name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 shrink-0 text-red-500"
+                                          onClick={() => {
+                                            const current = [...(componentEmployees[idx] || [])]
+                                            const next = current.filter((_, i) => i !== slotIdx)
+                                            setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
+                                          }}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs"
+                                      onClick={() => {
+                                        const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                                        setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                                      }}
+                                    >
+                                      <Plus className="h-3 w-3 mr-1" /> Add
+                                    </Button>
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       )
                     })()}
 
-                  {/* Employee selector for single service/product */}
+                  {/* Employee selector for single service/product — multiple employees allowed for any item */}
                   {selectedCategory !== 'packages' && (
                     <div>
-                      <Label className="mb-1 block text-sm">Assign Employee (optional)</Label>
-                      <select
-                        className="w-full h-9 px-3 text-sm border rounded-md"
-                        value={(componentEmployees[0] || [])[0] || ''}
-                        onChange={(e) => {
-                          setComponentEmployees({
-                            0: e.target.value ? [e.target.value] : [],
-                          })
-                        }}
-                      >
-                        <option value="">-- None --</option>
-                        {employees.map((emp) => (
-                          <option key={emp.employee_id} value={emp.employee_id}>
-                            {emp.full_name}
-                          </option>
+                      <Label className="mb-1 block text-sm">
+                        Assign Employee(s) (optional)
+                      </Label>
+                      <div className="space-y-2">
+                        {((componentEmployees[0] || []).length ? componentEmployees[0] : ['']).map((_, slotIdx) => (
+                          <div key={slotIdx} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 w-20 shrink-0">
+                              Employee {slotIdx + 1}
+                            </span>
+                            <select
+                              className="flex-1 h-9 px-3 text-sm border rounded-md min-w-0"
+                              value={((componentEmployees[0] || [])[slotIdx] || '').toString()}
+                              onChange={(e) => {
+                                const current = [...(componentEmployees[0] || [])]
+                                while (current.length <= slotIdx) current.push('')
+                                current[slotIdx] = e.target.value || ''
+                                setComponentEmployees({ 0: current })
+                              }}
+                            >
+                              <option value="">-- None --</option>
+                              {employees.map((emp) => (
+                                <option key={emp.employee_id} value={emp.employee_id}>
+                                  {emp.full_name}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => {
+                                const current = [...(componentEmployees[0] || [])]
+                                const next = current.filter((_, i) => i !== slotIdx)
+                                setComponentEmployees({ 0: next.length ? next : [''] })
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         ))}
-                      </select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            setComponentEmployees({
+                              0: [...((componentEmployees[0] || []).length ? componentEmployees[0] : ['']), ''],
+                            })
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1" /> Add employee
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -846,18 +1439,52 @@ function BillCreatePage() {
           </Card>
         </div>
 
-        {/* Right Panel - Cart */}
-        <div className="w-[420px] flex flex-col">
+        {/* Right Panel - Cart (collapsible sidebar) */}
+        <div
+          className={`flex flex-col flex-shrink-0 transition-[width] duration-200 ease-in-out ${
+            cartCollapsed ? 'w-14' : 'w-[420px]'
+          }`}
+        >
           <Card className="flex-1 overflow-hidden flex flex-col">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <ShoppingCart className="h-5 w-5" />
-                  Cart
-                </span>
-                <Badge variant="secondary">{cartItems.length} items</Badge>
-              </CardTitle>
+            <CardHeader className="pb-2 flex flex-row items-center gap-0 p-0 min-h-0">
+              {cartCollapsed ? (
+                <div className="flex flex-col items-center w-14 py-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCartCollapsed(false)}
+                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Expand cart"
+                  >
+                    <ChevronLeft className="h-5 w-5 text-gray-600" />
+                  </button>
+                  <ShoppingCart className="h-5 w-5 text-gray-600" />
+                  <Badge variant="secondary" className="text-xs w-6 h-6 flex items-center justify-center p-0">
+                    {cartItems.length}
+                  </Badge>
+                </div>
+              ) : (
+                <>
+                  <CardTitle className="flex items-center justify-between flex-1 py-3 px-4">
+                    <span className="flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5" />
+                      Cart
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{cartItems.length} items</Badge>
+                      <button
+                        type="button"
+                        onClick={() => setCartCollapsed(true)}
+                        className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                        title="Collapse cart"
+                      >
+                        <ChevronRight className="h-5 w-5 text-gray-600" />
+                      </button>
+                    </div>
+                  </CardTitle>
+                </>
+              )}
             </CardHeader>
+            {!cartCollapsed && (
             <CardContent className="flex-1 overflow-auto p-4">
               {cartItems.length === 0 ? (
                 <div className="text-center py-10 text-gray-500">
@@ -869,26 +1496,49 @@ function BillCreatePage() {
                 <div className="space-y-2">
                   {groupedCart.map((group) => {
                     if (group.type === 'package') {
-                      // Package group
+                      // Package group — discount per service, not on package
                       return (
                         <div
                           key={group.package_group_id}
                           className="bg-gray-50 rounded-lg border overflow-hidden"
                         >
-                          <div className="flex justify-between items-center p-3 bg-gray-100">
+                          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-100">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <Package className="h-4 w-4 text-primary flex-shrink-0" />
                               <span className="font-medium text-sm truncate">
                                 {group.package_name}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                              {group.items.every((gi) => gi.item_status === 'pending') ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => setPackageGroupPending(group.package_group_id, false)}
+                                >
+                                  Mark done
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs text-amber-700 border-amber-300"
+                                  onClick={() => setPackageGroupPending(group.package_group_id, true)}
+                                >
+                                  Mark pending
+                                </Button>
+                              )}
+                              {group.savings > 0 && (
+                                <span className="text-xs text-green-600 font-medium">
+                                  Save {formatCurrency(group.savings)}
+                                </span>
+                              )}
                               <span className="font-bold text-sm">
                                 {formatCurrency(group.total)}
                               </span>
-                              {group.discount_percent > 0 && (
-                                <span className="text-xs text-red-500">-{group.discount_percent}%</span>
-                              )}
                               <button
                                 className="p-1 hover:bg-gray-200 rounded"
                                 onClick={() => {
@@ -907,77 +1557,259 @@ function BillCreatePage() {
                               </button>
                             </div>
                           </div>
-                          <div className="px-3 py-2 space-y-1">
-                            {group.items.map((gi) => (
-                              <div key={gi.cart_id} className="flex items-center justify-between text-xs text-gray-600">
-                                <span className="truncate flex-1">{gi.item_name}</span>
-                                {gi.employee_ids.length > 0 && (
-                                  <div className="flex gap-1 ml-2">
-                                    {gi.employee_ids.map((eid) => {
-                                      const emp = employees.find((e) => e.employee_id === eid)
-                                      return (
-                                        <Badge key={eid} variant="secondary" className="text-[10px] px-1 py-0">
-                                          {emp?.full_name || '?'}
-                                        </Badge>
-                                      )
-                                    })}
+                          <div className="px-3 py-2 space-y-2">
+                            <p className="text-[10px] text-gray-500 px-1">
+                              Mark whole package above, or mark each service below:
+                            </p>
+                            {group.items.map((gi) => {
+                              const lineTotal = gi.unit_price * gi.quantity
+                              const lineDiscount = getItemDiscount(gi)
+                              const lineNet = lineTotal - lineDiscount
+                              return (
+                                <div
+                                  key={gi.cart_id}
+                                  className="p-2 bg-white rounded border text-xs"
+                                >
+                                  <div className="font-medium text-gray-700 truncate mb-1.5 flex items-center gap-1.5 flex-wrap">
+                                    {gi.item_name}
+                                    <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
+                                      <Star className="h-3 w-3 fill-amber-500" />
+                                      {gi.star_points ?? gi.starPoints ?? 0}
+                                    </span>
                                   </div>
-                                )}
-                              </div>
-                            ))}
+                                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                                    <span className="text-gray-400 text-[10px]">This service:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleItemPending(gi._index)}
+                                      className={`shrink-0 text-xs px-2 py-1 rounded border font-medium ${
+                                        gi.item_status === 'pending'
+                                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                          : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
+                                      }`}
+                                    >
+                                      {gi.item_status === 'pending' ? 'Pending' : 'Done'}
+                                    </button>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                    <span className="text-gray-500">
+                                      {formatCurrency(gi.unit_price)} × {gi.quantity}
+                                    </span>
+                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                      <span className="text-gray-400">%</span>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.5"
+                                        className="h-6 w-12 text-xs px-1"
+                                        value={gi.discount_amount_override != null ? '' : (gi.discount_percent ?? '')}
+                                        placeholder={gi.discount_amount_override != null ? '—' : '0'}
+                                        onChange={(e) => {
+                                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                          setCartItems((items) =>
+                                            items.map((it, i) =>
+                                              i === gi._index
+                                                ? { ...it, discount_percent: v, discount_amount_override: undefined }
+                                                : it
+                                            )
+                                          )
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                      <span className="text-gray-400">₹</span>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        className="h-6 w-12 text-xs px-1"
+                                        value={gi.discount_amount_override != null ? gi.discount_amount_override : ''}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const v = e.target.value
+                                          const num = parseFloat(v)
+                                          setCartItems((items) =>
+                                            items.map((it, i) =>
+                                              i === gi._index
+                                                ? {
+                                                    ...it,
+                                                    discount_amount_override:
+                                                      v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
+                                                    discount_percent: v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
+                                                  }
+                                                : it
+                                            )
+                                          )
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="font-semibold text-gray-800">
+                                      {formatCurrency(lineNet)}
+                                      {lineDiscount > 0 && (
+                                        <span className="text-red-500 font-normal ml-0.5">
+                                          (-{formatCurrency(lineDiscount)})
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                  {gi.employee_ids?.length > 0 && (
+                                    <div className="flex gap-1 flex-wrap mt-1">
+                                      {gi.employee_ids.map((eid) => {
+                                        const emp = employees.find((e) => e.employee_id === eid)
+                                        return (
+                                          <Badge key={eid} variant="secondary" className="text-[10px] px-1 py-0">
+                                            {emp?.full_name || '?'}
+                                          </Badge>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       )
                     }
 
-                    // Single item
+                    // Single item — line shows price, qty, discount % or ₹ (editable), total
                     const { item, index } = group
+                    const lineTotal = item.unit_price * item.quantity
+                    const lineDiscount = getItemDiscount(item)
+                    const lineNet = lineTotal - lineDiscount
                     return (
                       <div
                         key={item.cart_id}
-                        className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors group/item"
-                        onClick={() => {
-                          setEditingItemIndex(index)
-                          setEditingPackageGroupId(null)
-                          setEditModalOpen(true)
-                        }}
+                        className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group/item"
                       >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm truncate">{item.item_name}</div>
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {formatCurrency(item.unit_price)} x {item.quantity}
-                            </div>
+                        <div className="font-medium text-sm truncate mb-2 flex items-center gap-1.5 flex-wrap">
+                          {item.item_name}
+                          {(item.star_points ?? 0) > 0 && (
+                            <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
+                              <Star className="h-3 w-3 fill-amber-500" />
+                              {item.star_points}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleItemPending(index)}
+                            className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${
+                              item.item_status === 'pending'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-amber-50'
+                            }`}
+                          >
+                            {item.item_status === 'pending' ? 'Pending' : 'Done'}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                          <span className="text-gray-500">
+                            {formatCurrency(item.unit_price)} × {item.quantity}
+                          </span>
+                          <span className="text-gray-400">|</span>
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-gray-500 text-xs">%</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.5"
+                              className="h-7 w-14 text-xs px-1.5"
+                              value={item.discount_amount_override != null ? '' : (item.discount_percent ?? '')}
+                              placeholder={item.discount_amount_override != null ? '—' : '0'}
+                              onChange={(e) => {
+                                const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                setCartItems((items) =>
+                                  items.map((it, i) =>
+                                    i === index
+                                      ? { ...it, discount_percent: v, discount_amount_override: undefined }
+                                      : it
+                                  )
+                                )
+                              }}
+                            />
                           </div>
-                          <div className="text-right flex-shrink-0">
-                            <div className="font-bold text-sm">
-                              {formatCurrency(item.unit_price * item.quantity)}
-                            </div>
-                            {item.discount_percent > 0 && (
-                              <div className="text-xs text-red-500">-{item.discount_percent}%</div>
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-gray-500 text-xs">₹</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              className="h-7 w-14 text-xs px-1.5"
+                              value={item.discount_amount_override != null ? item.discount_amount_override : ''}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const v = e.target.value
+                                const num = parseFloat(v)
+                                setCartItems((items) =>
+                                  items.map((it, i) =>
+                                    i === index
+                                      ? {
+                                          ...it,
+                                          discount_amount_override:
+                                            v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
+                                          discount_percent:
+                                            v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
+                                        }
+                                      : it
+                                  )
+                                )
+                              }}
+                            />
+                          </div>
+                          <span className="font-semibold">
+                            {formatCurrency(lineNet)}
+                            {lineDiscount > 0 && (
+                              <span className="text-xs text-red-500 font-normal ml-1">
+                                (-{formatCurrency(lineDiscount)})
+                              </span>
                             )}
-                            <Pencil className="h-3.5 w-3.5 text-gray-400 ml-auto mt-1 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5">
+                          {item.employee_ids?.length > 0 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {item.employee_ids.map((eid) => {
+                                const emp = employees.find((e) => e.employee_id === eid)
+                                return (
+                                  <Badge key={eid} variant="secondary" className="text-xs">
+                                    {emp?.full_name || 'Unknown'}
+                                  </Badge>
+                                )
+                              })}
+                            </div>
+                          ) : (
+                            <span />
+                          )}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              className="p-1 hover:bg-gray-200 rounded"
+                              onClick={() => {
+                                setEditingItemIndex(index)
+                                setEditingPackageGroupId(null)
+                                setEditModalOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1 hover:bg-red-100 rounded"
+                              onClick={() => handleRemoveItem(index)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                            </button>
                           </div>
                         </div>
-                        {item.employee_ids?.length > 0 && (
-                          <div className="mt-1.5 flex gap-1 flex-wrap">
-                            {item.employee_ids.map((eid) => {
-                              const emp = employees.find((e) => e.employee_id === eid)
-                              return (
-                                <Badge key={eid} variant="secondary" className="text-xs">
-                                  {emp?.full_name || 'Unknown'}
-                                </Badge>
-                              )
-                            })}
-                          </div>
-                        )}
                       </div>
                     )
                   })}
                 </div>
               )}
             </CardContent>
-
+            )}
           </Card>
         </div>
       </div>
@@ -1188,44 +2020,133 @@ function BillCreatePage() {
                     <span className="font-bold text-lg text-primary">{formatCurrency(pkgTotal)}</span>
                   </div>
 
-                  <div className="w-40">
-                    <Label className="mb-1 block">Discount %</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={groupItems[0]?.discount_percent || ''}
-                      onChange={(e) =>
-                        updatePackageGroupDiscount(
-                          editingPackageGroupId,
-                          Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                        )
-                      }
-                    />
-                  </div>
-
                   <div>
-                    <Label className="mb-2 block">Services & Employee Assignment</Label>
+                    <Label className="mb-2 block">Services — discount & employees (per service)</Label>
                     <div className="space-y-2 max-h-60 overflow-auto">
-                      {groupItems.map((gi) => (
-                        <div key={gi.cart_id} className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
-                          <div className="flex-1 min-w-0 text-sm truncate">{gi.item_name}</div>
-                          <select
-                            className="h-8 px-2 text-xs border rounded-md min-w-[130px]"
-                            value={(gi.employee_ids || [])[0] || ''}
-                            onChange={(e) => {
-                              updateCartItem(gi._index, 'employee_ids', e.target.value ? [e.target.value] : [])
-                            }}
-                          >
-                            <option value="">Employee</option>
-                            {employees.map((emp) => (
-                              <option key={emp.employee_id} value={emp.employee_id}>
-                                {emp.full_name}
-                              </option>
+                          {groupItems.map((gi) => {
+                        const currentIds = gi.employee_ids || []
+                        const slots = currentIds.length ? currentIds : ['']
+                        return (
+                          <div key={gi.cart_id} className="p-2 bg-gray-50 rounded border space-y-2">
+                            <div className="text-sm font-medium truncate flex items-center gap-1.5 flex-wrap">
+                              {gi.item_name}
+                              <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
+                                <Star className="h-3 w-3 fill-amber-500" />
+                                {gi.star_points ?? gi.starPoints ?? 0}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Label className="text-xs text-gray-500">Status</Label>
+                              <button
+                                type="button"
+                                onClick={() => toggleItemPending(gi._index)}
+                                className={`text-xs px-2 py-1 rounded border font-medium ${
+                                  gi.item_status === 'pending'
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
+                                }`}
+                              >
+                                {gi.item_status === 'pending' ? 'Pending' : 'Done'}
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <Label className="text-xs text-gray-500">Discount %</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  className="h-7 w-14 text-xs"
+                                  value={gi.discount_amount_override != null ? '' : (gi.discount_percent ?? '')}
+                                  placeholder={gi.discount_amount_override != null ? '—' : '0'}
+                                  onChange={(e) => {
+                                    const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                    setCartItems((items) =>
+                                      items.map((it, i) =>
+                                        i === gi._index
+                                          ? { ...it, discount_percent: v, discount_amount_override: undefined }
+                                          : it
+                                      )
+                                    )
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Label className="text-xs text-gray-500">Discount ₹</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  className="h-7 w-14 text-xs"
+                                  value={gi.discount_amount_override != null ? gi.discount_amount_override : ''}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    const v = e.target.value
+                                    const num = parseFloat(v)
+                                    setCartItems((items) =>
+                                      items.map((it, i) =>
+                                        i === gi._index
+                                          ? {
+                                              ...it,
+                                              discount_amount_override:
+                                                v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
+                                              discount_percent: v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
+                                            }
+                                          : it
+                                      )
+                                    )
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            {slots.map((eid, slotIdx) => (
+                              <div key={slotIdx} className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-16 shrink-0">E{slotIdx + 1}</span>
+                                <select
+                                  className="flex-1 h-8 px-2 text-xs border rounded-md min-w-0"
+                                  value={(currentIds[slotIdx] || '').toString()}
+                                  onChange={(e) => {
+                                    const updated = [...currentIds]
+                                    while (updated.length <= slotIdx) updated.push('')
+                                    updated[slotIdx] = e.target.value || ''
+                                    updateCartItem(gi._index, 'employee_ids', updated)
+                                  }}
+                                >
+                                  <option value="">— None —</option>
+                                  {employees.map((emp) => (
+                                    <option key={emp.employee_id} value={emp.employee_id}>
+                                      {emp.full_name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 shrink-0 text-red-500"
+                                  onClick={() => {
+                                    const updated = currentIds.filter((_, i) => i !== slotIdx)
+                                    updateCartItem(gi._index, 'employee_ids', updated.length ? updated : [])
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             ))}
-                          </select>
-                        </div>
-                      ))}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                updateCartItem(gi._index, 'employee_ids', [...currentIds, ''])
+                              }}
+                            >
+                              <Plus className="h-3 w-3 mr-1" /> Add employee
+                            </Button>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 
@@ -1254,11 +2175,17 @@ function BillCreatePage() {
                 <DialogTitle>Edit Item</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                <div className="font-medium text-lg">
+                <div className="font-medium text-lg flex items-center gap-2">
                   {cartItems[editingItemIndex]?.item_name}
+                  {(cartItems[editingItemIndex]?.star_points ?? 0) > 0 && (
+                    <span className="inline-flex items-center text-amber-600 text-sm font-normal">
+                      <Star className="h-4 w-4 fill-amber-500" />
+                      {cartItems[editingItemIndex].star_points} stars
+                    </span>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <Label className="mb-1 block">Price</Label>
                     <Input
@@ -1295,50 +2222,118 @@ function BillCreatePage() {
                       type="number"
                       min="0"
                       max="100"
-                      value={cartItems[editingItemIndex]?.discount_percent || ''}
-                      onChange={(e) =>
-                        updateCartItem(
-                          editingItemIndex,
-                          'discount_percent',
-                          Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                        )
+                      value={
+                        cartItems[editingItemIndex]?.discount_amount_override != null
+                          ? ''
+                          : (cartItems[editingItemIndex]?.discount_percent ?? '')
                       }
+                      placeholder={
+                        cartItems[editingItemIndex]?.discount_amount_override != null ? '—' : '0'
+                      }
+                      onChange={(e) => {
+                        const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                        setCartItems((items) =>
+                          items.map((it, i) =>
+                            i === editingItemIndex
+                              ? { ...it, discount_percent: v, discount_amount_override: undefined }
+                              : it
+                          )
+                        )
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-1 block">Discount ₹</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={
+                        cartItems[editingItemIndex]?.discount_amount_override != null
+                          ? cartItems[editingItemIndex].discount_amount_override
+                          : ''
+                      }
+                      placeholder="0"
+                      onChange={(e) => {
+                        const v = e.target.value
+                        const num = parseFloat(v)
+                        setCartItems((items) =>
+                          items.map((it, i) =>
+                            i === editingItemIndex
+                              ? {
+                                  ...it,
+                                  discount_amount_override:
+                                    v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
+                                  discount_percent:
+                                    v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
+                                }
+                              : it
+                          )
+                        )
+                      }}
                     />
                   </div>
                 </div>
 
-                {/* Employee assignment */}
+                {/* Employee assignment — multiple employees allowed for any item */}
                 <div>
-                  <Label className="mb-2 block">Assign Employees (optional)</Label>
-                  <div className="border rounded-md p-2 max-h-40 overflow-auto space-y-1">
-                    {employees.length === 0 ? (
-                      <p className="text-sm text-gray-500 p-1">No employees available</p>
-                    ) : (
-                      employees.map((emp) => (
-                        <label
-                          key={emp.employee_id}
-                          className="flex items-center gap-2 p-1.5 hover:bg-gray-50 rounded cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            className="rounded"
-                            checked={(
-                              cartItems[editingItemIndex]?.employee_ids || []
-                            ).includes(emp.employee_id)}
+                  <Label className="mb-2 block">
+                    Assign Employee(s) (optional)
+                  </Label>
+                  {employees.length === 0 ? (
+                    <p className="text-sm text-gray-500 p-1">No employees available</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {((currentIds) => (currentIds.length ? currentIds : ['']))(cartItems[editingItemIndex]?.employee_ids || []).map((eid, slotIdx) => (
+                        <div key={slotIdx} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500 w-20 shrink-0">Employee {slotIdx + 1}</span>
+                          <select
+                            className="flex-1 h-9 px-3 text-sm border rounded-md min-w-0"
+                            value={((cartItems[editingItemIndex]?.employee_ids || [])[slotIdx] || '').toString()}
                             onChange={(e) => {
-                              const current =
-                                cartItems[editingItemIndex]?.employee_ids || []
-                              const updated = e.target.checked
-                                ? [...current, emp.employee_id]
-                                : current.filter((id) => id !== emp.employee_id)
+                              const currentIds = cartItems[editingItemIndex]?.employee_ids || []
+                              const updated = [...currentIds]
+                              while (updated.length <= slotIdx) updated.push('')
+                              updated[slotIdx] = e.target.value || ''
                               updateCartItem(editingItemIndex, 'employee_ids', updated)
                             }}
-                          />
-                          <span className="text-sm">{emp.full_name}</span>
-                        </label>
-                      ))
-                    )}
-                  </div>
+                          >
+                            <option value="">— None —</option>
+                            {employees.map((emp) => (
+                              <option key={emp.employee_id} value={emp.employee_id}>
+                                {emp.full_name}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              const currentIds = cartItems[editingItemIndex]?.employee_ids || []
+                              const updated = currentIds.filter((_, i) => i !== slotIdx)
+                              updateCartItem(editingItemIndex, 'employee_ids', updated.length ? updated : [])
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          const currentIds = cartItems[editingItemIndex]?.employee_ids || []
+                          updateCartItem(editingItemIndex, 'employee_ids', [...currentIds, ''])
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Add employee
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <DialogFooter className="gap-2">

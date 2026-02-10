@@ -1,6 +1,7 @@
 const { z } = require('zod');
 
 const billItemTypeEnum = z.enum(['service', 'package', 'product']);
+const billItemStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected']);
 const paymentModeEnum = z.enum(['cash', 'card', 'upi', 'online', 'other']);
 const billStatusEnum = z.enum(['draft', 'completed', 'pending', 'cancelled']);
 
@@ -10,6 +11,7 @@ const billItemSchema = z.object({
   package_id: z.string().uuid().optional().nullable(),
   product_id: z.string().uuid().optional().nullable(),
   employee_id: z.string().uuid().optional().nullable(),
+  // Multiple employees allowed for any item (service, package, product)
   employee_ids: z.array(z.string().uuid()).optional().nullable(),
   chair_id: z.string().uuid().optional().nullable(),
   quantity: z.number().int().positive('Quantity must be positive'),
@@ -17,6 +19,7 @@ const billItemSchema = z.object({
   discount_amount: z.number().nonnegative().default(0),
   discount_percentage: z.number().min(0).max(100).default(0),
   notes: z.string().max(500).optional().nullable(),
+  status: billItemStatusEnum.optional().default('completed'),
 }).refine(
   (data) => {
     if (data.item_type === 'service' && !data.service_id) return false;
@@ -53,10 +56,16 @@ const createBillSchema = z.object({
   params: z.object({}).optional(),
 });
 
+const updateBillItemStatusSchema = z.object({
+  item_id: z.string().uuid('Invalid item ID'),
+  status: billItemStatusEnum,
+});
+
 const updateBillSchema = z.object({
   body: z.object({
     status: billStatusEnum.optional(),
     notes: z.string().max(1000).optional().nullable(),
+    items: z.array(updateBillItemStatusSchema).optional(),
   }),
   query: z.object({}).optional(),
   params: z.object({

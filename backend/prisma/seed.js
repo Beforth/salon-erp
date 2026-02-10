@@ -222,7 +222,8 @@ async function main() {
     { name: 'Facial - Premium', categoryId: faceCategory.id, price: 1000, duration: 60, stars: 25 },
   ];
 
-  // Delete existing services to avoid duplicates on re-seed
+  // Delete existing package_services first (they reference services), then services
+  await prisma.packageService.deleteMany({});
   await prisma.service.deleteMany({});
 
   await prisma.service.createMany({

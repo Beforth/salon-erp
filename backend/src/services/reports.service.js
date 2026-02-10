@@ -248,14 +248,24 @@ class ReportsService {
     };
   }
 
-  // Employee Performance
-  async getEmployeePerformance({ period = 30, branch_id, employee_id, userRole, userBranchId }) {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - period);
+  // Employee Performance (supports period in days or start_date + end_date for calendar range)
+  async getEmployeePerformance({ period = 30, start_date, end_date, branch_id, employee_id, userRole, userBranchId }) {
+    let rangeStart;
+    let rangeEnd;
+    if (start_date && end_date) {
+      rangeStart = new Date(start_date);
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd = new Date(end_date);
+      rangeEnd.setHours(23, 59, 59, 999);
+    } else {
+      rangeEnd = new Date();
+      rangeStart = new Date();
+      rangeStart.setDate(rangeStart.getDate() - period);
+    }
 
     const itemWhere = {
       bill: {
-        billDate: { gte: startDate },
+        billDate: { gte: rangeStart, lte: rangeEnd },
         status: 'completed',
       },
       employeeId: { not: null },

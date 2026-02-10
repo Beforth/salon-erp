@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { billService } from '@/services/bill.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +31,8 @@ import {
   ChevronDown,
   FileText,
   FileSpreadsheet,
+  Trash2,
+  MoreHorizontal,
 } from 'lucide-react'
 
 const statusColors = {
@@ -42,8 +44,16 @@ const statusColors = {
 
 function BillsPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+
+  const deleteBillMutation = useMutation({
+    mutationFn: (id) => billService.cancelBill(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bills'] })
+    },
+  })
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['bills', { page, search }],
@@ -223,13 +233,33 @@ function BillsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/bills/${bill.bill_id}`)}
-                      >
-                        View
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/bills/${bill.bill_id}`)}>
+                            <Receipt className="h-4 w-4 mr-2" />
+                            View
+                          </DropdownMenuItem>
+                          {bill.status !== 'cancelled' && (
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={() => {
+                                if (window.confirm(`Delete bill ${bill.bill_number}? This will cancel the bill.`)) {
+                                  deleteBillMutation.mutate(bill.bill_id)
+                                }
+                              }}
+                              disabled={deleteBillMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}

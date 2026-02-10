@@ -15,19 +15,25 @@ export function formatCurrency(amount) {
 }
 
 export function formatDate(date) {
+  if (date == null || date === '') return '—'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return '—'
   return new Intl.DateTimeFormat('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }).format(new Date(date))
+  }).format(d)
 }
 
 export function formatDateTime(date) {
+  if (date == null || date === '') return '—'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return '—'
   return new Intl.DateTimeFormat('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(date))
+  }).format(d)
 }

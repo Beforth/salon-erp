@@ -126,7 +126,9 @@ function PackagesPage() {
                       {formatCurrency(pkg.individual_price)}
                     </TableCell>
                     <TableCell className="font-bold text-primary">
-                      {formatCurrency(pkg.package_price)}
+                      {pkg.package_price != null
+                        ? formatCurrency(pkg.package_price)
+                        : '—'}
                     </TableCell>
                     <TableCell>
                       {pkg.savings > 0 ? (
