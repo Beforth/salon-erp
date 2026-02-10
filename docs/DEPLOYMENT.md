@@ -24,6 +24,8 @@ Certificates are expected at:
 
 - `/etc/letsencrypt/live/ksagar-aetosvision-ai.encryptedbar.com/fullchain.pem`
 - `/etc/letsencrypt/live/ksagar-aetosvision-ai.encryptedbar.com/privkey.pem`
+- `/etc/letsencrypt/live/api-ksagar-aetosvision-ai.encryptedbar.com/fullchain.pem`
+- `/etc/letsencrypt/live/api-ksagar-aetosvision-ai.encryptedbar.com/privkey.pem`
 - `/etc/letsencrypt/live/pgadmin.ksagar-aetosvision-ai.encryptedbar.com/fullchain.pem`
 - `/etc/letsencrypt/live/pgadmin.ksagar-aetosvision-ai.encryptedbar.com/privkey.pem`
 
@@ -33,10 +35,8 @@ If you use one wildcard cert, point both nginx `ssl_certificate` / `ssl_certific
 
 The nginx image **does not build the frontend**; it uses the pre-built `frontend/dist/`. Build the frontend locally (or in CI) before building the nginx image, and ensure `frontend/dist/` exists (e.g. commit dist to the repo or copy it into the build context).
 
-**API URL for server deployment:** The app uses a relative API base (`/api/v1` by default). Nginx proxies `location /api/` to the backend, so do **not** set `VITE_API_BASE_URL` when building for this setup (or set it to `/api/v1`). That way all API requests go to the same origin and nginx forwards them to the backend.
-
 ```bash
-# From repo root — build frontend first (no VITE_API_BASE_URL = same-origin /api/v1)
+# From repo root — build frontend first (if not already in repo)
 cd frontend && npm run build && cd ..
 
 # Then build nginx image (copies frontend/dist into image) and run
@@ -44,21 +44,18 @@ docker compose -f docker-compose.yml -f docker-compose.nginx.yml build nginx
 docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
 ```
 
-**Stopping:** Use the same two compose files so nginx is stopped and the `backend` network is removed:
-`docker compose -f docker-compose.yml -f docker-compose.nginx.yml down`. Running only `docker compose down` stops backend/postgres/redis/pgadmin but leaves nginx running.
-
-Ensure DNS for all hostnames (app, API, pgAdmin) points to this server. Ports 80 and 443 must be open.
+Ensure DNS for both hostnames points to this server. Ports 80 and 443 must be open.
 
 ## 3. Build frontend only (for static deploy elsewhere)
 
-To produce a static build when the frontend is served from a **different host** than the API, set the full API URL:
+To produce a static build without Docker:
 
 ```bash
 cd frontend
-VITE_API_BASE_URL=https://ksagar-aetosvision-ai.encryptedbar.com/api/v1 npm run build
+VITE_API_BASE_URL=https://api-ksagar-aetosvision-ai.encryptedbar.com/api/v1 npm run build
 ```
 
-Output is in `frontend/dist/`. For the **same-server nginx setup** (Section 2), omit `VITE_API_BASE_URL` so the app uses `/api/v1` (same origin).
+Output is in `frontend/dist/`. You can upload that to any static host and point the API at your backend URL.
 
 ## 4. Optional: run without dev frontend
 

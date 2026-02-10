@@ -1,8 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  // In dev use relative URL so Vite proxy (vite.config.js) forwards /api to backend; in prod use env or same-origin /api/v1
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -43,9 +42,8 @@ api.interceptors.response.use(
           throw new Error('No refresh token')
         }
 
-        const baseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
         const response = await axios.post(
-          `${baseURL}/auth/refresh`,
+          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1'}/auth/refresh`,
           { refresh_token: refreshToken }
         )
 
