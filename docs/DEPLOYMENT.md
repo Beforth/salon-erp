@@ -31,20 +31,17 @@ Certificates are expected at:
 
 If you use one wildcard cert, point both nginx `ssl_certificate` / `ssl_certificate_key` to the same directory in `nginx.conf`.
 
-## 2. Build and run with nginx
+## 2. Run with nginx (Vite dev server, no dist)
 
-The nginx image **does not build the frontend**; it uses the pre-built `frontend/dist/`. Build the frontend locally (or in CI) before building the nginx image, and ensure `frontend/dist/` exists (e.g. commit dist to the repo or copy it into the build context).
+Deployment uses the **Vite dev server** (`npm run dev`), not a pre-built `dist/`. Nginx proxies the main app to the frontend container.
 
 ```bash
-# From repo root — build frontend first (if not already in repo)
-cd frontend && npm run build && cd ..
-
-# Then build nginx image (copies frontend/dist into image) and run
-docker compose -f docker-compose.yml -f docker-compose.nginx.yml build nginx
+# From repo root — build images and start all services (includes frontend dev server)
+docker compose -f docker-compose.yml -f docker-compose.nginx.yml build
 docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
 ```
 
-Ensure DNS for both hostnames points to this server. Ports 80 and 443 must be open.
+Ensure DNS for all hostnames points to this server. Ports 80 and 443 must be open. The frontend container runs with `VITE_API_BASE_URL=https://api-ksagar-aetosvision-ai.encryptedbar.com/api/v1`.
 
 ## 3. Build frontend only (for static deploy elsewhere)
 
@@ -56,11 +53,3 @@ VITE_API_BASE_URL=https://api-ksagar-aetosvision-ai.encryptedbar.com/api/v1 npm 
 ```
 
 Output is in `frontend/dist/`. You can upload that to any static host and point the API at your backend URL.
-
-## 4. Optional: run without dev frontend
-
-With nginx serving the built app, you can stop the dev frontend container to save resources:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d backend postgres redis pgadmin nginx
-```

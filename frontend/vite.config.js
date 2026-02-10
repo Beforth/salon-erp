@@ -18,7 +18,9 @@ export default defineConfig({
       },
     },
     allowedHosts: [
-      '5e99f3949459.ngrok-free.app'
+      '5e99f3949459.ngrok-free.app',
+      'ksagar-aetosvision-ai.encryptedbar.com',
+      'localhost',
     ]
   },
 })
