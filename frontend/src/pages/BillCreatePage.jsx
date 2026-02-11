@@ -218,12 +218,17 @@ function BillCreatePage() {
   // Create bill mutation
   const createBillMutation = useMutation({
     mutationFn: billService.createBill,
-    onSuccess: () => {
+    onSuccess: (response) => {
       toast.success('Bill created successfully!')
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       queryClient.invalidateQueries({ queryKey: ['customers'] })
-      navigate('/bills')
+      const billId = response.data?.bill_id
+      if (billId) {
+        navigate(`/bills/${billId}`)
+      } else {
+        navigate('/bills')
+      }
     },
     onError: (error) => {
       toast.error(error.response?.data?.error?.message || 'Failed to create bill')
@@ -723,7 +728,7 @@ function BillCreatePage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by name or phone..."
+                  placeholder="Search by name, phone or customer ID..."
                   className="pl-10"
                   value={customerSearch}
                   onChange={(e) => {
@@ -753,7 +758,10 @@ function BillCreatePage() {
                         className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
                         onClick={() => handleSelectCustomer(customer)}
                       >
-                        <div className="font-medium">{customer.customer_name}</div>
+                        <div className="font-medium">
+                          {customer.customer_code && <span className="text-gray-400 font-mono text-sm mr-2">#{customer.customer_code}</span>}
+                          {customer.customer_name}
+                        </div>
                         <div className="text-sm text-gray-500">{customer.phone_masked}</div>
                       </div>
                     ))

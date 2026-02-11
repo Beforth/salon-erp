@@ -7,8 +7,25 @@ class CustomerService {
     return phone.substring(0, 2) + '****' + phone.substring(phone.length - 4);
   }
 
+  async generateCustomerCode() {
+    const latest = await prisma.customer.findFirst({
+      where: { customerCode: { not: null } },
+      orderBy: { customerCode: 'desc' },
+    });
+
+    let nextNum = 100001;
+    if (latest?.customerCode) {
+      nextNum = parseInt(latest.customerCode) + 1;
+    }
+
+    return String(nextNum);
+  }
+
   async createCustomer(data, createdById) {
+    const customerCode = await this.generateCustomerCode();
+
     const customerData = {
+      customerCode,
       customerName: data.customer_name,
       phone: data.phone,
       phoneMasked: this.maskPhone(data.phone),
@@ -48,6 +65,7 @@ class CustomerService {
         { customerName: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
         { email: { contains: search, mode: 'insensitive' } },
+        { customerCode: { contains: search } },
       ];
     }
 
@@ -256,6 +274,7 @@ class CustomerService {
 
     return customers.map((c) => ({
       customer_id: c.id,
+      customer_code: c.customerCode || null,
       customer_name: c.customerName,
       phone_masked: c.phoneMasked,
       last_visit_date: c.lastVisitDate,
@@ -266,6 +285,7 @@ class CustomerService {
   formatCustomer(customer, includeFullPhone = false) {
     const formatted = {
       customer_id: customer.id,
+      customer_code: customer.customerCode || null,
       customer_name: customer.customerName,
       phone_masked: customer.phoneMasked,
       email: customer.email,

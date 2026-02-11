@@ -41,6 +41,7 @@ import {
   Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { printThermalReceipt } from '@/components/ThermalReceipt'
 
 const statusColors = {
   completed: 'success',
@@ -196,10 +197,14 @@ function BillDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" onClick={() => printThermalReceipt(bill)}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print Receipt
+          </Button>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
-            Print
+            Print A4
           </Button>
           {bill.status !== 'cancelled' && (
             <Button

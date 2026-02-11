@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
 import { exportToCSV, exportToExcel, exportToPDF } from '@/lib/export-utils'
+import { printThermalReceipt } from '@/components/ThermalReceipt'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +34,7 @@ import {
   FileSpreadsheet,
   Trash2,
   MoreHorizontal,
+  Printer,
 } from 'lucide-react'
 
 const statusColors = {
@@ -243,6 +245,18 @@ function BillsPage() {
                           <DropdownMenuItem onClick={() => navigate(`/bills/${bill.bill_id}`)}>
                             <Receipt className="h-4 w-4 mr-2" />
                             View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={async () => {
+                            try {
+                              const fullBill = await billService.getBillById(bill.bill_id)
+                              printThermalReceipt(fullBill.data)
+                            } catch {
+                              // fallback: navigate to detail page
+                              navigate(`/bills/${bill.bill_id}`)
+                            }
+                          }}>
+                            <Printer className="h-4 w-4 mr-2" />
+                            Print Receipt
                           </DropdownMenuItem>
                           {bill.status !== 'cancelled' && (
                             <DropdownMenuItem

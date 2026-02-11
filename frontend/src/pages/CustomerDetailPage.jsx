@@ -145,9 +145,16 @@ function CustomerDetailPage() {
               </div>
               <div>
                 <p className="font-semibold text-lg">{customer.customer_name}</p>
-                <Badge variant="outline" className="capitalize">
-                  {customer.gender || 'Not specified'}
-                </Badge>
+                <div className="flex items-center gap-2 mt-1">
+                  {customer.customer_code && (
+                    <Badge variant="secondary" className="font-mono">
+                      #{customer.customer_code}
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="capitalize">
+                    {customer.gender || 'Not specified'}
+                  </Badge>
+                </div>
               </div>
             </div>
 

@@ -64,7 +64,7 @@ function CustomersPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search by name or phone..."
+                placeholder="Search by name, phone or customer ID..."
                 className="pl-10"
                 value={search}
                 onChange={(e) => {
@@ -105,6 +105,7 @@ function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Gender</TableHead>
@@ -117,6 +118,9 @@ function CustomersPage() {
               <TableBody>
                 {customers.map((customer) => (
                   <TableRow key={customer.customer_id}>
+                    <TableCell className="font-mono text-sm">
+                      {customer.customer_code || '-'}
+                    </TableCell>
                     <TableCell className="font-medium">
                       {customer.customer_name}
                     </TableCell>

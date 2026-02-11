@@ -267,6 +267,7 @@ model UserSession {
 
 model Customer {
   id           String       @id @default(uuid()) @db.Uuid
+  customerCode String?      @unique @map("customer_code") @db.VarChar(10)
   customerName String       @map("customer_name") @db.VarChar(100)
   phone        String?      @db.VarChar(20)
   phoneMasked  String?      @map("phone_masked") @db.VarChar(20)

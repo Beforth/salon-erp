@@ -426,6 +426,8 @@ class BillService {
         branch_id: bill.branch.id,
         branch_name: bill.branch.name,
         branch_code: bill.branch.code,
+        phone: bill.branch.phone,
+        address: bill.branch.address,
       },
       bill_date: bill.billDate,
       items: bill.billItems.map((item) => {

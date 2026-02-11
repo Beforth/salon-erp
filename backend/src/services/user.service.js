@@ -3,6 +3,24 @@ const prisma = require('../config/database');
 const AppError = require('../utils/AppError');
 
 class UserService {
+  async generateEmployeeCode(tx) {
+    const db = tx || prisma;
+    const latest = await db.employeeDetail.findFirst({
+      where: { employeeCode: { not: null } },
+      orderBy: { employeeCode: 'desc' },
+    });
+
+    let nextNum = 100001;
+    if (latest?.employeeCode) {
+      const num = parseInt(latest.employeeCode);
+      if (!isNaN(num)) {
+        nextNum = num + 1;
+      }
+    }
+
+    return String(nextNum);
+  }
+
   /**
    * Get all users with optional filters
    */
@@ -184,10 +202,11 @@ class UserService {
 
       // Create employee details if role is employee, manager, or cashier
       if (['employee', 'manager', 'cashier'].includes(role)) {
+        const generatedCode = employee_code || await this.generateEmployeeCode(tx);
         await tx.employeeDetail.create({
           data: {
             id: newUser.id,
-            employeeCode: employee_code || `EMP-${newUser.id.slice(0, 8).toUpperCase()}`,
+            employeeCode: generatedCode,
             joiningDate: joining_date ? new Date(joining_date) : new Date(),
             dateOfBirth: date_of_birth ? new Date(date_of_birth) : null,
             address,
@@ -335,7 +354,7 @@ class UserService {
             where: { id: userId },
             create: {
               id: userId,
-              employeeCode: employee_code || `EMP-${userId.slice(0, 8).toUpperCase()}`,
+              employeeCode: employee_code || await this.generateEmployeeCode(tx),
               ...employeeData,
             },
             update: employeeData,
