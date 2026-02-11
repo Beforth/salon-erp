@@ -5,8 +5,6 @@ node_modules/
 
 # Build outputs
 dist/
-!frontend/dist/
-!frontend/dist/**
 build/
 .next/
 out/
@@ -37,14 +35,6 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
-
-# Uploads
-uploads/
-!uploads/.gitkeep
-
-# Prisma
-prisma/migrations/*
-!prisma/migrations/.gitkeep
 
 # Misc
 *.tsbuildinfo

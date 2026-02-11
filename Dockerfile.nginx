@@ -1,8 +1,0 @@
-# No build step: use pre-built frontend/dist (build locally or in CI, then push dist to repo or copy here).
-FROM nginx:alpine
-RUN rm -f /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY frontend/dist /usr/share/nginx/html
-
-EXPOSE 80 443
-CMD ["nginx", "-g", "daemon off;"]

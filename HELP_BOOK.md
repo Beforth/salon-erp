@@ -52,20 +52,20 @@ A comprehensive guide to using the Salon ERP system for salon and beauty parlor 
 
 ### Installation Steps
 
-#### 1. Clone the Repository
+#### 1. Clone the Repositories
 ```bash
-git clone <repository-url>
-cd salon-erp
+git clone <frontend-repo-url> salon-erp
+git clone <backend-repo-url> salon-erp-be
 ```
 
 #### 2. Set Up the Backend
 ```bash
-cd backend
+cd salon-erp-be
 npm install
 ```
 
-#### 3. Configure Environment Variables
-Create a `.env` file in the `backend/` directory:
+#### 3. Configure Backend Environment Variables
+Create a `.env` file in the `salon-erp-be/` directory:
 ```env
 NODE_ENV=development
 PORT=5001
@@ -109,7 +109,7 @@ npm run dev            # Starts on port 5001
 
 #### 6. Set Up the Frontend
 ```bash
-cd ../frontend
+cd ../salon-erp
 npm install
 npm run dev            # Starts on port 5174
 ```
@@ -1203,14 +1203,14 @@ kill -9 $(lsof -ti:5174)
 
 #### Open Prisma Studio (Database GUI)
 ```bash
-cd backend
+cd salon-erp-be
 npm run db:studio
 ```
 This opens a web-based database viewer at `http://localhost:5555`.
 
 #### Reset Database
 ```bash
-cd backend
+cd salon-erp-be
 npx prisma migrate reset    # WARNING: Deletes all data
 npm run db:seed              # Re-seed default data
 ```
