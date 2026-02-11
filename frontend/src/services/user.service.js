@@ -12,4 +12,6 @@ export const userService = {
   updateUser: (id, data) => api.put(`/users/${id}`, data),
 
   deleteUser: (id) => api.delete(`/users/${id}`),
+
+  updateStarGoal: (id, monthly_star_goal) => api.put(`/users/${id}/star-goal`, { monthly_star_goal }),
 }

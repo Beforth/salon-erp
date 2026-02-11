@@ -184,6 +184,7 @@ model Branch {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   users              User[]
+  employeeBranches   EmployeeBranch[]
   bills              Bill[]
   chairs             Chair[]
   waitingList        WaitingList[]
@@ -194,9 +195,6 @@ model Branch {
   inventoryLocations InventoryLocation[]
   attendance         Attendance[]
   branchFeatures     BranchFeature[]
-  serviceCategories  ServiceCategory[]
-  services           Service[]
-
   @@index([code])
   @@index([isActive])
   @@map("branches")
@@ -225,6 +223,7 @@ model User {
   createdCustomers Customer[]
   billItems       BillItem[]       @relation("BillItemEmployee")
   billItemEmployees BillItemEmployee[] @relation("BillItemEmployees")
+  employeeBranches  EmployeeBranch[]
   importLogs      BillImportLog[]
   inventoryTransactions InventoryTransaction[]
   stockTransfersRequested StockTransfer[] @relation("TransferRequestedBy")
@@ -439,18 +438,15 @@ model ServiceCategory {
   id           String   @id @default(uuid()) @db.Uuid
   name         String   @db.VarChar(100)
   description  String?  @db.Text
-  branchId     String?  @map("branch_id") @db.Uuid
   parentId     String?  @map("parent_id") @db.Uuid
   displayOrder Int      @default(0) @map("display_order")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  branch   Branch?           @relation(fields: [branchId], references: [id])
   parent   ServiceCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children ServiceCategory[] @relation("CategoryHierarchy")
   services Service[]
 
-  @@index([branchId])
   @@index([parentId])
   @@index([isActive])
   @@map("service_categories")
@@ -460,7 +456,6 @@ model Service {
   id              String   @id @default(uuid()) @db.Uuid
   serviceName     String   @map("service_name") @db.VarChar(200)
   categoryId      String?  @map("category_id") @db.Uuid
-  branchId        String?  @map("branch_id") @db.Uuid
   price           Decimal  @db.Decimal(10, 2)
   durationMinutes Int?     @map("duration_minutes")
   starPoints      Int      @default(0) @map("star_points")
@@ -473,21 +468,34 @@ model Service {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   category            ServiceCategory?     @relation(fields: [categoryId], references: [id])
-  branch              Branch?              @relation(fields: [branchId], references: [id])
   billItems           BillItem[]
   packageServices     PackageService[]
   packageRedemptions  PackageRedemption[]
 
   @@index([categoryId])
-  @@index([branchId])
   @@index([isActive])
   @@index([serviceName])
   @@map("services")
 }
 
+model PackageCategory {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(100)
+  description  String?  @db.Text
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  packages Package[]
+
+  @@index([isActive])
+  @@map("package_categories")
+}
+
 model Package {
   id           String   @id @default(uuid()) @db.Uuid
   packageName  String   @map("package_name") @db.VarChar(255)
+  categoryId   String?  @map("category_id") @db.Uuid
   packagePrice Decimal? @map("package_price") @db.Decimal(10, 2)
   validityDays Int?     @map("validity_days")
   description  String?  @db.Text
@@ -496,11 +504,13 @@ model Package {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  category             PackageCategory?     @relation(fields: [categoryId], references: [id])
   packageServices      PackageService[]
   packageServiceGroups PackageServiceGroup[]
   billItems            BillItem[]
   customerPackages     CustomerPackage[]
 
+  @@index([categoryId])
   @@index([isActive])
   @@map("packages")
 }
@@ -766,6 +776,7 @@ model EmployeeDetail {
   bankName              String?  @map("bank_name") @db.VarChar(100)
   bankIfsc              String?  @map("bank_ifsc") @db.VarChar(20)
   documentUrls          Json?    @map("document_urls")
+  monthlyStarGoal       Int?     @map("monthly_star_goal")
   isActive              Boolean  @default(true) @map("is_active")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
@@ -779,6 +790,22 @@ model EmployeeDetail {
   @@index([barcode])
   @@index([isActive])
   @@map("employee_details")
+}
+
+model EmployeeBranch {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@index([userId])
+  @@index([branchId])
+  @@map("employee_branches")
 }
 
 model Attendance {

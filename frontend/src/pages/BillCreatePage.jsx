@@ -108,8 +108,8 @@ function BillCreatePage() {
   })
 
   const { data: servicesData } = useQuery({
-    queryKey: ['services', 'active', selectedBranch],
-    queryFn: () => serviceService.getServices({ is_active: 'true', branch_id: selectedBranch }),
+    queryKey: ['services', 'active'],
+    queryFn: () => serviceService.getServices({ is_active: 'true' }),
     enabled: !!selectedBranch,
   })
 
@@ -1003,7 +1003,7 @@ function BillCreatePage() {
                               <option value="">— Select one —</option>
                               {groupServices.map((s) => (
                                 <option key={s.service_id} value={s.service_id}>
-                                  {s.service_name} — {formatCurrency(s.service_price)}
+                                  {s.service_name} — {formatCurrency(s.service_price)}{getPackageServiceStarPoints(s) > 0 ? ` (⭐ ${getPackageServiceStarPoints(s)})` : ''}
                                 </option>
                               ))}
                             </select>
@@ -1152,6 +1152,10 @@ function BillCreatePage() {
                                     <div className="min-w-0">
                                       <div className="text-gray-700 truncate flex items-center gap-1.5 flex-wrap">
                                         {chosen.service_name}
+                                        <span className="inline-flex items-center text-amber-600 text-xs shrink-0">
+                                          <Star className="h-3 w-3 fill-amber-500" />
+                                          {getPackageServiceStarPoints(chosen)}
+                                        </span>
                                         <span className="text-xs text-gray-400">({group.group_label})</span>
                                       </div>
                                       <div className="text-xs text-gray-400">x{chosen.quantity} — {formatCurrency(chosen.service_price)}</div>
@@ -1371,8 +1375,14 @@ function BillCreatePage() {
                   {/* Employee selector for single service/product — multiple employees allowed for any item */}
                   {selectedCategory !== 'packages' && (
                     <div>
-                      <Label className="mb-1 block text-sm">
+                      <Label className="mb-1 block text-sm flex items-center gap-2">
                         Assign Employee(s) (optional)
+                        {selectedCategory === 'services' && (selectedItem?.star_points ?? 0) > 0 && (
+                          <span className="inline-flex items-center text-amber-600 text-xs font-normal">
+                            <Star className="h-3 w-3 fill-amber-500 mr-0.5" />
+                            {selectedItem.star_points} stars
+                          </span>
+                        )}
                       </Label>
                       <div className="space-y-2">
                         {((componentEmployees[0] || []).length ? componentEmployees[0] : ['']).map((_, slotIdx) => (

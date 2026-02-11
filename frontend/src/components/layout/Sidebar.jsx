@@ -19,6 +19,7 @@ import {
   ChevronDown,
   BoxesIcon,
   TrendingUp,
+  BookOpen,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -60,16 +61,13 @@ const getNavItemsByRole = (role) => {
       roles: ['owner', 'developer', 'manager', 'cashier'],
     },
     {
-      title: 'Services',
-      href: '/services',
-      icon: Scissors,
+      title: 'Catalog',
+      icon: BookOpen,
       roles: ['owner', 'developer', 'manager'],
-    },
-    {
-      title: 'Packages',
-      href: '/packages',
-      icon: Package,
-      roles: ['owner', 'developer', 'manager'],
+      children: [
+        { title: 'Services', href: '/services', icon: Scissors },
+        { title: 'Packages', href: '/packages', icon: Package },
+      ],
     },
     {
       title: 'Inventory',
@@ -139,11 +137,13 @@ function Sidebar() {
   const location = useLocation()
   const navItems = getNavItemsByRole(user?.role || 'employee')
 
-  // Auto-expand inventory group if current path matches
+  // Auto-expand groups if current path matches
+  const isCatalogPath = location.pathname.startsWith('/services') || location.pathname.startsWith('/packages')
   const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products')
-  const [expandedGroups, setExpandedGroups] = useState(
-    isInventoryPath ? { Inventory: true } : {}
-  )
+  const [expandedGroups, setExpandedGroups] = useState({
+    ...(isCatalogPath ? { Catalog: true } : {}),
+    ...(isInventoryPath ? { Inventory: true } : {}),
+  })
 
   const toggleGroup = (title) => {
     setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }))

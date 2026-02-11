@@ -34,6 +34,17 @@ exports.updateService = catchAsync(async (req, res) => {
   sendResponse(res, 200, service);
 });
 
+// Package Categories
+exports.createPackageCategory = catchAsync(async (req, res) => {
+  const category = await serviceService.createPackageCategory(req.body);
+  sendResponse(res, 201, category);
+});
+
+exports.getPackageCategories = catchAsync(async (req, res) => {
+  const categories = await serviceService.getPackageCategories();
+  sendResponse(res, 200, categories);
+});
+
 // Packages
 exports.createPackage = catchAsync(async (req, res) => {
   const pkg = await serviceService.createPackage(req.body);

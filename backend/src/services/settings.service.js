@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
 
   // Employee Settings
   star_points_enabled: { value: 'true', type: 'boolean', public: true },
+  default_monthly_star_goal: { value: '100', type: 'number', public: true },
   working_hours_start: { value: '09:00', type: 'string', public: true },
   working_hours_end: { value: '21:00', type: 'string', public: true },
 };

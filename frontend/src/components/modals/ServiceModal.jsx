@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSelector } from 'react-redux'
 import { serviceService } from '@/services/service.service'
-import { branchService } from '@/services/branch.service'
 import {
   Dialog,
   DialogContent,
@@ -26,7 +24,6 @@ import { toast } from 'sonner'
 const initialFormData = {
   service_name: '',
   category_id: '',
-  branch_id: '',
   price: '',
   duration_minutes: '',
   star_points: '',
@@ -38,8 +35,6 @@ const initialFormData = {
 
 function ServiceModal({ open, onOpenChange, service = null }) {
   const queryClient = useQueryClient()
-  const { user } = useSelector((state) => state.auth)
-  const userBranchId = user?.branchId || null
   const isEditing = !!service
 
   const [formData, setFormData] = useState(initialFormData)
@@ -55,27 +50,13 @@ function ServiceModal({ open, onOpenChange, service = null }) {
   // Use fetched details when editing (so type field is populated); otherwise use list item or null
   const serviceForForm = isEditing && serviceDetails ? serviceDetails : service
 
-  // Fetch branches for owner
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchService.getBranches({ is_active: 'true' }),
-    enabled: !userBranchId && open,
-  })
-
-  // Branch for category fetch: form value, or user's branch, or (when editing) service's branch
-  const branchIdForCategories = formData.branch_id || userBranchId || (serviceForForm?.branch_id ?? null)
-
-  // Fetch categories when modal is open. With branch filter when we have one; otherwise all active categories (so owners see categories before selecting branch)
+  // Fetch categories when modal is open
   const { data: categoriesData } = useQuery({
-    queryKey: ['service-categories', branchIdForCategories || 'all'],
-    queryFn: () =>
-      serviceService.getCategories(
-        branchIdForCategories ? { branch_id: branchIdForCategories } : {}
-      ),
+    queryKey: ['service-categories'],
+    queryFn: () => serviceService.getCategories(),
     enabled: open,
   })
 
-  const branches = branchesData?.data || []
   const categories = categoriesData?.data || []
 
   useEffect(() => {
@@ -83,7 +64,6 @@ function ServiceModal({ open, onOpenChange, service = null }) {
       setFormData({
         service_name: serviceForForm.service_name || '',
         category_id: serviceForForm.category?.category_id || '',
-        branch_id: serviceForForm.branch_id || userBranchId || '',
         price: serviceForForm.price?.toString() ?? '',
         duration_minutes: serviceForForm.duration_minutes?.toString() ?? '',
         star_points: serviceForForm.star_points?.toString() ?? '',
@@ -93,12 +73,9 @@ function ServiceModal({ open, onOpenChange, service = null }) {
         is_active: serviceForForm.is_active ?? true,
       })
     } else {
-      setFormData({
-        ...initialFormData,
-        branch_id: userBranchId || '',
-      })
+      setFormData({ ...initialFormData })
     }
-  }, [serviceForForm, open, userBranchId])
+  }, [serviceForForm, open])
 
   const createMutation = useMutation({
     mutationFn: serviceService.createService,
@@ -151,7 +128,6 @@ function ServiceModal({ open, onOpenChange, service = null }) {
     const data = {
       service_name: formData.service_name,
       category_id: formData.category_id || null,
-      branch_id: formData.branch_id || userBranchId || null,
       price: parseFloat(formData.price),
       duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes, 10) : null,
       star_points: Math.max(0, parseInt(formData.star_points, 10) || 0) || 0,
@@ -183,32 +159,6 @@ function ServiceModal({ open, onOpenChange, service = null }) {
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Branch (optional; for owner only) */}
-          {!userBranchId && (
-            <div className="space-y-2">
-              <Label>Branch (optional)</Label>
-              <Select
-                value={formData.branch_id || 'none'}
-                onValueChange={(value) => {
-                  handleChange('branch_id', value === 'none' ? '' : value)
-                  handleChange('category_id', '') // Reset category when branch changes
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="No specific branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No specific branch</SelectItem>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.branch_id} value={branch.branch_id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
           {/* Service Name */}
           <div className="space-y-2">
             <Label htmlFor="service_name">Service Name *</Label>

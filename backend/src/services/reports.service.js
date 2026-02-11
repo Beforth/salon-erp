@@ -248,7 +248,7 @@ class ReportsService {
     };
   }
 
-  // Employee Performance (supports period in days or start_date + end_date for calendar range)
+  // Employee Performance - uses BillItemEmployee junction for accurate split
   async getEmployeePerformance({ period = 30, start_date, end_date, branch_id, employee_id, userRole, userBranchId }) {
     let rangeStart;
     let rangeEnd;
@@ -263,86 +263,140 @@ class ReportsService {
       rangeStart.setDate(rangeStart.getDate() - period);
     }
 
-    const itemWhere = {
-      bill: {
-        billDate: { gte: rangeStart, lte: rangeEnd },
-        status: 'completed',
-      },
-      employeeId: { not: null },
+    // Build bill filter
+    const billWhere = {
+      billDate: { gte: rangeStart, lte: rangeEnd },
+      status: 'completed',
     };
-
     if (userRole !== 'owner' && userRole !== 'developer') {
-      itemWhere.bill.branchId = userBranchId;
+      billWhere.branchId = userBranchId;
     } else if (branch_id) {
-      itemWhere.bill.branchId = branch_id;
+      billWhere.branchId = branch_id;
     }
 
+    // Build BillItemEmployee filter
+    const bieWhere = {
+      billItem: { bill: billWhere },
+    };
     if (employee_id) {
-      itemWhere.employeeId = employee_id;
+      bieWhere.employeeId = employee_id;
     }
 
-    // Get performance stats by employee
-    const employeeStats = await prisma.billItem.groupBy({
-      by: ['employeeId'],
-      where: itemWhere,
-      _sum: { totalPrice: true },
-      _count: { id: true },
-    });
-
-    // Get employee details
-    const employeeIds = employeeStats.map((e) => e.employeeId).filter(Boolean);
-    const employees = await prisma.user.findMany({
-      where: { id: { in: employeeIds } },
-      select: { id: true, fullName: true, branchId: true },
-    });
-    const employeeMap = new Map(employees.map((e) => [e.id, e]));
-
-    // Get star points earned
-    const starPoints = await prisma.billItem.groupBy({
-      by: ['employeeId'],
-      where: {
-        ...itemWhere,
-        service: { isNot: null },
-      },
-      _sum: { quantity: true },
-    });
-
-    // Get services with star points
-    const servicesWithStars = await prisma.billItem.findMany({
-      where: {
-        ...itemWhere,
-        service: { isNot: null },
-      },
+    // Fetch all BillItemEmployee records with related data
+    const billItemEmployees = await prisma.billItemEmployee.findMany({
+      where: bieWhere,
       include: {
-        service: { select: { starPoints: true } },
+        billItem: {
+          include: {
+            bill: { select: { billDate: true } },
+            service: { select: { id: true, serviceName: true, starPoints: true } },
+            package: { select: { id: true, packageName: true } },
+            employees: { select: { employeeId: true } },
+          },
+        },
+        employee: { select: { id: true, fullName: true } },
       },
     });
 
-    // Calculate star points per employee
-    const starsByEmployee = {};
-    servicesWithStars.forEach((item) => {
-      if (item.employeeId && item.service) {
-        if (!starsByEmployee[item.employeeId]) {
-          starsByEmployee[item.employeeId] = 0;
-        }
-        starsByEmployee[item.employeeId] += (item.service.starPoints || 0) * item.quantity;
-      }
+    // Get monthly star goals for all relevant employees
+    const employeeIds = [...new Set(billItemEmployees.map(bie => bie.employeeId))];
+    const employeeDetails = await prisma.employeeDetail.findMany({
+      where: { id: { in: employeeIds } },
+      select: { id: true, monthlyStarGoal: true },
     });
+    const goalMap = new Map(employeeDetails.map(ed => [ed.id, ed.monthlyStarGoal]));
+
+    // Get global default star goal
+    const globalGoalSetting = await prisma.systemSetting.findUnique({
+      where: { settingKey: 'default_monthly_star_goal' },
+    });
+    const globalGoal = globalGoalSetting ? parseInt(globalGoalSetting.settingValue) || 100 : 100;
+
+    // Process: aggregate by employee and date
+    const employeeData = {};
+
+    for (const bie of billItemEmployees) {
+      const empId = bie.employeeId;
+      const empName = bie.employee.fullName;
+      const item = bie.billItem;
+      const dateStr = item.bill.billDate.toISOString().split('T')[0];
+      const totalEmployees = item.employees.length || 1;
+      const splitFraction = 1 / totalEmployees;
+
+      const itemEarnings = parseFloat(item.totalPrice) * splitFraction;
+      const itemStars = (item.service?.starPoints || 0) * item.quantity * splitFraction;
+      const contributionType = totalEmployees === 1 ? 'full' : 'partial';
+      const contributionPercent = Math.round((1 / totalEmployees) * 100);
+
+      if (!employeeData[empId]) {
+        employeeData[empId] = {
+          employee_id: empId,
+          employee_name: empName,
+          monthly_star_goal: goalMap.get(empId) || globalGoal,
+          dates: {},
+          total_services: 0,
+          total_stars: 0,
+          total_earnings: 0,
+        };
+      }
+
+      if (!employeeData[empId].dates[dateStr]) {
+        employeeData[empId].dates[dateStr] = {
+          date: dateStr,
+          services: [],
+          stars: 0,
+          earnings: 0,
+        };
+      }
+
+      const dayData = employeeData[empId].dates[dateStr];
+      dayData.services.push({
+        service_name: item.service?.serviceName || item.package?.packageName || 'Product',
+        item_type: item.service ? 'service' : (item.package ? 'package' : 'product'),
+        contribution_type: contributionType,
+        contribution_percent: contributionPercent,
+        total_employees: totalEmployees,
+        earnings: Math.round(itemEarnings * 100) / 100,
+        stars: Math.round(itemStars * 100) / 100,
+      });
+      dayData.stars += itemStars;
+      dayData.earnings += itemEarnings;
+
+      employeeData[empId].total_services += 1;
+      employeeData[empId].total_stars += itemStars;
+      employeeData[empId].total_earnings += itemEarnings;
+    }
+
+    // Calculate number of days in range
+    const totalDaysInRange = Math.max(1, Math.ceil((rangeEnd - rangeStart) / (1000 * 60 * 60 * 24)));
+
+    // Format response
+    const employees = Object.values(employeeData).map(emp => ({
+      employee_id: emp.employee_id,
+      employee_name: emp.employee_name,
+      services_completed: emp.total_services,
+      star_points: Math.round(emp.total_stars * 100) / 100,
+      revenue_generated: Math.round(emp.total_earnings * 100) / 100,
+      monthly_star_goal: emp.monthly_star_goal,
+      daily_avg_stars: Math.round((emp.total_stars / totalDaysInRange) * 100) / 100,
+      daily_avg_earnings: Math.round((emp.total_earnings / totalDaysInRange) * 100) / 100,
+      daily_breakdown: Object.values(emp.dates)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(d => ({
+          date: d.date,
+          services: d.services,
+          services_count: d.services.length,
+          stars: Math.round(d.stars * 100) / 100,
+          earnings: Math.round(d.earnings * 100) / 100,
+        })),
+    })).sort((a, b) => b.revenue_generated - a.revenue_generated);
 
     return {
-      period_days: period,
-      employees: employeeStats
-        .map((e) => {
-          const employee = employeeMap.get(e.employeeId);
-          return {
-            employee_id: e.employeeId,
-            employee_name: employee?.fullName || 'Unknown',
-            services_completed: e._count,
-            revenue_generated: parseFloat(e._sum.totalPrice || 0),
-            star_points: starsByEmployee[e.employeeId] || 0,
-          };
-        })
-        .sort((a, b) => b.revenue_generated - a.revenue_generated),
+      period_days: totalDaysInRange,
+      start_date: rangeStart.toISOString().split('T')[0],
+      end_date: rangeEnd.toISOString().split('T')[0],
+      global_monthly_star_goal: globalGoal,
+      employees,
     };
   }
 

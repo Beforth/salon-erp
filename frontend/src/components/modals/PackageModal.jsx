@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSelector } from 'react-redux'
 import { serviceService } from '@/services/service.service'
-import { branchService } from '@/services/branch.service'
 import {
   Dialog,
   DialogContent,
@@ -13,56 +11,43 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Plus, Minus, Trash2, Package } from 'lucide-react'
+import { Loader2, Plus, Minus, Trash2, Package, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
 
 const initialFormData = {
   package_name: '',
+  category_id: '',
   package_price: '',
   validity_days: '365',
   description: '',
   is_active: true,
-  services: [], // [{ service_id, service_name, quantity, service_price }]
-  service_groups: [], // [{ group_label, services: [{ service_id, service_name, quantity, service_price }] }]
+  services: [], // [{ service_id, service_name, quantity, service_price, star_points }]
+  service_groups: [], // [{ group_label, services: [{ service_id, service_name, quantity, service_price, star_points }] }]
 }
 
 function PackageModal({ open, onOpenChange, pkg = null }) {
   const queryClient = useQueryClient()
-  const { user } = useSelector((state) => state.auth)
-  const userBranchId = user?.branchId || null
   const isEditing = !!pkg
 
   const [formData, setFormData] = useState(initialFormData)
-  const [selectedBranch, setSelectedBranch] = useState(userBranchId || '')
 
-  // Fetch branches for owner
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchService.getBranches({ is_active: 'true' }),
-    enabled: !userBranchId && open,
-  })
-
-  // Fetch services for selected branch
+  // Fetch all active services
   const { data: servicesData } = useQuery({
-    queryKey: ['services', 'active', selectedBranch || userBranchId],
-    queryFn: () => serviceService.getServices({
-      is_active: 'true',
-      branch_id: selectedBranch || userBranchId
-    }),
-    enabled: open && !!(selectedBranch || userBranchId),
+    queryKey: ['services', 'active'],
+    queryFn: () => serviceService.getServices({ is_active: 'true' }),
+    enabled: open,
   })
 
-  const branches = branchesData?.data || []
+  const { data: categoriesData } = useQuery({
+    queryKey: ['package-categories'],
+    queryFn: () => serviceService.getPackageCategories(),
+    enabled: open,
+  })
+
   const services = servicesData?.data || []
+  const packageCategories = categoriesData?.data || []
 
   // Group services by category
   const servicesByCategory = useMemo(() => {
@@ -80,21 +65,25 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
   // Calculate totals (standalone + one per OR group; individual = standalone + max per group)
   const totals = useMemo(() => {
     let individualPrice = formData.services.reduce((sum, s) => sum + (s.service_price * s.quantity), 0)
+    let totalStars = formData.services.reduce((sum, s) => sum + ((s.star_points || 0) * s.quantity), 0)
     formData.service_groups.forEach((g) => {
       const groupPrices = (g.services || []).map(s => (s.service_price || 0) * (s.quantity || 1))
       individualPrice += groupPrices.length ? Math.max(...groupPrices) : 0
+      const groupStars = (g.services || []).map(s => ((s.star_points || 0)) * (s.quantity || 1))
+      totalStars += groupStars.length ? Math.max(...groupStars) : 0
     })
     const packagePrice = formData.package_price ? parseFloat(formData.package_price) : null
     const savings = packagePrice != null ? individualPrice - packagePrice : 0
     const totalServices =
       formData.services.reduce((sum, s) => sum + s.quantity, 0) + formData.service_groups.length
-    return { individualPrice, savings, totalServices }
+    return { individualPrice, savings, totalServices, totalStars }
   }, [formData.services, formData.service_groups, formData.package_price])
 
   useEffect(() => {
     if (pkg) {
       setFormData({
         package_name: pkg.package_name || '',
+        category_id: pkg.category_id || '',
         package_price: pkg.package_price?.toString() || '',
         validity_days: pkg.validity_days?.toString() || '365',
         description: pkg.description || '',
@@ -104,6 +93,7 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
           service_name: s.service_name,
           quantity: s.quantity,
           service_price: s.service_price,
+          star_points: s.star_points || 0,
         })) || [],
         service_groups: pkg.service_groups?.map(g => ({
           group_label: g.group_label || '',
@@ -112,6 +102,7 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
             service_name: s.service_name,
             quantity: s.quantity,
             service_price: s.service_price,
+            star_points: s.star_points || 0,
           })),
         })) || [],
       })
@@ -165,6 +156,7 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
           service_name: service.service_name,
           quantity: 1,
           service_price: service.price,
+          star_points: service.star_points || 0,
         }
       ])
     }
@@ -222,6 +214,7 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
         service_name: service.service_name,
         quantity: 1,
         service_price: service.price,
+        star_points: service.star_points || 0,
       })
     }
     updated[groupIndex] = { ...group, services: [...list] }
@@ -270,15 +263,11 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
       return
     }
 
-    const hasStandalone = formData.services.length > 0
-    const hasGroups = formData.service_groups.some((g) => (g.services || []).length > 0)
-    if (!hasStandalone && !hasGroups) {
-      toast.error('Add at least one service (included services or in an OR group)')
-      return
-    }
+    // Services are optional for flat packages (name-only packages)
 
     const data = {
       package_name: formData.package_name.trim(),
+      category_id: formData.category_id || null,
       package_price: priceVal,
       validity_days: parseInt(formData.validity_days, 10) || 365,
       description: formData.description?.trim() || null,
@@ -318,28 +307,6 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Branch selector for owners */}
-          {!userBranchId && (
-            <div className="space-y-2">
-              <Label>Select Branch for Services</Label>
-              <Select
-                value={selectedBranch}
-                onValueChange={setSelectedBranch}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.branch_id} value={branch.branch_id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
           {/* Package Details */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -350,6 +317,22 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
                 onChange={(e) => handleChange('package_name', e.target.value)}
                 placeholder="e.g., Bridal Package"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category_id">Category</Label>
+              <select
+                id="category_id"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={formData.category_id}
+                onChange={(e) => handleChange('category_id', e.target.value)}
+              >
+                <option value="">No Category</option>
+                {packageCategories.map((cat) => (
+                  <option key={cat.category_id} value={cat.category_id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="package_price">Package Price (₹)</Label>
@@ -393,9 +376,7 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
             <div className="border rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
               {Object.entries(servicesByCategory).length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-4">
-                  {selectedBranch || userBranchId
-                    ? 'No services available'
-                    : 'Select a branch to see services'}
+                  No services available
                 </p>
               ) : (
                 Object.entries(servicesByCategory).map(([category, categoryServices]) => (
@@ -410,6 +391,12 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
                           className="px-2 py-1 text-xs bg-white border rounded hover:bg-primary/5 hover:border-primary transition-colors"
                         >
                           {service.service_name} - {formatCurrency(service.price)}
+                          {service.star_points > 0 && (
+                            <span className="inline-flex items-center ml-1 text-amber-600">
+                              <Star className="h-3 w-3 fill-amber-400 stroke-amber-500" />
+                              {service.star_points}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -430,6 +417,12 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
                       <p className="font-medium text-sm">{service.service_name}</p>
                       <p className="text-xs text-gray-500">
                         {formatCurrency(service.service_price)} × {service.quantity} = {formatCurrency(service.service_price * service.quantity)}
+                        {service.star_points > 0 && (
+                          <span className="inline-flex items-center ml-2 text-amber-600">
+                            <Star className="h-3 w-3 fill-amber-400 stroke-amber-500 mr-0.5" />
+                            {service.star_points * service.quantity} stars
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -521,7 +514,15 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
                   <div className="divide-y border rounded bg-white">
                     {(group.services || []).map((s, sIdx) => (
                       <div key={sIdx} className="p-2 flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium">{s.service_name}</span>
+                        <span className="text-sm font-medium">
+                          {s.service_name}
+                          {s.star_points > 0 && (
+                            <span className="inline-flex items-center ml-1.5 text-amber-600 text-xs font-normal">
+                              <Star className="h-3 w-3 fill-amber-400 stroke-amber-500 mr-0.5" />
+                              {s.star_points * (s.quantity || 1)}
+                            </span>
+                          )}
+                        </span>
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
@@ -581,6 +582,15 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Customer Savings:</span>
                   <span className="font-bold">{formatCurrency(totals.savings)}</span>
+                </div>
+              )}
+              {totals.totalStars > 0 && (
+                <div className="flex justify-between text-sm text-amber-600">
+                  <span className="flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5 fill-amber-400 stroke-amber-500" />
+                    Total Stars:
+                  </span>
+                  <span className="font-bold">{totals.totalStars}</span>
                 </div>
               )}
             </div>

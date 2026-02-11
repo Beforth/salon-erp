@@ -1,8 +1,6 @@
-import { useState } from 'react'
-import { useSelector } from 'react-redux'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { serviceService } from '@/services/service.service'
-import { branchService } from '@/services/branch.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,46 +13,52 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import ServiceModal from '@/components/modals/ServiceModal'
 import CategoryModal from '@/components/modals/CategoryModal'
-import { formatCurrency } from '@/lib/utils'
-import { Plus, Search, Scissors, Loader2, Star, Building2, Pencil, FolderPlus, ChevronDown } from 'lucide-react'
+import { formatCurrency, cn } from '@/lib/utils'
+import { Plus, Search, Scissors, Loader2, Star, Pencil, FolderPlus, ChevronDown } from 'lucide-react'
 
 function ServicesPage() {
-  const { user } = useSelector((state) => state.auth)
-  const userBranchId = user?.branchId || null
-
   const [search, setSearch] = useState('')
-  const [selectedBranch, setSelectedBranch] = useState(userBranchId || '')
   const [serviceModalOpen, setServiceModalOpen] = useState(false)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [editingService, setEditingService] = useState(null)
 
-  // Fetch branches for owner
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchService.getBranches({ is_active: 'true' }),
-    enabled: !userBranchId,
-  })
-
-  const branches = branchesData?.data || []
-
   const { data, isLoading, error } = useQuery({
-    queryKey: ['services', { search, branch_id: selectedBranch || userBranchId }],
+    queryKey: ['services', { search }],
     queryFn: () => serviceService.getServices({
       search,
       is_active: 'true',
-      branch_id: selectedBranch || userBranchId
     }),
   })
 
   const services = data?.data || []
+
+  // Group services by category
+  const groupedServices = useMemo(() => {
+    const categoryMap = new Map()
+
+    services.forEach((service) => {
+      const catId = service.category?.category_id || 'uncategorized'
+      const catName = service.category?.category_name || 'Uncategorized'
+      if (!categoryMap.has(catId)) {
+        categoryMap.set(catId, { category_id: catId, category_name: catName, services: [] })
+      }
+      categoryMap.get(catId).services.push(service)
+    })
+
+    return Array.from(categoryMap.values())
+  }, [services])
+
+  // Collapsed/expanded state — all expanded by default
+  const [collapsedCategories, setCollapsedCategories] = useState({})
+
+  const toggleCategory = (categoryId) => {
+    setCollapsedCategories((prev) => ({
+      ...prev,
+      [categoryId]: !prev[categoryId],
+    }))
+  }
 
   const handleAddService = () => {
     setEditingService(null)
@@ -103,28 +107,11 @@ function ServicesPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {/* Branch filter for owners */}
-            {!userBranchId && (
-              <div className="w-64">
-                <select
-                  className="w-full h-10 px-3 border rounded-md"
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                >
-                  <option value="">All Branches</option>
-                  {branches.map((branch) => (
-                    <option key={branch.branch_id} value={branch.branch_id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Services Table */}
+      {/* Services — Grouped by Category */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -153,76 +140,95 @@ function ServicesPage() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  {!userBranchId && <TableHead>Branch</TableHead>}
-                  <TableHead>Price</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Employee Type</TableHead>
-                  <TableHead>Star Points</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {services.map((service) => (
-                  <TableRow key={service.service_id}>
-                    <TableCell className="font-medium">
-                      {service.service_name}
-                    </TableCell>
-                    <TableCell>
-                      {service.category?.category_name || '-'}
-                    </TableCell>
-                    {!userBranchId && (
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Building2 className="h-3 w-3 text-gray-400" />
-                          {service.branch?.name || '-'}
-                        </div>
-                      </TableCell>
-                    )}
-                    <TableCell className="font-bold">
-                      {formatCurrency(service.price)}
-                    </TableCell>
-                    <TableCell>
-                      {service.duration_minutes
-                        ? `${service.duration_minutes} min`
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={service.is_multi_employee ? 'default' : 'outline'}>
-                        {service.is_multi_employee
-                          ? (service.employee_count ? `Multiple (${service.employee_count})` : 'Multiple')
-                          : 'Single'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Star className="h-4 w-4 mr-1 text-yellow-500 fill-yellow-500" />
-                        {service.star_points}
+            <div className="space-y-2">
+              {groupedServices.map((group) => {
+                const isCollapsed = collapsedCategories[group.category_id]
+                return (
+                  <div key={group.category_id} className="border rounded-lg overflow-hidden">
+                    {/* Category header */}
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(group.category_id)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ChevronDown
+                          className={cn(
+                            'h-4 w-4 transition-transform',
+                            isCollapsed && '-rotate-90'
+                          )}
+                        />
+                        <span className="font-semibold text-sm">{group.category_name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {group.services.length}
+                        </Badge>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={service.is_active ? 'success' : 'secondary'}>
-                        {service.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditService(service)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </button>
+
+                    {/* Services table within category */}
+                    {!isCollapsed && (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Service Name</TableHead>
+                            <TableHead>Price</TableHead>
+                            <TableHead>Duration</TableHead>
+                            <TableHead>Employee Type</TableHead>
+                            <TableHead>Star Points</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {group.services.map((service) => (
+                            <TableRow key={service.service_id}>
+                              <TableCell className="font-medium">
+                                {service.service_name}
+                              </TableCell>
+                              <TableCell className="font-bold">
+                                {formatCurrency(service.price)}
+                              </TableCell>
+                              <TableCell>
+                                {service.duration_minutes
+                                  ? `${service.duration_minutes} min`
+                                  : '-'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={service.is_multi_employee ? 'default' : 'outline'}>
+                                  {service.is_multi_employee
+                                    ? (service.employee_count ? `Multiple (${service.employee_count})` : 'Multiple')
+                                    : 'Single'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center">
+                                  <Star className="h-4 w-4 mr-1 text-yellow-500 fill-yellow-500" />
+                                  {service.star_points}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={service.is_active ? 'success' : 'secondary'}>
+                                  {service.is_active ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditService(service)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

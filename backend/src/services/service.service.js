@@ -8,7 +8,6 @@ class ServiceService {
       data: {
         name: data.name,
         description: data.description,
-        branchId: data.branch_id,
         parentId: data.parent_id,
         displayOrder: data.display_order || 0,
       },
@@ -18,26 +17,13 @@ class ServiceService {
   }
 
   async getCategories(filters = {}) {
-    // Support both branch_id and branchId from query
-    let branchId = filters.branch_id ?? filters.branchId;
-    if (Array.isArray(branchId)) branchId = branchId[0];
-    const branch_id = branchId && String(branchId).trim() ? String(branchId).trim() : null;
-
     const where = { isActive: true };
-    if (branch_id) {
-      // Branch mentioned: show global (branchId null) + branch-specific categories
-      where.OR = [{ branchId: branch_id }, { branchId: null }];
-    } else {
-      // Branch not mentioned: only global categories (visible to all branches)
-      where.branchId = null;
-    }
 
     const categories = await prisma.serviceCategory.findMany({
       where,
       include: {
         children: { where: { isActive: true } },
         _count: { select: { services: true } },
-        branch: { select: { id: true, name: true, code: true } },
       },
       orderBy: { displayOrder: 'asc' },
     });
@@ -46,8 +32,6 @@ class ServiceService {
       category_id: c.id,
       name: c.name,
       description: c.description,
-      branch_id: c.branchId,
-      branch: c.branch ? { branch_id: c.branch.id, name: c.branch.name, code: c.branch.code } : null,
       parent_id: c.parentId,
       display_order: c.displayOrder,
       services_count: c._count.services,
@@ -72,7 +56,6 @@ class ServiceService {
       data: {
         serviceName: data.service_name,
         categoryId: data.category_id,
-        branchId: data.branch_id || null,
         price: data.price,
         durationMinutes: data.duration_minutes,
         starPoints: Number(data.star_points) || 0,
@@ -84,7 +67,6 @@ class ServiceService {
       },
       include: {
         category: true,
-        branch: { select: { id: true, name: true, code: true } },
       },
     });
 
@@ -92,15 +74,11 @@ class ServiceService {
   }
 
   async getServices(filters) {
-    const { category_id, branch_id, is_active, search } = filters;
+    const { category_id, is_active, search } = filters;
 
     const where = {};
 
     if (category_id) where.categoryId = category_id;
-    if (branch_id) {
-      // Include both branch-specific and global (branchId null) services
-      where.OR = [{ branchId: branch_id }, { branchId: null }];
-    }
     if (is_active !== undefined) {
       where.isActive = is_active === 'true' || is_active === true;
     }
@@ -112,7 +90,6 @@ class ServiceService {
       where,
       include: {
         category: true,
-        branch: { select: { id: true, name: true, code: true } },
       },
       orderBy: [
         { category: { displayOrder: 'asc' } },
@@ -128,7 +105,6 @@ class ServiceService {
       where: { id },
       include: {
         category: true,
-        branch: { select: { id: true, name: true, code: true } },
       },
     });
 
@@ -151,7 +127,6 @@ class ServiceService {
     const updateData = {};
     if (data.service_name !== undefined) updateData.serviceName = data.service_name;
     if (data.category_id !== undefined) updateData.categoryId = data.category_id;
-    if (data.branch_id !== undefined) updateData.branchId = data.branch_id || null;
     if (data.price !== undefined) updateData.price = data.price;
     if (data.duration_minutes !== undefined) updateData.durationMinutes = data.duration_minutes;
     if (data.star_points !== undefined) updateData.starPoints = Number(data.star_points) || 0;
@@ -172,7 +147,6 @@ class ServiceService {
       data: updateData,
       include: {
         category: true,
-        branch: { select: { id: true, name: true, code: true } },
       },
     });
 
@@ -187,14 +161,6 @@ class ServiceService {
         ? {
             category_id: service.category.id,
             category_name: service.category.name,
-          }
-        : null,
-      branch_id: service.branchId,
-      branch: service.branch
-        ? {
-            branch_id: service.branch.id,
-            name: service.branch.name,
-            code: service.branch.code,
           }
         : null,
       price: parseFloat(service.price),
@@ -212,12 +178,51 @@ class ServiceService {
     return row;
   }
 
+  // Package Categories
+  async createPackageCategory(data) {
+    const category = await prisma.packageCategory.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        displayOrder: data.display_order || 0,
+      },
+    });
+    return this.formatPackageCategory(category);
+  }
+
+  async getPackageCategories() {
+    const categories = await prisma.packageCategory.findMany({
+      where: { isActive: true },
+      include: { _count: { select: { packages: true } } },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    return categories.map((c) => ({
+      category_id: c.id,
+      name: c.name,
+      description: c.description,
+      display_order: c.displayOrder,
+      packages_count: c._count.packages,
+    }));
+  }
+
+  formatPackageCategory(category) {
+    return {
+      category_id: category.id,
+      name: category.name,
+      description: category.description,
+      display_order: category.displayOrder,
+      is_active: category.isActive,
+    };
+  }
+
   // Packages
   async createPackage(data) {
     const pkg = await prisma.$transaction(async (tx) => {
       const newPackage = await tx.package.create({
         data: {
           packageName: data.package_name,
+          categoryId: data.category_id || null,
           packagePrice: data.package_price != null ? data.package_price : null,
           validityDays: data.validity_days,
           description: data.description,
@@ -345,14 +350,14 @@ class ServiceService {
     try {
       packages = await prisma.package.findMany({
         where,
-        include: { ...baseInclude, ...this._packageIncludeWithGroups() },
+        include: { category: true, ...baseInclude, ...this._packageIncludeWithGroups() },
         orderBy: { packageName: 'asc' },
       });
     } catch (err) {
       if (err.name === 'PrismaClientValidationError' && err.message?.includes('packageServiceGroups')) {
         packages = await prisma.package.findMany({
           where,
-          include: baseInclude,
+          include: { category: true, ...baseInclude },
           orderBy: { packageName: 'asc' },
         });
         packages = packages.map((p) => ({ ...p, packageServiceGroups: [] }));
@@ -420,6 +425,7 @@ class ServiceService {
     const updatedPackage = await prisma.$transaction(async (tx) => {
       const updateData = {};
       if (data.package_name !== undefined) updateData.packageName = data.package_name;
+      if (data.category_id !== undefined) updateData.categoryId = data.category_id || null;
       if (data.package_price !== undefined) updateData.packagePrice = data.package_price ?? null;
       if (data.validity_days !== undefined) updateData.validityDays = data.validity_days;
       if (data.description !== undefined) updateData.description = data.description;
@@ -563,6 +569,8 @@ class ServiceService {
     return {
       package_id: pkg.id,
       package_name: pkg.packageName,
+      category_id: pkg.categoryId || null,
+      category: pkg.category ? { category_id: pkg.category.id, name: pkg.category.name } : null,
       package_price: packagePrice,
       validity_days: pkg.validityDays,
       description: pkg.description,

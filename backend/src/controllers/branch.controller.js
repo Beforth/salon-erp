@@ -135,14 +135,18 @@ exports.getBranchEmployees = catchAsync(async (req, res) => {
 
   const employees = await prisma.user.findMany({
     where: {
-      branchId: req.params.id,
-      role: { in: ['employee', 'manager', 'cashier'] },
+      OR: [
+        { branchId: req.params.id },
+        { employeeBranches: { some: { branchId: req.params.id } } },
+      ],
+      role: 'employee',
       isActive: true,
     },
     select: {
       id: true,
       fullName: true,
       username: true,
+      branchId: true,
       employeeDetails: {
         select: {
           employeeCode: true,
@@ -157,6 +161,7 @@ exports.getBranchEmployees = catchAsync(async (req, res) => {
     full_name: e.fullName,
     username: e.username,
     employee_code: e.employeeDetails?.employeeCode,
+    is_primary: e.branchId === req.params.id,
   })));
 });
 

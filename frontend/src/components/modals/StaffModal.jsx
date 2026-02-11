@@ -32,6 +32,7 @@ const initialFormData = {
   phone: '',
   role: 'employee',
   branch_id: '',
+  additional_branches: [],
   is_active: true,
   // Employee details
   employee_code: '',
@@ -76,6 +77,7 @@ function StaffModal({ open, onOpenChange, staff = null }) {
         phone: staff.phone || '',
         role: staff.role || 'employee',
         branch_id: staff.branch_id || '',
+        additional_branches: (staff.additional_branches || []).map(b => b.branch_id),
         is_active: staff.is_active ?? true,
         // Employee details
         employee_code: staff.employee_details?.employee_code || '',
@@ -273,12 +275,16 @@ function StaffModal({ open, onOpenChange, staff = null }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="branch_id">Branch *</Label>
+                  <Label htmlFor="branch_id">Primary Branch *</Label>
                   <select
                     id="branch_id"
                     className="w-full h-10 px-3 border rounded-md"
                     value={formData.branch_id}
-                    onChange={(e) => handleChange('branch_id', e.target.value)}
+                    onChange={(e) => {
+                      handleChange('branch_id', e.target.value)
+                      // Remove from additional if selected as primary
+                      handleChange('additional_branches', formData.additional_branches.filter(id => id !== e.target.value))
+                    }}
                   >
                     <option value="">Select Branch</option>
                     {branches.map((branch) => (
@@ -300,6 +306,37 @@ function StaffModal({ open, onOpenChange, staff = null }) {
                   </label>
                 </div>
               </div>
+
+              {isOwner && ['employee', 'manager', 'cashier'].includes(formData.role) && branches.length > 1 && formData.branch_id && (
+                <div className="space-y-2">
+                  <Label>Additional Branches</Label>
+                  <div className="flex flex-wrap gap-3 p-3 border rounded-md max-h-32 overflow-y-auto">
+                    {branches
+                      .filter(b => b.branch_id !== formData.branch_id)
+                      .map(b => (
+                        <label key={b.branch_id} className="flex items-center gap-1.5 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.additional_branches.includes(b.branch_id)}
+                            onChange={(e) => {
+                              const current = formData.additional_branches
+                              if (e.target.checked) {
+                                handleChange('additional_branches', [...current, b.branch_id])
+                              } else {
+                                handleChange('additional_branches', current.filter(id => id !== b.branch_id))
+                              }
+                            }}
+                            className="h-4 w-4 rounded"
+                          />
+                          {b.name}
+                        </label>
+                      ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Employee will be available for selection in these branches during billing.
+                  </p>
+                </div>
+              )}
             </TabsContent>
 
             {/* Employment Tab */}

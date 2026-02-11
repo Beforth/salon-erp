@@ -20,7 +20,7 @@ const initialFormData = {
   display_order: '0',
 }
 
-function CategoryModal({ open, onOpenChange, category = null }) {
+function PackageCategoryModal({ open, onOpenChange, category = null }) {
   const queryClient = useQueryClient()
   const isEditing = !!category
 
@@ -39,12 +39,11 @@ function CategoryModal({ open, onOpenChange, category = null }) {
   }, [category, open])
 
   const createMutation = useMutation({
-    mutationFn: serviceService.createCategory,
+    mutationFn: serviceService.createPackageCategory,
     onSuccess: () => {
-      toast.success('Category created successfully')
-      queryClient.invalidateQueries({ queryKey: ['categories'] })
-      queryClient.invalidateQueries({ queryKey: ['service-categories'] })
-      queryClient.invalidateQueries({ queryKey: ['services'] })
+      toast.success('Package category created successfully')
+      queryClient.invalidateQueries({ queryKey: ['package-categories'] })
+      queryClient.invalidateQueries({ queryKey: ['packages'] })
       onOpenChange(false)
     },
     onError: (error) => {
@@ -80,23 +79,21 @@ function CategoryModal({ open, onOpenChange, category = null }) {
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Edit Category' : 'Add New Category'}
+            {isEditing ? 'Edit Package Category' : 'Add Package Category'}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Category Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Category Name *</Label>
             <Input
               id="name"
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="e.g., Hair Services, Skin Care"
+              placeholder="e.g., Male Packages, Female Packages"
             />
           </div>
 
-          {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Input
@@ -107,7 +104,6 @@ function CategoryModal({ open, onOpenChange, category = null }) {
             />
           </div>
 
-          {/* Display Order */}
           <div className="space-y-2">
             <Label htmlFor="display_order">Display Order</Label>
             <Input
@@ -140,4 +136,4 @@ function CategoryModal({ open, onOpenChange, category = null }) {
   )
 }
 
-export default CategoryModal
+export default PackageCategoryModal

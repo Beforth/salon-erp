@@ -90,6 +90,9 @@ class UserService {
           select: { id: true, name: true, code: true },
         },
         employeeDetails: true,
+        employeeBranches: {
+          include: { branch: { select: { id: true, name: true, code: true } } },
+        },
       },
     });
 
@@ -119,6 +122,7 @@ class UserService {
       phone,
       role,
       branch_id,
+      additional_branches,
       is_active = true,
       // Employee details
       employee_code,
@@ -198,6 +202,22 @@ class UserService {
             isActive: is_active,
           },
         });
+
+        // Create branch mappings
+        if (assignedBranchId) {
+          await tx.employeeBranch.create({
+            data: { userId: newUser.id, branchId: assignedBranchId, isPrimary: true },
+          });
+          if (Array.isArray(additional_branches)) {
+            for (const abId of additional_branches) {
+              if (abId && abId !== assignedBranchId) {
+                await tx.employeeBranch.create({
+                  data: { userId: newUser.id, branchId: abId, isPrimary: false },
+                });
+              }
+            }
+          }
+        }
       }
 
       return newUser;
@@ -232,6 +252,7 @@ class UserService {
       phone,
       role,
       branch_id,
+      additional_branches,
       is_active,
       password,
       // Employee details
@@ -320,6 +341,24 @@ class UserService {
             update: employeeData,
           });
         }
+
+        // Sync branch mappings if additional_branches provided
+        if (additional_branches !== undefined) {
+          const primaryBranchId = updatedUser.branchId;
+          await tx.employeeBranch.deleteMany({ where: { userId } });
+          if (primaryBranchId) {
+            await tx.employeeBranch.create({
+              data: { userId, branchId: primaryBranchId, isPrimary: true },
+            });
+          }
+          for (const abId of (additional_branches || [])) {
+            if (abId && abId !== primaryBranchId) {
+              await tx.employeeBranch.create({
+                data: { userId, branchId: abId, isPrimary: false },
+              });
+            }
+          }
+        }
       }
 
       return updatedUser;
@@ -360,27 +399,29 @@ class UserService {
   }
 
   /**
-   * Get staff performance summary
+   * Get staff performance summary (uses BillItemEmployee junction for accurate split)
    */
   async getStaffPerformance(userId, period = 30) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - period);
 
-    const [billItems, user] = await Promise.all([
-      prisma.billItem.findMany({
+    const [billItemEmployees, user] = await Promise.all([
+      prisma.billItemEmployee.findMany({
         where: {
           employeeId: userId,
-          bill: {
-            status: 'completed',
-            billDate: { gte: startDate },
+          billItem: {
+            bill: {
+              status: 'completed',
+              billDate: { gte: startDate },
+            },
           },
         },
         include: {
-          bill: {
-            select: { billDate: true },
-          },
-          service: {
-            select: { serviceName: true, starPoints: true },
+          billItem: {
+            include: {
+              service: { select: { starPoints: true } },
+              employees: { select: { employeeId: true } },
+            },
           },
         },
       }),
@@ -400,22 +441,24 @@ class UserService {
       }),
     ]);
 
-    const totalServices = billItems.length;
-    const totalStarPoints = billItems.reduce((sum, item) => {
-      return sum + (item.service?.starPoints || 0) * item.quantity;
-    }, 0);
-    const totalRevenue = billItems.reduce((sum, item) => {
-      return sum + (parseFloat(item.totalPrice) || 0);
-    }, 0);
+    let totalStarPoints = 0;
+    let totalRevenue = 0;
+
+    for (const bie of billItemEmployees) {
+      const item = bie.billItem;
+      const totalEmployees = item.employees.length || 1;
+      totalStarPoints += (item.service?.starPoints || 0) * item.quantity / totalEmployees;
+      totalRevenue += parseFloat(item.totalPrice) / totalEmployees;
+    }
 
     const attendance = user?.employeeDetails?.attendance || [];
     const presentDays = attendance.filter(a => a.status === 'present').length;
     const totalDays = attendance.length;
 
     return {
-      total_services: totalServices,
-      total_star_points: totalStarPoints,
-      total_revenue: totalRevenue,
+      total_services: billItemEmployees.length,
+      total_star_points: Math.round(totalStarPoints * 100) / 100,
+      total_revenue: Math.round(totalRevenue * 100) / 100,
       present_days: presentDays,
       total_days: totalDays,
       attendance_rate: totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(1) : 0,
@@ -456,7 +499,15 @@ class UserService {
         bank_ifsc: user.employeeDetails.bankIfsc,
         emergency_contact_name: user.employeeDetails.emergencyContactName,
         emergency_contact_phone: user.employeeDetails.emergencyContactPhone,
+        monthly_star_goal: user.employeeDetails.monthlyStarGoal,
       } : null,
+      additional_branches: (user.employeeBranches || [])
+        .filter(eb => !eb.isPrimary)
+        .map(eb => ({
+          branch_id: eb.branch.id,
+          name: eb.branch.name,
+          code: eb.branch.code,
+        })),
     };
   }
 }

@@ -15,7 +15,6 @@ const createServiceSchema = z.object({
   body: z.object({
     service_name: z.string().min(1, 'Service name is required').max(100),
     category_id: z.string().uuid().optional().nullable(),
-    branch_id: z.string().uuid().optional().nullable(),
     price: z.number().nonnegative('Price must be non-negative'),
     duration_minutes: z.number().int().positive().optional().nullable(),
     star_points: z.coerce.number().int().min(0).default(0),
@@ -34,7 +33,6 @@ const updateServiceSchema = z.object({
     .object({
       service_name: z.string().min(1).max(100).optional(),
       category_id: z.string().uuid().optional().nullable(),
-      branch_id: z.string().uuid().optional().nullable(),
       price: z.number().nonnegative().optional(),
       duration_minutes: z.number().int().positive().optional().nullable(),
       star_points: z.coerce.number().int().min(0).optional(),
@@ -72,9 +70,20 @@ const serviceGroupSchema = z.object({
   services: z.array(packageServiceSchema).min(1, 'Add at least one service to the group'),
 });
 
+const createPackageCategorySchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(100),
+    description: z.string().max(500).optional().nullable(),
+    display_order: z.number().int().nonnegative().default(0),
+  }),
+  query: z.object({}).optional(),
+  params: z.object({}).optional(),
+});
+
 const createPackageSchema = z.object({
   body: z.object({
     package_name: z.string().min(1, 'Package name is required').max(255),
+    category_id: z.string().uuid().optional().nullable(),
     package_price: z.number().nonnegative('Price must be non-negative').optional().nullable(),
     validity_days: z.number().int().positive().optional().nullable(),
     description: z.string().max(1000).optional().nullable(),
@@ -82,10 +91,7 @@ const createPackageSchema = z.object({
     is_active: z.boolean().default(true),
     services: z.array(packageServiceSchema).default([]),
     service_groups: z.array(serviceGroupSchema).default([]),
-  }).refine(
-    (data) => data.services.length > 0 || data.service_groups.some((g) => g.services.length > 0),
-    { message: 'Add at least one service (standalone or in a group)' }
-  ),
+  }),
   query: z.object({}).optional(),
   params: z.object({}).optional(),
 });
@@ -93,6 +99,7 @@ const createPackageSchema = z.object({
 const updatePackageSchema = z.object({
   body: z.object({
     package_name: z.string().min(1).max(100).optional(),
+    category_id: z.string().uuid().optional().nullable(),
     package_price: z.number().nonnegative().optional().nullable(),
     validity_days: z.number().int().positive().optional().nullable(),
     description: z.string().max(1000).optional().nullable(),
@@ -112,6 +119,7 @@ module.exports = {
   createServiceSchema,
   updateServiceSchema,
   getServicesSchema,
+  createPackageCategorySchema,
   createPackageSchema,
   updatePackageSchema,
 };
