@@ -20,6 +20,7 @@ import {
   BoxesIcon,
   TrendingUp,
   BookOpen,
+  Armchair,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -52,6 +53,12 @@ const getNavItemsByRole = (role) => {
       title: 'Customers',
       href: '/customers',
       icon: Users,
+      roles: ['owner', 'developer', 'manager', 'cashier'],
+    },
+    {
+      title: 'Salon Floor',
+      href: '/chairs',
+      icon: Armchair,
       roles: ['owner', 'developer', 'manager', 'cashier'],
     },
     {

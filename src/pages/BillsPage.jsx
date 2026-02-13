@@ -35,7 +35,12 @@ import {
   Trash2,
   MoreHorizontal,
   Printer,
+  Check,
+  Armchair,
+  XCircle,
 } from 'lucide-react'
+import { toast } from 'sonner'
+import CompleteBillModal from '@/components/modals/CompleteBillModal'
 
 const statusColors = {
   completed: 'success',
@@ -44,26 +49,48 @@ const statusColors = {
   cancelled: 'destructive',
 }
 
+const STATUS_TABS = [
+  { value: '', label: 'All' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
+
 function BillsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [completeBillModalOpen, setCompleteBillModalOpen] = useState(false)
+  const [selectedBillForComplete, setSelectedBillForComplete] = useState(null)
 
   const deleteBillMutation = useMutation({
     mutationFn: (id) => billService.cancelBill(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bills'] })
+      queryClient.invalidateQueries({ queryKey: ['chairs'] })
+      toast.success('Bill cancelled')
     },
   })
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['bills', { page, search }],
-    queryFn: () => billService.getBills({ page, limit: 20, search }),
+    queryKey: ['bills', { page, search, status: statusFilter }],
+    queryFn: () => billService.getBills({ page, limit: 20, search, status: statusFilter || undefined }),
   })
 
   const bills = data?.data || []
   const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0 }
+
+  const handleOpenComplete = async (bill) => {
+    try {
+      const fullBill = await billService.getBillById(bill.bill_id)
+      setSelectedBillForComplete(fullBill.data)
+      setCompleteBillModalOpen(true)
+    } catch {
+      toast.error('Failed to load bill details')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -89,6 +116,7 @@ function BillsPage() {
                     bill_number: b.bill_number,
                     customer_name: b.customer?.customer_name,
                     branch: b.branch?.branch_name,
+                    chair: b.chair?.chair_number || '',
                     date: b.bill_date?.split('T')[0],
                     subtotal: b.subtotal,
                     discount: b.discount_amount,
@@ -105,6 +133,7 @@ function BillsPage() {
                     bill_number: b.bill_number,
                     customer_name: b.customer?.customer_name,
                     branch: b.branch?.branch_name,
+                    chair: b.chair?.chair_number || '',
                     date: b.bill_date?.split('T')[0],
                     subtotal: b.subtotal,
                     discount: b.discount_amount,
@@ -121,6 +150,7 @@ function BillsPage() {
                     bill_number: b.bill_number,
                     customer_name: b.customer?.customer_name,
                     branch: b.branch?.branch_name,
+                    chair: b.chair?.chair_number || '',
                     date: b.bill_date?.split('T')[0],
                     subtotal: b.subtotal,
                     discount: b.discount_amount,
@@ -153,9 +183,9 @@ function BillsPage() {
         </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Search and Status Tabs */}
       <Card>
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-3">
           <div className="flex gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -169,6 +199,21 @@ function BillsPage() {
                 }}
               />
             </div>
+          </div>
+          <div className="flex gap-1">
+            {STATUS_TABS.map((tab) => (
+              <Button
+                key={tab.value}
+                variant={statusFilter === tab.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setStatusFilter(tab.value)
+                  setPage(1)
+                }}
+              >
+                {tab.label}
+              </Button>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -204,6 +249,7 @@ function BillsPage() {
                   <TableHead>Bill Number</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Branch</TableHead>
+                  <TableHead>Chair</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
@@ -225,6 +271,16 @@ function BillsPage() {
                       </button>
                     </TableCell>
                     <TableCell>{bill.branch?.branch_name}</TableCell>
+                    <TableCell>
+                      {bill.chair ? (
+                        <span className="inline-flex items-center gap-1 text-sm">
+                          <Armchair className="h-3.5 w-3.5 text-gray-400" />
+                          {bill.chair.chair_number}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>{formatDateTime(bill.bill_date)}</TableCell>
                     <TableCell className="font-bold">
                       {formatCurrency(bill.total_amount)}
@@ -246,12 +302,17 @@ function BillsPage() {
                             <Receipt className="h-4 w-4 mr-2" />
                             View
                           </DropdownMenuItem>
+                          {bill.status === 'pending' && (
+                            <DropdownMenuItem onClick={() => handleOpenComplete(bill)}>
+                              <Check className="h-4 w-4 mr-2" />
+                              Complete
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={async () => {
                             try {
                               const fullBill = await billService.getBillById(bill.bill_id)
                               printThermalReceipt(fullBill.data)
                             } catch {
-                              // fallback: navigate to detail page
                               navigate(`/bills/${bill.bill_id}`)
                             }
                           }}>
@@ -268,8 +329,17 @@ function BillsPage() {
                               }}
                               disabled={deleteBillMutation.isPending}
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
+                              {bill.status === 'pending' ? (
+                                <>
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Cancel
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </>
+                              )}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -309,6 +379,13 @@ function BillsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Complete Bill Modal */}
+      <CompleteBillModal
+        open={completeBillModalOpen}
+        onOpenChange={setCompleteBillModalOpen}
+        bill={selectedBillForComplete}
+      />
     </div>
   )
 }
