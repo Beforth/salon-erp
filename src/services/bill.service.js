@@ -9,5 +9,7 @@ export const billService = {
 
   updateBill: (id, data) => api.put(`/bills/${id}`, data),
 
+  completeBill: (id, data) => api.post(`/bills/${id}/complete`, data),
+
   cancelBill: (id) => api.delete(`/bills/${id}`),
 }

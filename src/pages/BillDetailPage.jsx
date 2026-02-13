@@ -39,9 +39,13 @@ import {
   Smartphone,
   Trash2,
   Pencil,
+  Armchair,
+  Check,
+  XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { printThermalReceipt } from '@/components/ThermalReceipt'
+import CompleteBillModal from '@/components/modals/CompleteBillModal'
 
 const statusColors = {
   completed: 'success',
@@ -63,11 +67,13 @@ function BillDetailPage() {
   const printRef = useRef(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editItemStatuses, setEditItemStatuses] = useState({})
+  const [completeBillModalOpen, setCompleteBillModalOpen] = useState(false)
 
   const deleteBillMutation = useMutation({
     mutationFn: () => billService.cancelBill(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bills'] })
+      queryClient.invalidateQueries({ queryKey: ['chairs'] })
       navigate('/bills')
     },
   })
@@ -105,9 +111,7 @@ function BillDetailPage() {
 
   const handlePrint = () => {
     const printContent = printRef.current
-    const originalContents = document.body.innerHTML
 
-    // Create print-specific styles
     const printStyles = `
       <style>
         @media print {
@@ -178,6 +182,8 @@ function BillDetailPage() {
     )
   }
 
+  const isPending = bill.status === 'pending'
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -198,6 +204,30 @@ function BillDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          {isPending && (
+            <>
+              <Button
+                onClick={() => setCompleteBillModalOpen(true)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Complete Bill
+              </Button>
+              <Button
+                variant="outline"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                onClick={() => {
+                  if (window.confirm(`Cancel bill ${bill.bill_number}? This action cannot be undone.`)) {
+                    deleteBillMutation.mutate()
+                  }
+                }}
+                disabled={deleteBillMutation.isPending}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Cancel Bill
+              </Button>
+            </>
+          )}
           <Button variant="outline" onClick={() => printThermalReceipt(bill)}>
             <Printer className="h-4 w-4 mr-2" />
             Print Receipt
@@ -215,7 +245,7 @@ function BillDetailPage() {
               Edit
             </Button>
           )}
-          {bill.status !== 'cancelled' && (
+          {bill.status !== 'cancelled' && !isPending && (
             <Button
               variant="outline"
               className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
@@ -247,7 +277,7 @@ function BillDetailPage() {
           <p>Tax Invoice / Bill of Supply</p>
         </div>
 
-        {/* Customer & Branch Info */}
+        {/* Customer, Branch, Bill Info & Chair */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Customer Info */}
           <Card>
@@ -293,7 +323,7 @@ function BillDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Bill Info */}
+          {/* Bill Info + Chair */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500 flex items-center gap-2">
@@ -306,6 +336,13 @@ function BillDetailPage() {
               <p className="text-gray-600">
                 {bill.created_by?.full_name && `By ${bill.created_by.full_name}`}
               </p>
+              {bill.chair && (
+                <p className="text-gray-600 flex items-center gap-1 mt-1">
+                  <Armchair className="h-3.5 w-3.5" />
+                  Chair: {bill.chair.chair_number}
+                  {bill.chair.chair_name && ` - ${bill.chair.chair_name}`}
+                </p>
+              )}
               {bill.is_imported && (
                 <Badge variant="outline" className="mt-2">
                   <FileText className="h-3 w-3 mr-1" />
@@ -426,45 +463,71 @@ function BillDetailPage() {
         </Card>
 
         {/* Payments */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Payment Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {bill.payments?.map((payment) => {
-                const PaymentIcon = paymentIcons[payment.payment_mode] || CreditCard
-                return (
-                  <div
-                    key={payment.payment_id}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white rounded-lg shadow-sm">
-                        <PaymentIcon className="h-5 w-5 text-gray-600" />
+        {bill.payments?.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Payment Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {bill.payments.map((payment) => {
+                  const PaymentIcon = paymentIcons[payment.payment_mode] || CreditCard
+                  return (
+                    <div
+                      key={payment.payment_id}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white rounded-lg shadow-sm">
+                          <PaymentIcon className="h-5 w-5 text-gray-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium capitalize">{payment.payment_mode}</p>
+                          {payment.transaction_reference && (
+                            <p className="text-sm text-gray-500">
+                              Ref: {payment.transaction_reference}
+                            </p>
+                          )}
+                          {payment.bank_name && (
+                            <p className="text-sm text-gray-500">{payment.bank_name}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium capitalize">{payment.payment_mode}</p>
-                        {payment.transaction_reference && (
-                          <p className="text-sm text-gray-500">
-                            Ref: {payment.transaction_reference}
-                          </p>
-                        )}
-                        {payment.bank_name && (
-                          <p className="text-sm text-gray-500">{payment.bank_name}</p>
-                        )}
-                      </div>
+                      <p className="font-bold text-lg">{formatCurrency(payment.amount)}</p>
                     </div>
-                    <p className="font-bold text-lg">{formatCurrency(payment.amount)}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Pending bill — no payments yet */}
+        {isPending && (!bill.payments || bill.payments.length === 0) && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Payment Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-6 text-gray-500">
+                <p>No payments recorded yet.</p>
+                <Button
+                  className="mt-3 bg-green-600 hover:bg-green-700"
+                  onClick={() => setCompleteBillModalOpen(true)}
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Complete Bill & Collect Payment
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Notes */}
         {bill.notes && (
@@ -562,6 +625,13 @@ function BillDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Complete Bill Modal */}
+      <CompleteBillModal
+        open={completeBillModalOpen}
+        onOpenChange={setCompleteBillModalOpen}
+        bill={bill}
+      />
     </div>
   )
 }

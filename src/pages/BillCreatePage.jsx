@@ -7,6 +7,7 @@ import { serviceService } from '@/services/service.service'
 import { productService } from '@/services/product.service'
 import { branchService } from '@/services/branch.service'
 import { billService } from '@/services/bill.service'
+import { chairService } from '@/services/chair.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,6 +43,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Star,
+  Armchair,
+  Play,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -73,6 +76,9 @@ function BillCreatePage() {
 
   // Branch
   const [selectedBranch, setSelectedBranch] = useState(branchId)
+
+  // Chair (optional)
+  const [selectedChair, setSelectedChair] = useState('')
 
   // Item selection
   const [selectedCategory, setSelectedCategory] = useState('services')
@@ -137,12 +143,19 @@ function BillCreatePage() {
     enabled: !!selectedBranch,
   })
 
+  const { data: chairsData } = useQuery({
+    queryKey: ['chairs', { branch_id: selectedBranch, status: 'available' }],
+    queryFn: () => chairService.getChairs({ branch_id: selectedBranch, status: 'available' }),
+    enabled: !!selectedBranch,
+  })
+
   const customers = customersData?.data || []
   const services = servicesData?.data || []
   const packages = packagesData?.data || []
   const products = productsData?.data || []
   const branches = branchesData?.data || []
   const employees = employeesData?.data || []
+  const availableChairs = chairsData?.data || []
 
   // Item options based on selected category
   const itemOptions = useMemo(() => {
@@ -223,6 +236,7 @@ function BillCreatePage() {
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['chairs'] })
       const billId = response.data?.bill_id
       if (billId) {
         navigate(`/bills/${billId}`)
@@ -642,6 +656,7 @@ function BillCreatePage() {
       branch_id: selectedBranch,
       bill_type: billType,
       bill_date: billDateTime,
+      chair_id: selectedChair || undefined,
       items: cartItems.map((item) => ({
         item_type: item.item_type,
         service_id: item.service_id || null,
@@ -668,6 +683,66 @@ function BillCreatePage() {
       discount_amount: parseFloat(billDiscount.toFixed(2)),
       discount_reason: discountReason,
       notes,
+    }
+
+    createBillMutation.mutate(billData)
+  }
+
+  // Start service — creates a pending bill without payments
+  const handleStartService = () => {
+    if (!selectedCustomer) {
+      toast.error('Please select a customer')
+      return
+    }
+    if (!selectedBranch) {
+      toast.error('Please select a branch')
+      return
+    }
+    if (cartItems.length === 0) {
+      toast.error('Please add at least one item')
+      return
+    }
+    if (billType === 'previous' && !billDate) {
+      toast.error('Please select a date for the previous bill')
+      return
+    }
+
+    let billDateTime = null
+    if (billType === 'previous') {
+      const time = billTime || '12:00'
+      billDateTime = new Date(`${billDate}T${time}:00`).toISOString()
+    }
+
+    const billData = {
+      customer_id: selectedCustomer.customer_id,
+      branch_id: selectedBranch,
+      bill_type: billType,
+      bill_date: billDateTime,
+      chair_id: selectedChair || undefined,
+      items: cartItems.map((item) => ({
+        item_type: item.item_type,
+        service_id: item.service_id || null,
+        package_id: item.package_id || null,
+        product_id: item.product_id || null,
+        employee_id: null,
+        employee_ids: (item.employee_ids || []).filter(Boolean).length > 0 ? (item.employee_ids || []).filter(Boolean) : null,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        discount_amount: parseFloat(getItemDiscount(item).toFixed(2)),
+        discount_percentage:
+          item.unit_price * item.quantity > 0
+            ? parseFloat(
+                ((getItemDiscount(item) / (item.unit_price * item.quantity)) * 100).toFixed(2)
+              )
+            : 0,
+        notes: item.source_package_name ? item.item_name : null,
+        status: item.item_status === 'pending' ? 'pending' : 'completed',
+      })),
+      payments: [],
+      discount_amount: parseFloat(billDiscount.toFixed(2)),
+      discount_reason: discountReason,
+      notes,
+      status: 'pending',
     }
 
     createBillMutation.mutate(billData)
@@ -783,6 +858,27 @@ function BillCreatePage() {
                   {branches.map((branch) => (
                     <option key={branch.branch_id} value={branch.branch_id}>
                       {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Chair (optional) */}
+            {selectedBranch && (
+              <div className="w-52">
+                <Label className="mb-2 block flex items-center gap-1">
+                  <Armchair className="h-3.5 w-3.5" /> Chair (optional)
+                </Label>
+                <select
+                  className="w-full h-10 px-3 border rounded-md"
+                  value={selectedChair}
+                  onChange={(e) => setSelectedChair(e.target.value)}
+                >
+                  <option value="">No Chair</option>
+                  {availableChairs.map((chair) => (
+                    <option key={chair.chair_id} value={chair.chair_id}>
+                      {chair.chair_number}{chair.chair_name ? ` - ${chair.chair_name}` : ''}
                     </option>
                   ))}
                 </select>
@@ -2008,6 +2104,19 @@ function BillCreatePage() {
                     Complete Bill - {formatCurrency(totalAmount)}
                   </>
                 )}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-9 text-sm mt-2 border-primary text-primary hover:bg-primary/5"
+                onClick={handleStartService}
+                disabled={
+                  createBillMutation.isPending ||
+                  !selectedCustomer ||
+                  cartItems.length === 0
+                }
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Start Service (Save as Pending)
               </Button>
             </div>
           </div>
