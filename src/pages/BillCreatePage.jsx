@@ -1080,42 +1080,6 @@ function BillCreatePage() {
                     </div>
                   </div>
 
-                  {/* OR groups: choose one service per group — show first so it's always visible */}
-                  {selectedCategory === 'packages' && selectedItem.service_groups?.length > 0 && (
-                    <div className="text-sm space-y-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className="font-semibold text-amber-800">Choose one option per group</p>
-                      <p className="text-xs text-amber-700">Select one service from each group below. You must pick one per group before adding to cart.</p>
-                      {selectedItem.service_groups.map((group, groupIdx) => {
-                        const selectedId = (packageGroupSelections[selectedItemId] || [])[groupIdx]
-                        const groupServices = group.services || []
-                        return (
-                          <div key={group.group_id || groupIdx} className="p-2 bg-white rounded border border-amber-100">
-                            <Label className="text-xs font-medium text-gray-700">{group.group_label || `Group ${groupIdx + 1}`}</Label>
-                            <select
-                              className="mt-1.5 w-full h-9 px-2 border rounded-md text-sm border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                              value={selectedId || ''}
-                              onChange={(e) => {
-                                const sid = e.target.value || null
-                                setPackageGroupSelections((prev) => {
-                                  const arr = [...(prev[selectedItemId] || [])]
-                                  while (arr.length <= groupIdx) arr.push(null)
-                                  arr[groupIdx] = sid
-                                  return { ...prev, [selectedItemId]: arr }
-                                })
-                              }}
-                            >
-                              <option value="">— Select one —</option>
-                              {groupServices.map((s) => (
-                                <option key={s.service_id} value={s.service_id}>
-                                  {s.service_name} — {formatCurrency(s.service_price)}{getPackageServiceStarPoints(s) > 0 ? ` (⭐ ${getPackageServiceStarPoints(s)})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
 
                   {/* Package services list with employee assignment */}
                   {selectedCategory === 'packages' && selectedItem.services?.length > 0 && (
@@ -1234,125 +1198,139 @@ function BillCreatePage() {
                     </div>
                   )}
 
-                  {/* OR group selections: discount & employees for chosen service per group */}
+                  {/* OR groups: merged selection + discount + employees per group */}
                   {selectedCategory === 'packages' &&
                     selectedItem.service_groups?.length > 0 &&
                     (() => {
                       const standaloneLen = (selectedItem.services || []).length
                       return (
                         <div className="text-sm">
-                          <p className="font-medium text-gray-700 mb-2">OR group choices — discount & employees:</p>
+                          <p className="font-medium text-gray-700 mb-2">OR group choices — select service, discount & employees:</p>
                           <div className="space-y-2">
                             {selectedItem.service_groups.map((group, groupIdx) => {
                               const selectedId = (packageGroupSelections[selectedItemId] || [])[groupIdx]
                               const chosen = (group.services || []).find((s) => s.service_id === selectedId)
+                              const groupServices = group.services || []
                               const idx = standaloneLen + groupIdx
                               const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
                               const d = addPackageServiceDiscounts[idx] || { percent: 0, amount: '' }
-                              if (!chosen) return null
                               return (
-                                <div key={group.group_id || groupIdx} className="p-2 bg-white rounded border space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <div className="min-w-0">
-                                      <div className="text-gray-700 truncate flex items-center gap-1.5 flex-wrap">
-                                        {chosen.service_name}
-                                        <span className="inline-flex items-center text-amber-600 text-xs shrink-0">
-                                          <Star className="h-3 w-3 fill-amber-500" />
-                                          {getPackageServiceStarPoints(chosen)}
-                                        </span>
-                                        <span className="text-xs text-gray-400">({group.group_label})</span>
-                                      </div>
-                                      <div className="text-xs text-gray-400">x{chosen.quantity} — {formatCurrency(chosen.service_price)}</div>
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-500">Discount %</span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        step="0.5"
-                                        className="h-7 w-14 text-xs px-1.5"
-                                        value={d.amount ? '' : (d.percent ?? '')}
-                                        placeholder="0"
-                                        onChange={(e) => {
-                                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                                          setAddPackageServiceDiscounts((prev) => ({
-                                            ...prev,
-                                            [idx]: { ...prev[idx], percent: v, amount: '' },
-                                          }))
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-500">Discount ₹</span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        className="h-7 w-14 text-xs px-1.5"
-                                        value={d.amount}
-                                        placeholder="0"
-                                        onChange={(e) => {
-                                          const v = e.target.value
-                                          setAddPackageServiceDiscounts((prev) => ({
-                                            ...prev,
-                                            [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
-                                          }))
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    {slots.map((_, slotIdx) => (
-                                      <div key={slotIdx} className="flex items-center gap-1">
-                                        <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
-                                        <select
-                                          className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
-                                          value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                          onChange={(e) => {
-                                            const current = [...(componentEmployees[idx] || [])]
-                                            while (current.length <= slotIdx) current.push('')
-                                            current[slotIdx] = e.target.value || ''
-                                            setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                          }}
-                                        >
-                                          <option value="">—</option>
-                                          {employees.map((emp) => (
-                                            <option key={emp.employee_id} value={emp.employee_id}>
-                                              {emp.full_name}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
-                                          onClick={() => {
-                                            const current = [...(componentEmployees[idx] || [])]
-                                            const next = current.filter((_, i) => i !== slotIdx)
-                                            setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
-                                          }}
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    ))}
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => {
-                                        const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                                        setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                                <div key={group.group_id || groupIdx} className="p-2 bg-amber-50/50 rounded border border-amber-200 space-y-2">
+                                  <div>
+                                    <Label className="text-xs font-medium text-gray-700">{group.group_label || `Group ${groupIdx + 1}`}</Label>
+                                    <select
+                                      className="mt-1 w-full h-9 px-2 border rounded-md text-sm border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                                      value={selectedId || ''}
+                                      onChange={(e) => {
+                                        const sid = e.target.value || null
+                                        setPackageGroupSelections((prev) => {
+                                          const arr = [...(prev[selectedItemId] || [])]
+                                          while (arr.length <= groupIdx) arr.push(null)
+                                          arr[groupIdx] = sid
+                                          return { ...prev, [selectedItemId]: arr }
+                                        })
                                       }}
                                     >
-                                      <Plus className="h-3 w-3 mr-1" /> Add
-                                    </Button>
+                                      <option value="">— Select one —</option>
+                                      {groupServices.map((s) => (
+                                        <option key={s.service_id} value={s.service_id}>
+                                          {s.service_name} — {formatCurrency(s.service_price)}{getPackageServiceStarPoints(s) > 0 ? ` (⭐ ${getPackageServiceStarPoints(s)})` : ''}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
+                                  {chosen && (
+                                    <>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-gray-500">Discount %</span>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            step="0.5"
+                                            className="h-7 w-14 text-xs px-1.5"
+                                            value={d.amount ? '' : (d.percent ?? '')}
+                                            placeholder="0"
+                                            onChange={(e) => {
+                                              const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                              setAddPackageServiceDiscounts((prev) => ({
+                                                ...prev,
+                                                [idx]: { ...prev[idx], percent: v, amount: '' },
+                                              }))
+                                            }}
+                                          />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-gray-500">Discount ₹</span>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            className="h-7 w-14 text-xs px-1.5"
+                                            value={d.amount}
+                                            placeholder="0"
+                                            onChange={(e) => {
+                                              const v = e.target.value
+                                              setAddPackageServiceDiscounts((prev) => ({
+                                                ...prev,
+                                                [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
+                                              }))
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        {slots.map((_, slotIdx) => (
+                                          <div key={slotIdx} className="flex items-center gap-1">
+                                            <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
+                                            <select
+                                              className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
+                                              value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                              onChange={(e) => {
+                                                const current = [...(componentEmployees[idx] || [])]
+                                                while (current.length <= slotIdx) current.push('')
+                                                current[slotIdx] = e.target.value || ''
+                                                setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                              }}
+                                            >
+                                              <option value="">—</option>
+                                              {employees.map((emp) => (
+                                                <option key={emp.employee_id} value={emp.employee_id}>
+                                                  {emp.full_name}
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
+                                              onClick={() => {
+                                                const current = [...(componentEmployees[idx] || [])]
+                                                const next = current.filter((_, i) => i !== slotIdx)
+                                                setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
+                                              }}
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                        ))}
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 text-xs"
+                                          onClick={() => {
+                                            const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                                            setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                                          }}
+                                        >
+                                          <Plus className="h-3 w-3 mr-1" /> Add
+                                        </Button>
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
                               )
                             })}
