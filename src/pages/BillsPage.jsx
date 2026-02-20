@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import { billService } from '@/services/bill.service'
+import { branchService } from '@/services/branch.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -38,6 +41,8 @@ import {
   Check,
   Armchair,
   XCircle,
+  Filter,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
@@ -56,14 +61,65 @@ const STATUS_TABS = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
+const PAYMENT_MODES = [
+  { value: '', label: 'All Modes' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'online', label: 'Online' },
+  { value: 'other', label: 'Other' },
+]
+
+const DATE_PRESETS = [
+  { label: 'Today', getValue: () => {
+    const today = new Date().toISOString().split('T')[0]
+    return { start_date: today, end_date: today }
+  }},
+  { label: 'This Week', getValue: () => {
+    const now = new Date()
+    const start = new Date(now)
+    start.setDate(now.getDate() - now.getDay())
+    return { start_date: start.toISOString().split('T')[0], end_date: now.toISOString().split('T')[0] }
+  }},
+  { label: 'This Month', getValue: () => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    return { start_date: start.toISOString().split('T')[0], end_date: now.toISOString().split('T')[0] }
+  }},
+  { label: 'Last Month', getValue: () => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const end = new Date(now.getFullYear(), now.getMonth(), 0)
+    return { start_date: start.toISOString().split('T')[0], end_date: end.toISOString().split('T')[0] }
+  }},
+]
+
 function BillsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useSelector((state) => state.auth)
+  const isOwner = user?.role === 'owner' || user?.role === 'developer'
+
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [paymentMode, setPaymentMode] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [sortBy, setSortBy] = useState('bill_date')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const [showFilters, setShowFilters] = useState(false)
   const [completeBillModalOpen, setCompleteBillModalOpen] = useState(false)
   const [selectedBillForComplete, setSelectedBillForComplete] = useState(null)
+
+  // Fetch branches for owner filter
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchService.getBranches({ is_active: 'true' }),
+    enabled: isOwner,
+  })
+  const branches = branchesData?.data || []
 
   const deleteBillMutation = useMutation({
     mutationFn: (id) => billService.cancelBill(id),
@@ -74,13 +130,45 @@ function BillsPage() {
     },
   })
 
+  const queryParams = {
+    page,
+    limit: 20,
+    search: search || undefined,
+    status: statusFilter || undefined,
+    start_date: startDate || undefined,
+    end_date: endDate || undefined,
+    payment_mode: paymentMode || undefined,
+    branch_id: branchFilter || undefined,
+    sort_by: sortBy,
+    sort_order: sortOrder,
+  }
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['bills', { page, search, status: statusFilter }],
-    queryFn: () => billService.getBills({ page, limit: 20, search, status: statusFilter || undefined }),
+    queryKey: ['bills', queryParams],
+    queryFn: () => billService.getBills(queryParams),
   })
 
   const bills = data?.data || []
   const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0 }
+
+  const hasActiveFilters = startDate || endDate || paymentMode || branchFilter
+
+  const clearFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    setPaymentMode('')
+    setBranchFilter('')
+    setSortBy('bill_date')
+    setSortOrder('desc')
+    setPage(1)
+  }
+
+  const applyDatePreset = (preset) => {
+    const { start_date, end_date } = preset.getValue()
+    setStartDate(start_date)
+    setEndDate(end_date)
+    setPage(1)
+  }
 
   const handleOpenComplete = async (bill) => {
     try {
@@ -183,7 +271,7 @@ function BillsPage() {
         </div>
       </div>
 
-      {/* Search and Status Tabs */}
+      {/* Search, Status Tabs & Filters */}
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex gap-4">
@@ -199,7 +287,19 @@ function BillsPage() {
                 }}
               />
             </div>
+            <Button
+              variant={showFilters ? 'default' : 'outline'}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+              {hasActiveFilters && (
+                <span className="ml-1 h-2 w-2 bg-white rounded-full inline-block" />
+              )}
+            </Button>
           </div>
+
+          {/* Status Tabs */}
           <div className="flex gap-1">
             {STATUS_TABS.map((tab) => (
               <Button
@@ -215,6 +315,100 @@ function BillsPage() {
               </Button>
             ))}
           </div>
+
+          {/* Expanded Filters */}
+          {showFilters && (
+            <div className="border-t pt-3 space-y-3">
+              {/* Date Presets */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm text-gray-500 mr-1">Quick:</span>
+                {DATE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => applyDatePreset(preset)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Date Range + Filters Row */}
+              <div className="flex flex-wrap gap-4 items-end">
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">From Date</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
+                    className="w-[160px] h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">To Date</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
+                    className="w-[160px] h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Payment Mode</Label>
+                  <select
+                    className="h-9 px-3 border rounded-md text-sm min-w-[130px]"
+                    value={paymentMode}
+                    onChange={(e) => { setPaymentMode(e.target.value); setPage(1) }}
+                  >
+                    {PAYMENT_MODES.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+                {isOwner && (
+                  <div>
+                    <Label className="text-xs text-gray-500 mb-1 block">Branch</Label>
+                    <select
+                      className="h-9 px-3 border rounded-md text-sm min-w-[150px]"
+                      value={branchFilter}
+                      onChange={(e) => { setBranchFilter(e.target.value); setPage(1) }}
+                    >
+                      <option value="">All Branches</option>
+                      {branches.map((b) => (
+                        <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Sort By</Label>
+                  <select
+                    className="h-9 px-3 border rounded-md text-sm min-w-[130px]"
+                    value={`${sortBy}_${sortOrder}`}
+                    onChange={(e) => {
+                      const [by, order] = e.target.value.split('_')
+                      setSortBy(by)
+                      setSortOrder(order)
+                      setPage(1)
+                    }}
+                  >
+                    <option value="bill_date_desc">Date (Newest)</option>
+                    <option value="bill_date_asc">Date (Oldest)</option>
+                    <option value="totalAmount_desc">Amount (High)</option>
+                    <option value="totalAmount_asc">Amount (Low)</option>
+                  </select>
+                </div>
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9">
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

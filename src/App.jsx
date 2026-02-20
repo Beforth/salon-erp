@@ -19,6 +19,7 @@ import StockTransfersPage from './pages/StockTransfersPage'
 import ReportsPage from './pages/ReportsPage'
 import BranchesPage from './pages/BranchesPage'
 import StaffPage from './pages/StaffPage'
+import StaffFormPage from './pages/StaffFormPage'
 import StaffPerformancePage from './pages/StaffPerformancePage'
 import SettingsPage from './pages/SettingsPage'
 import CashReconciliationPage from './pages/CashReconciliationPage'
@@ -83,6 +84,8 @@ function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="branches" element={<BranchesPage />} />
         <Route path="staff" element={<StaffPage />} />
+        <Route path="staff/new" element={<StaffFormPage />} />
+        <Route path="staff/:id/edit" element={<StaffFormPage />} />
         <Route path="staff-performance" element={<StaffPerformancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="cash-reconciliation" element={<CashReconciliationPage />} />

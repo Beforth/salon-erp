@@ -1,6 +1,9 @@
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { logout } from '@/store/slices/authSlice'
+import { cashService } from '@/services/cash.service'
+import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,12 +14,28 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bell, Menu, LogOut, User, Settings } from 'lucide-react'
+import { Bell, Menu, LogOut, User, Settings, IndianRupee } from 'lucide-react'
+import { useState } from 'react'
 
 function Header({ onMenuClick }) {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
+  const isCashier = user?.role === 'cashier'
+  const [showTooltip, setShowTooltip] = useState(false)
+
+  // Fetch today's summary for cashier only
+  const { data: summaryData } = useQuery({
+    queryKey: ['cash-summary-today', user?.branchId],
+    queryFn: () => cashService.getDailySummary({
+      date: new Date().toISOString().split('T')[0],
+      branch_id: user?.branchId,
+    }),
+    enabled: isCashier && !!user?.branchId,
+    refetchInterval: 60000, // Refresh every minute
+  })
+
+  const todayTotal = summaryData?.data?.total_revenue || 0
 
   const handleLogout = () => {
     dispatch(logout())
@@ -50,6 +69,24 @@ function Header({ onMenuClick }) {
 
         {/* Right side */}
         <div className="flex items-center gap-x-4 lg:gap-x-6">
+          {/* Today's bill amount icon - cashier only */}
+          {isCashier && (
+            <div
+              className="relative"
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+            >
+              <Button variant="ghost" size="icon" className="relative">
+                <IndianRupee className="h-5 w-5 text-gray-500" />
+              </Button>
+              {showTooltip && (
+                <div className="absolute top-full right-0 mt-1 px-3 py-2 bg-gray-900 text-white text-sm rounded-md shadow-lg whitespace-nowrap z-50">
+                  Today's Total: {formatCurrency(todayTotal)}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5 text-gray-500" />

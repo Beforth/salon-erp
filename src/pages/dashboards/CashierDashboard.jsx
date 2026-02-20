@@ -3,20 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
-  DollarSign,
   Receipt,
   Plus,
   Clock,
-  CreditCard,
-  Banknote,
+  DollarSign,
 } from 'lucide-react'
 
 const todayStats = [
-  {
-    name: 'Total Sales',
-    value: '₹25,340',
-    icon: DollarSign,
-  },
   {
     name: 'Bills Created',
     value: '48',
@@ -29,17 +22,11 @@ const todayStats = [
   },
 ]
 
-const paymentBreakdown = [
-  { mode: 'Cash', amount: '₹15,000', icon: Banknote, color: 'bg-green-100 text-green-600' },
-  { mode: 'Card', amount: '₹5,340', icon: CreditCard, color: 'bg-blue-100 text-blue-600' },
-  { mode: 'UPI', amount: '₹5,000', icon: CreditCard, color: 'bg-purple-100 text-purple-600' },
-]
-
 const recentBills = [
-  { id: 'SB001-2026-000542', customer: 'Raj Kumar', amount: '₹520', time: '10:30 AM' },
-  { id: 'SB001-2026-000541', customer: 'Priya Sharma', amount: '₹850', time: '10:15 AM' },
-  { id: 'SB001-2026-000540', customer: 'Amit Singh', amount: '₹300', time: '09:45 AM' },
-  { id: 'SB001-2026-000539', customer: 'Meera Patil', amount: '₹1,200', time: '09:30 AM' },
+  { id: 'SB001-2026-000542', customer: 'Raj Kumar', time: '10:30 AM' },
+  { id: 'SB001-2026-000541', customer: 'Priya Sharma', time: '10:15 AM' },
+  { id: 'SB001-2026-000540', customer: 'Amit Singh', time: '09:45 AM' },
+  { id: 'SB001-2026-000539', customer: 'Meera Patil', time: '09:30 AM' },
 ]
 
 function CashierDashboard() {
@@ -64,8 +51,8 @@ function CashierDashboard() {
         </Button>
       </div>
 
-      {/* Today's Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Today's Stats - no amounts shown */}
+      <div className="grid gap-4 md:grid-cols-2">
         {todayStats.map((stat) => (
           <Card key={stat.name}>
             <CardContent className="p-6">
@@ -85,67 +72,38 @@ function CashierDashboard() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Payment Breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Breakdown</CardTitle>
-            <CardDescription>Today's collection by payment mode</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {paymentBreakdown.map((payment) => (
-                <div
-                  key={payment.mode}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${payment.color}`}>
-                      <payment.icon className="h-5 w-5" />
-                    </div>
-                    <span className="font-medium text-gray-900">{payment.mode}</span>
-                  </div>
-                  <span className="font-bold text-gray-900">{payment.amount}</span>
-                </div>
-              ))}
+      {/* Recent Bills - no amounts shown */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Recent Bills</CardTitle>
+              <CardDescription>Latest transactions</CardDescription>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Bills */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Recent Bills</CardTitle>
-                <CardDescription>Latest transactions</CardDescription>
+            <Button variant="outline" size="sm" onClick={() => navigate('/bills')}>
+              View All
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {recentBills.map((bill) => (
+              <div
+                key={bill.id}
+                className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
+              >
+                <div>
+                  <p className="font-medium text-gray-900">{bill.customer}</p>
+                  <p className="text-sm text-gray-500">{bill.id}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">{bill.time}</p>
+                </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => navigate('/bills')}>
-                View All
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentBills.map((bill) => (
-                <div
-                  key={bill.id}
-                  className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">{bill.customer}</p>
-                    <p className="text-sm text-gray-500">{bill.id}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-gray-900">{bill.amount}</p>
-                    <p className="text-sm text-gray-500">{bill.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -167,7 +125,7 @@ function CashierDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:bg-gray-50 transition-colors">
+        <Card className="cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => navigate('/cash-reconciliation')}>
           <CardContent className="p-6 text-center">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
               <DollarSign className="h-6 w-6 text-purple-600" />

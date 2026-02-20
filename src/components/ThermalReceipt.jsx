@@ -6,34 +6,70 @@ function buildReceiptHTML(bill) {
 
   const formatAmt = (amt) => formatCurrency(amt)
 
-  const itemRows = items
-    .map((item) => {
-      const name = item.item_name || 'Item'
-      const typeLabel = item.item_type === 'product' ? ' (Product)' : ''
-      const qty = item.quantity
-      const unitPrice = item.unit_price
-      const total = item.total_price
-      const discount = item.discount_amount
+  // Group package items together, show non-package items individually
+  const packageGroups = {}
+  const standaloneItems = []
 
-      let html = `
-        <div style="margin-bottom:4px;">
-          <div style="font-size:10px;">${name}${typeLabel}</div>
-          <div style="display:flex;justify-content:space-between;font-size:9px;">
-            <span>${qty} x ${formatAmt(unitPrice)}</span>
-            <span>${formatAmt(total)}</span>
-          </div>`
-
-      if (discount > 0) {
-        html += `
-          <div style="font-size:8px;color:#666;">
-            Disc: -${formatAmt(discount)}
-          </div>`
+  items.forEach((item) => {
+    // Items with notes containing a package name are expanded package services
+    if (item.notes && items.filter((i) => i.notes === item.notes).length > 1) {
+      const pkgName = item.notes
+      if (!packageGroups[pkgName]) {
+        packageGroups[pkgName] = { name: pkgName, total: 0, discount: 0 }
       }
+      packageGroups[pkgName].total += item.total_price
+      packageGroups[pkgName].discount += item.discount_amount || 0
+    } else {
+      standaloneItems.push(item)
+    }
+  })
 
-      html += `</div>`
-      return html
-    })
-    .join('')
+  let itemRows = ''
+
+  // Render package groups as single lines
+  Object.values(packageGroups).forEach((pkg) => {
+    itemRows += `
+      <div style="margin-bottom:4px;">
+        <div style="font-size:10px;">${pkg.name} (Package)</div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;">
+          <span>1 x ${formatAmt(pkg.total)}</span>
+          <span>${formatAmt(pkg.total)}</span>
+        </div>`
+    if (pkg.discount > 0) {
+      itemRows += `
+        <div style="font-size:8px;color:#666;">
+          Disc: -${formatAmt(pkg.discount)}
+        </div>`
+    }
+    itemRows += `</div>`
+  })
+
+  // Render standalone items
+  standaloneItems.forEach((item) => {
+    const name = item.item_name || 'Item'
+    const typeLabel = item.item_type === 'product' ? ' (Product)' : ''
+    const qty = item.quantity
+    const unitPrice = item.unit_price
+    const total = item.total_price
+    const discount = item.discount_amount
+
+    itemRows += `
+      <div style="margin-bottom:4px;">
+        <div style="font-size:10px;">${name}${typeLabel}</div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;">
+          <span>${qty} x ${formatAmt(unitPrice)}</span>
+          <span>${formatAmt(total)}</span>
+        </div>`
+
+    if (discount > 0) {
+      itemRows += `
+        <div style="font-size:8px;color:#666;">
+          Disc: -${formatAmt(discount)}
+        </div>`
+    }
+
+    itemRows += `</div>`
+  })
 
   const paymentRows = payments
     .map(

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { billService } from '@/services/bill.service'
@@ -109,6 +109,29 @@ function BillDetailPage() {
     }
   }, [bill?.items, editModalOpen])
 
+  // Compute print-friendly items (packages collapsed into single lines)
+  const printItems = useMemo(() => {
+    if (!bill?.items) return []
+    const packageGroups = {}
+    const standalone = []
+
+    bill.items.forEach((item) => {
+      if (item.notes && bill.items.filter((i) => i.notes === item.notes).length > 1) {
+        const pkgName = item.notes
+        if (!packageGroups[pkgName]) {
+          packageGroups[pkgName] = { item_name: pkgName, item_type: 'package', quantity: 1, unit_price: 0, discount_amount: 0, total_price: 0 }
+        }
+        packageGroups[pkgName].total_price += item.total_price
+        packageGroups[pkgName].unit_price += item.unit_price * item.quantity
+        packageGroups[pkgName].discount_amount += item.discount_amount || 0
+      } else {
+        standalone.push(item)
+      }
+    })
+
+    return [...Object.values(packageGroups), ...standalone]
+  }, [bill?.items])
+
   const handlePrint = () => {
     const printContent = printRef.current
 
@@ -117,6 +140,7 @@ function BillDetailPage() {
         @media print {
           body { font-family: 'Inter', sans-serif; padding: 20px; }
           .no-print { display: none !important; }
+          .print-only { display: block !important; }
           .print-header { text-align: center; margin-bottom: 20px; }
           .print-header h1 { font-size: 24px; margin: 0; }
           .print-header p { color: #666; margin: 5px 0; }
@@ -353,8 +377,8 @@ function BillDetailPage() {
           </Card>
         </div>
 
-        {/* Bill Items */}
-        <Card className="mt-6">
+        {/* Bill Items - Screen version (shows all expanded items) */}
+        <Card className="mt-6 no-print">
           <CardHeader>
             <CardTitle>Items</CardTitle>
           </CardHeader>
@@ -369,7 +393,7 @@ function BillDetailPage() {
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-right">Discount</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-center no-print">Status</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -409,7 +433,7 @@ function BillDetailPage() {
                     <TableCell className="text-right font-medium">
                       {formatCurrency(item.total_price)}
                     </TableCell>
-                    <TableCell className="text-center no-print">
+                    <TableCell className="text-center">
                       <Badge
                         variant={item.status === 'pending' ? 'warning' : 'success'}
                         className="text-xs capitalize"
@@ -451,6 +475,82 @@ function BillDetailPage() {
                 )}
                 <TableRow className="bg-gray-50">
                   <TableCell colSpan={7} className="text-right font-bold text-lg">
+                    Total Amount
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-lg text-primary">
+                    {formatCurrency(bill.total_amount)}
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Bill Items - Print version (packages collapsed) */}
+        <Card className="mt-6 hidden print-only" style={{ display: 'none' }}>
+          <CardHeader>
+            <CardTitle>Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[50px]">#</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Discount</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {printItems.map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="text-gray-500">{index + 1}</TableCell>
+                    <TableCell>
+                      <div className="font-medium">
+                        {item.item_name || 'Unknown Item'}
+                      </div>
+                      <div className="text-sm text-gray-500 capitalize">
+                        {item.item_type}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(item.unit_price)}
+                    </TableCell>
+                    <TableCell className="text-right text-red-500">
+                      {item.discount_amount > 0
+                        ? `-${formatCurrency(item.discount_amount)}`
+                        : '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(item.total_price)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={5} className="text-right font-medium">
+                    Subtotal
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatCurrency(bill.subtotal)}
+                  </TableCell>
+                </TableRow>
+                {bill.discount_amount > 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-right font-medium text-red-500">
+                      Discount
+                    </TableCell>
+                    <TableCell className="text-right text-red-500">
+                      -{formatCurrency(bill.discount_amount)}
+                    </TableCell>
+                  </TableRow>
+                )}
+                <TableRow className="bg-gray-50">
+                  <TableCell colSpan={5} className="text-right font-bold text-lg">
                     Total Amount
                   </TableCell>
                   <TableCell className="text-right font-bold text-lg text-primary">

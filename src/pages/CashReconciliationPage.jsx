@@ -51,6 +51,7 @@ function CashReconciliationPage() {
   const queryClient = useQueryClient()
   const { user } = useSelector((state) => state.auth)
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
+  const canSeeRevenue = isOwner
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedBranch, setSelectedBranch] = useState(user?.branchId || '')
@@ -243,39 +244,59 @@ function CashReconciliationPage() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <Receipt className="h-6 w-6 text-green-600" />
+          <div className={`grid grid-cols-1 gap-4 ${canSeeRevenue ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
+            {canSeeRevenue && (
+              <Card className="bg-green-50 border-green-200">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-green-100 rounded-lg">
+                      <Receipt className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-green-600">Total Revenue</p>
+                      <p className="text-2xl font-bold text-green-700">
+                        {formatCurrency(summary.total_revenue)}
+                      </p>
+                      <p className="text-xs text-green-600">{summary.bills_count} bills</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-green-600">Total Revenue</p>
-                    <p className="text-2xl font-bold text-green-700">
-                      {formatCurrency(summary.total_revenue)}
-                    </p>
-                    <p className="text-xs text-green-600">{summary.bills_count} bills</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Banknote className="h-6 w-6 text-blue-600" />
+            {!canSeeRevenue && (
+              <Card className="bg-green-50 border-green-200">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-green-100 rounded-lg">
+                      <Receipt className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-green-600">Bills Today</p>
+                      <p className="text-2xl font-bold text-green-700">{summary.bills_count}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-blue-600">Cash Sales</p>
-                    <p className="text-2xl font-bold text-blue-700">
-                      {formatCurrency(summary.payment_breakdown.cash)}
-                    </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {canSeeRevenue && (
+              <Card className="bg-blue-50 border-blue-200">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-blue-100 rounded-lg">
+                      <Banknote className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-blue-600">Cash Sales</p>
+                      <p className="text-2xl font-bold text-blue-700">
+                        {formatCurrency(summary.payment_breakdown.cash)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="bg-purple-50 border-purple-200">
               <CardContent className="pt-6">
@@ -293,25 +314,27 @@ function CashReconciliationPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-orange-50 border-orange-200">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-orange-100 rounded-lg">
-                    <Wallet className="h-6 w-6 text-orange-600" />
+            {canSeeRevenue && (
+              <Card className="bg-orange-50 border-orange-200">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-orange-100 rounded-lg">
+                      <Wallet className="h-6 w-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-orange-600">Expected Cash</p>
+                      <p className="text-2xl font-bold text-orange-700">
+                        {formatCurrency(summary.expected_cash)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-orange-600">Expected Cash</p>
-                    <p className="text-2xl font-bold text-orange-700">
-                      {formatCurrency(summary.expected_cash)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
-          {/* Payment Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Payment Breakdown & Cash Flow - owner only */}
+          {canSeeRevenue && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -422,7 +445,7 @@ function CashReconciliationPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           {/* Bank Deposits Detail */}
           {summary.bank_deposits_detail.length > 0 && (

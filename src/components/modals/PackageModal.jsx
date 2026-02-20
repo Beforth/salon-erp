@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { serviceService } from '@/services/service.service'
 import {
@@ -11,8 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Loader2, Plus, Minus, Trash2, Package, Star } from 'lucide-react'
+import { Loader2, Plus, Minus, Trash2, Package, Star, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
 
@@ -25,6 +24,99 @@ const initialFormData = {
   is_active: true,
   services: [], // [{ service_id, service_name, quantity, service_price, star_points }]
   service_groups: [], // [{ group_label, services: [{ service_id, service_name, quantity, service_price, star_points }] }]
+}
+
+function ServiceSearchDropdown({ services, onSelect, label, placeholder = 'Search services...' }) {
+  const [query, setQuery] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef(null)
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return services
+    const term = query.toLowerCase()
+    return services.filter((s) => s.service_name.toLowerCase().includes(term))
+  }, [services, query])
+
+  // Group filtered results by category
+  const groupedResults = useMemo(() => {
+    const grouped = {}
+    filtered.forEach((service) => {
+      const cat = service.category?.category_name || 'Other'
+      if (!grouped[cat]) grouped[cat] = []
+      grouped[cat].push(service)
+    })
+    return grouped
+  }, [filtered])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  return (
+    <div className="space-y-2">
+      {label && <Label>{label}</Label>}
+      <div className="relative" ref={containerRef}>
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setIsOpen(true)
+          }}
+          onFocus={() => setIsOpen(true)}
+          className="pl-9"
+        />
+        {isOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+            {Object.keys(groupedResults).length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-3">
+                {query ? 'No matching services' : 'No services available'}
+              </p>
+            ) : (
+              Object.entries(groupedResults).map(([category, categoryServices]) => (
+                <div key={category}>
+                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 sticky top-0">
+                    {category}
+                  </div>
+                  {categoryServices.map((service) => (
+                    <button
+                      key={service.service_id}
+                      type="button"
+                      onClick={() => {
+                        onSelect(service)
+                        setQuery('')
+                        setIsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 flex items-center justify-between"
+                    >
+                      <span>{service.service_name}</span>
+                      <span className="text-xs text-gray-500 flex items-center gap-2">
+                        {formatCurrency(service.price)}
+                        {service.star_points > 0 && (
+                          <span className="inline-flex items-center text-amber-600">
+                            <Star className="h-3 w-3 fill-amber-400 stroke-amber-500 mr-0.5" />
+                            {service.star_points}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function PackageModal({ open, onOpenChange, pkg = null }) {
@@ -48,19 +140,6 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
 
   const services = servicesData?.data || []
   const packageCategories = categoriesData?.data || []
-
-  // Group services by category
-  const servicesByCategory = useMemo(() => {
-    const grouped = {}
-    services.forEach((service) => {
-      const categoryName = service.category?.category_name || 'Other'
-      if (!grouped[categoryName]) {
-        grouped[categoryName] = []
-      }
-      grouped[categoryName].push(service)
-    })
-    return grouped
-  }, [services])
 
   // Calculate totals (standalone + one per OR group; individual = standalone + max per group)
   const totals = useMemo(() => {
@@ -370,41 +449,15 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
             </div>
           </div>
 
-          {/* Service Selection */}
-          <div className="space-y-2">
-            <Label>Add Services</Label>
-            <div className="border rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
-              {Object.entries(servicesByCategory).length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No services available
-                </p>
-              ) : (
-                Object.entries(servicesByCategory).map(([category, categoryServices]) => (
-                  <div key={category} className="mb-3">
-                    <p className="text-xs font-semibold text-gray-500 mb-1">{category}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {categoryServices.map((service) => (
-                        <button
-                          key={service.service_id}
-                          type="button"
-                          onClick={() => handleAddService(service)}
-                          className="px-2 py-1 text-xs bg-white border rounded hover:bg-primary/5 hover:border-primary transition-colors"
-                        >
-                          {service.service_name} - {formatCurrency(service.price)}
-                          {service.star_points > 0 && (
-                            <span className="inline-flex items-center ml-1 text-amber-600">
-                              <Star className="h-3 w-3 fill-amber-400 stroke-amber-500" />
-                              {service.star_points}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {/* Service Selection - Search Dropdown */}
+          <ServiceSearchDropdown
+            services={services}
+            onSelect={(service) => {
+              handleAddService(service)
+            }}
+            label="Add Services"
+            placeholder="Search and add services..."
+          />
 
           {/* Selected Services (included in package) */}
           {formData.services.length > 0 && (
@@ -494,22 +547,11 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
-                    <div key={category} className="flex flex-wrap gap-1">
-                      {categoryServices.map((service) => (
-                        <button
-                          key={service.service_id}
-                          type="button"
-                          onClick={() => handleAddServiceToGroup(groupIndex, service)}
-                          className="px-2 py-1 text-xs bg-white border rounded hover:bg-primary/5 hover:border-primary"
-                        >
-                          {service.service_name}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                </div>
+                <ServiceSearchDropdown
+                  services={services}
+                  onSelect={(service) => handleAddServiceToGroup(groupIndex, service)}
+                  placeholder="Search and add services to group..."
+                />
                 {(group.services || []).length > 0 && (
                   <div className="divide-y border rounded bg-white">
                     {(group.services || []).map((s, sIdx) => (

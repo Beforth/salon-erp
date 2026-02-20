@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import { userService } from '@/services/user.service'
 import { branchService } from '@/services/branch.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import StaffModal from '@/components/modals/StaffModal'
 import { formatDate } from '@/lib/utils'
 import {
   Users,
@@ -41,6 +41,7 @@ const roleColors = {
 
 function StaffPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
 
@@ -49,8 +50,6 @@ function StaffPage() {
   const [selectedBranch, setSelectedBranch] = useState('')
   const [activeFilter, setActiveFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState(null)
 
   // Fetch users
   const { data, isLoading, error } = useQuery({
@@ -89,13 +88,11 @@ function StaffPage() {
   })
 
   const handleAddUser = () => {
-    setEditingUser(null)
-    setModalOpen(true)
+    navigate('/staff/new')
   }
 
-  const handleEditUser = (user) => {
-    setEditingUser(user)
-    setModalOpen(true)
+  const handleEditUser = (staffMember) => {
+    navigate(`/staff/${staffMember.user_id}/edit`)
   }
 
   const handleDeleteUser = (userId) => {
@@ -393,12 +390,6 @@ function StaffPage() {
         </CardContent>
       </Card>
 
-      {/* Staff Modal */}
-      <StaffModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        staff={editingUser}
-      />
     </div>
   )
 }

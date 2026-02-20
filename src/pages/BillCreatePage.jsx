@@ -673,7 +673,7 @@ function BillCreatePage() {
                 ((getItemDiscount(item) / (item.unit_price * item.quantity)) * 100).toFixed(2)
               )
             : 0,
-        notes: item.source_package_name ? item.item_name : null,
+        notes: item.source_package_name || null,
         status: item.item_status === 'pending' ? 'pending' : 'completed',
       })),
       payments: validPayments.map((p) => ({
@@ -735,7 +735,7 @@ function BillCreatePage() {
                 ((getItemDiscount(item) / (item.unit_price * item.quantity)) * 100).toFixed(2)
               )
             : 0,
-        notes: item.source_package_name ? item.item_name : null,
+        notes: item.source_package_name || null,
         status: item.item_status === 'pending' ? 'pending' : 'completed',
       })),
       payments: [],

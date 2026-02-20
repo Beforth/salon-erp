@@ -105,12 +105,12 @@ function CustomerModal({ open, onOpenChange, customer = null }) {
       return
     }
 
-    const data = {
-      ...formData,
-      gender: formData.gender || null,
-      age_category: formData.age_category || null,
-      date_of_birth: formData.date_of_birth || null,
-    }
+    const data = Object.fromEntries(
+      Object.entries(formData).map(([key, value]) => [
+        key,
+        typeof value === 'string' && !value.trim() ? null : value,
+      ])
+    )
 
     if (isEditing) {
       updateMutation.mutate({ id: customer.customer_id, data })

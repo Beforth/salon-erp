@@ -1,50 +1,50 @@
+import { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import {
-  Star,
-  Scissors,
-  Clock,
-  Calendar,
-  TrendingUp,
-} from 'lucide-react'
-
-const todayStats = [
-  {
-    name: 'Services Done',
-    value: '8',
-    icon: Scissors,
-  },
-  {
-    name: 'Stars Earned',
-    value: '80',
-    icon: Star,
-  },
-  {
-    name: 'Hours Worked',
-    value: '6.5',
-    icon: Clock,
-  },
-]
-
-const monthlyPerformance = {
-  servicesCompleted: 142,
-  totalStars: 1420,
-  revenue: '₹71,000',
-  attendanceDays: 22,
-  totalWorkingDays: 24,
-  bonus: '₹2,000',
-}
-
-const recentServices = [
-  { service: 'Haircut - Premium', customer: 'Raj Kumar', stars: 10, time: '10:30 AM' },
-  { service: 'Hair Styling', customer: 'Priya Sharma', stars: 8, time: '10:00 AM' },
-  { service: 'Beard Trim', customer: 'Amit Singh', stars: 3, time: '09:30 AM' },
-  { service: 'Face Cleanup', customer: 'Vikram Joshi', stars: 10, time: '09:00 AM' },
-]
+import { useQuery } from '@tanstack/react-query'
+import { userService } from '@/services/user.service'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Scissors, Loader2, ChevronDown } from 'lucide-react'
 
 function EmployeeDashboard() {
   const { user } = useSelector((state) => state.auth)
+  const [offset, setOffset] = useState(0)
+  const [allServices, setAllServices] = useState([])
+  const limit = 10
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-services', offset],
+    queryFn: () => userService.getMyServices({ limit, offset }),
+    onSuccess: (res) => {
+      const newServices = res?.data || []
+      if (offset === 0) {
+        setAllServices(newServices)
+      } else {
+        setAllServices((prev) => [...prev, ...newServices])
+      }
+    },
+  })
+
+  // Fallback for react-query v5 where onSuccess is deprecated
+  const services = data?.data || []
+  const pagination = data?.pagination || {}
+  const displayServices = offset === 0 ? services : allServices
+
+  const handleLoadMore = () => {
+    setOffset((prev) => prev + limit)
+  }
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -54,132 +54,61 @@ function EmployeeDashboard() {
           Hello, {user?.fullName || 'Employee'}
         </h1>
         <p className="text-gray-500">
-          {user?.branch?.name || 'Branch'} - Your performance dashboard
+          {user?.branch?.name || 'Branch'} - Your recent services
         </p>
       </div>
 
-      {/* Today's Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {todayStats.map((stat) => (
-          <Card key={stat.name}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">{stat.name}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">
-                    {stat.value}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <stat.icon className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Monthly Performance */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Monthly Performance</CardTitle>
-                <CardDescription>February 2026</CardDescription>
-              </div>
-              <TrendingUp className="h-5 w-5 text-green-500" />
+      {/* Recent Services */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scissors className="h-5 w-5" />
+            Recent Services
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading && offset === 0 ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600">Services Completed</span>
-                <span className="font-bold text-gray-900">{monthlyPerformance.servicesCompleted}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600">Total Stars</span>
-                <span className="font-bold text-gray-900 flex items-center">
-                  {monthlyPerformance.totalStars}
-                  <Star className="h-4 w-4 ml-1 text-yellow-500 fill-yellow-500" />
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600">Revenue Generated</span>
-                <span className="font-bold text-gray-900">{monthlyPerformance.revenue}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600">Attendance</span>
-                <span className="font-bold text-gray-900">
-                  {monthlyPerformance.attendanceDays}/{monthlyPerformance.totalWorkingDays} days
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                <span className="text-green-700">Expected Bonus</span>
-                <Badge variant="success" className="text-base px-3 py-1">
-                  {monthlyPerformance.bonus}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Services */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Today's Services</CardTitle>
-            <CardDescription>Services you've completed today</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentServices.map((service, index) => (
+          ) : displayServices.length === 0 ? (
+            <p className="text-center text-gray-500 py-10">No services found</p>
+          ) : (
+            <div className="space-y-2">
+              {displayServices.map((service, index) => (
                 <div
                   key={index}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">{service.service}</p>
-                    <p className="text-sm text-gray-500">{service.customer}</p>
+                    <p className="font-medium text-gray-900">{service.item_name}</p>
+                    <p className="text-sm text-gray-500">{service.customer_name}</p>
                   </div>
                   <div className="text-right">
-                    <div className="flex items-center text-yellow-600">
-                      <Star className="h-4 w-4 mr-1 fill-yellow-500" />
-                      <span className="font-bold">{service.stars}</span>
-                    </div>
-                    <p className="text-sm text-gray-500">{service.time}</p>
+                    <p className="text-sm text-gray-500">{formatDate(service.date)}</p>
                   </div>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Quick Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Attendance This Month
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex-1 bg-gray-200 rounded-full h-3">
-              <div
-                className="bg-green-500 h-3 rounded-full"
-                style={{
-                  width: `${(monthlyPerformance.attendanceDays / monthlyPerformance.totalWorkingDays) * 100}%`,
-                }}
-              />
+              {/* Load More */}
+              {pagination.has_more && (
+                <div className="pt-4 text-center">
+                  <Button
+                    variant="outline"
+                    onClick={handleLoadMore}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 mr-2" />
+                    )}
+                    Load More
+                  </Button>
+                </div>
+              )}
             </div>
-            <span className="text-sm font-medium text-gray-600">
-              {Math.round((monthlyPerformance.attendanceDays / monthlyPerformance.totalWorkingDays) * 100)}%
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 mt-2">
-            You've been present for {monthlyPerformance.attendanceDays} out of {monthlyPerformance.totalWorkingDays} working days this month.
-          </p>
+          )}
         </CardContent>
       </Card>
     </div>

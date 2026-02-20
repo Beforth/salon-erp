@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  DollarSign,
   Users,
   Receipt,
   Clock,
@@ -12,12 +11,6 @@ import {
 import LowStockAlertsCard from '@/components/dashboard/LowStockAlertsCard'
 
 const stats = [
-  {
-    name: "Today's Revenue",
-    value: '₹25,340',
-    icon: DollarSign,
-    description: '48 bills',
-  },
   {
     name: 'Staff Present',
     value: '8/10',
@@ -39,9 +32,9 @@ const stats = [
 ]
 
 const topEmployees = [
-  { name: 'Ramesh Kumar', services: 12, stars: 120, revenue: '₹6,000' },
-  { name: 'Suresh Patil', services: 10, stars: 100, revenue: '₹5,200' },
-  { name: 'Priya Sharma', services: 8, stars: 80, revenue: '₹4,800' },
+  { name: 'Ramesh Kumar', services: 12, stars: 120 },
+  { name: 'Suresh Patil', services: 10, stars: 100 },
+  { name: 'Priya Sharma', services: 8, stars: 80 },
 ]
 
 function ManagerDashboard() {
@@ -60,8 +53,8 @@ function ManagerDashboard() {
         </p>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats grid - no revenue card */}
+      <div className="grid gap-4 md:grid-cols-3">
         {stats.map((stat) => (
           <Card key={stat.name}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -81,7 +74,7 @@ function ManagerDashboard() {
       {/* Low Stock Alerts */}
       <LowStockAlertsCard maxItems={3} />
 
-      {/* Top Performers */}
+      {/* Top Performers - no revenue shown */}
       <Card>
         <CardHeader>
           <CardTitle>Top Performers Today</CardTitle>
@@ -104,9 +97,6 @@ function ManagerDashboard() {
                       {employee.services} services · {employee.stars} stars
                     </p>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-gray-900">{employee.revenue}</p>
                 </div>
               </div>
             ))}
