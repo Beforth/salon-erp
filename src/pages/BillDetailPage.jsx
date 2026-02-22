@@ -1,7 +1,9 @@
-import { useRef, useState, useEffect, useMemo } from 'react'
+import React, { useRef, useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { billService } from '@/services/bill.service'
+import { branchService } from '@/services/branch.service'
+import { serviceService } from '@/services/service.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +25,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   ArrowLeft,
   Printer,
@@ -42,6 +46,8 @@ import {
   Armchair,
   Check,
   XCircle,
+  Package,
+  Settings2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { printThermalReceipt } from '@/components/ThermalReceipt'
@@ -50,6 +56,7 @@ import CompleteBillModal from '@/components/modals/CompleteBillModal'
 const statusColors = {
   completed: 'success',
   pending: 'warning',
+  partial: 'warning',
   draft: 'secondary',
   cancelled: 'destructive',
 }
@@ -68,6 +75,12 @@ function BillDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editItemStatuses, setEditItemStatuses] = useState({})
   const [completeBillModalOpen, setCompleteBillModalOpen] = useState(false)
+  const [partialBillMode, setPartialBillMode] = useState(false)
+  const [removedPackageInstanceIds, setRemovedPackageInstanceIds] = useState([])
+  const [reconfigModalOpen, setReconfigModalOpen] = useState(false)
+  const [reconfigPackage, setReconfigPackage] = useState(null) // { package_instance_id, package_id, package_name }
+  const [reconfigServices, setReconfigServices] = useState([]) // [{ service_id, employee_id, employee_ids }]
+  const [reconfigPrice, setReconfigPrice] = useState('')
 
   const deleteBillMutation = useMutation({
     mutationFn: () => billService.cancelBill(id),
@@ -85,6 +98,24 @@ function BillDetailPage() {
   })
 
   const bill = data?.data
+
+  // Fetch branch employees for reconfigure modal
+  const branchId = bill?.branch?.branch_id
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', branchId],
+    queryFn: () => branchService.getBranchEmployees(branchId),
+    enabled: !!branchId && reconfigModalOpen,
+  })
+  const employees = employeesData?.data || []
+
+  // Fetch package details when reconfiguring
+  const reconfigPkgId = reconfigPackage?.package_id
+  const { data: reconfigPkgData } = useQuery({
+    queryKey: ['package', reconfigPkgId],
+    queryFn: () => serviceService.getPackageById(reconfigPkgId),
+    enabled: !!reconfigPkgId && reconfigModalOpen,
+  })
+  const reconfigPkgDetail = reconfigPkgData?.data
 
   const updateBillMutation = useMutation({
     mutationFn: (data) => billService.updateBill(id, data),
@@ -106,12 +137,155 @@ function BillDetailPage() {
         statuses[item.item_id] = item.status || 'completed'
       })
       setEditItemStatuses(statuses)
+      setRemovedPackageInstanceIds([])
     }
   }, [bill?.items, editModalOpen])
+
+  // Group bill items for screen display (packages grouped, singles separate)
+  const groupedBillItems = useMemo(() => {
+    if (!bill?.items) return []
+
+    // Tier 1: Use package_summary if available (new backend)
+    if (bill.package_summary?.length) {
+      const groups = []
+      const itemsByInstance = {}
+
+      // Map items by package_instance_id
+      bill.items.forEach((item) => {
+        if (item.package_instance_id) {
+          if (!itemsByInstance[item.package_instance_id]) {
+            itemsByInstance[item.package_instance_id] = []
+          }
+          itemsByInstance[item.package_instance_id].push(item)
+        }
+      })
+
+      // Build package groups from summary
+      const usedItemIds = new Set()
+      bill.package_summary.forEach((pkg) => {
+        const pkgItems = itemsByInstance[pkg.package_instance_id] || []
+        pkgItems.forEach((i) => usedItemIds.add(i.item_id))
+        groups.push({
+          type: 'package',
+          package_instance_id: pkg.package_instance_id,
+          package_name: pkg.package_name,
+          package_price: pkg.package_price,
+          package_id: pkg.package_id,
+          items: pkgItems,
+          total: pkgItems.reduce((s, i) => s + i.total_price, 0),
+          subtotal: pkgItems.reduce((s, i) => s + i.unit_price * i.quantity, 0),
+          discount: pkgItems.reduce((s, i) => s + (i.discount_amount || 0), 0),
+          savings: pkg.savings ?? 0,
+        })
+      })
+
+      // Remaining items as singles
+      bill.items.forEach((item) => {
+        if (!usedItemIds.has(item.item_id)) {
+          groups.push({ type: 'single', item })
+        }
+      })
+
+      return groups
+    }
+
+    // Tier 2: Group by package_instance_id if present
+    const hasInstanceIds = bill.items.some((i) => i.package_instance_id)
+    if (hasInstanceIds) {
+      const groups = []
+      const instanceMap = {}
+      bill.items.forEach((item) => {
+        if (item.package_instance_id) {
+          if (!instanceMap[item.package_instance_id]) {
+            instanceMap[item.package_instance_id] = []
+          }
+          instanceMap[item.package_instance_id].push(item)
+        } else {
+          groups.push({ type: 'single', item })
+        }
+      })
+      Object.entries(instanceMap).forEach(([instanceId, items]) => {
+        const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+        const discount = items.reduce((s, i) => s + (i.discount_amount || 0), 0)
+        groups.push({
+          type: 'package',
+          package_instance_id: instanceId,
+          package_name: items[0].notes || 'Package',
+          package_price: subtotal,
+          items,
+          total: items.reduce((s, i) => s + i.total_price, 0),
+          subtotal,
+          discount,
+          savings: 0,
+        })
+      })
+      return groups
+    }
+
+    // Tier 3: Legacy fallback — group by notes
+    const groups = []
+    const noteGroups = {}
+    bill.items.forEach((item) => {
+      if (item.notes && bill.items.filter((i) => i.notes === item.notes).length > 1) {
+        if (!noteGroups[item.notes]) {
+          noteGroups[item.notes] = []
+        }
+        noteGroups[item.notes].push(item)
+      } else {
+        groups.push({ type: 'single', item })
+      }
+    })
+    Object.entries(noteGroups).forEach(([noteName, items]) => {
+      const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+      const discount = items.reduce((s, i) => s + (i.discount_amount || 0), 0)
+      groups.push({
+        type: 'package',
+        package_name: noteName,
+        items,
+        total: items.reduce((s, i) => s + i.total_price, 0),
+        subtotal,
+        discount,
+        savings: 0,
+      })
+    })
+    return groups
+  }, [bill?.items, bill?.package_summary])
 
   // Compute print-friendly items (packages collapsed into single lines)
   const printItems = useMemo(() => {
     if (!bill?.items) return []
+
+    // Prefer package_summary for new-format bills
+    if (bill.package_summary?.length) {
+      const result = []
+      const usedItemIds = new Set()
+
+      bill.package_summary.forEach((pkg) => {
+        const pkgItems = bill.items.filter((i) => i.package_instance_id === pkg.package_instance_id)
+        pkgItems.forEach((i) => usedItemIds.add(i.item_id))
+        const totalPrice = pkgItems.reduce((s, i) => s + i.total_price, 0)
+        const unitPrice = pkgItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+        const discountAmount = pkgItems.reduce((s, i) => s + (i.discount_amount || 0), 0)
+        result.push({
+          item_name: pkg.package_name,
+          item_type: 'package',
+          quantity: 1,
+          unit_price: unitPrice,
+          discount_amount: discountAmount,
+          total_price: totalPrice,
+        })
+      })
+
+      bill.items.forEach((item) => {
+        if (!usedItemIds.has(item.item_id)) {
+          result.push(item)
+        }
+      })
+
+      return result
+    }
+
+    // Fallback: existing notes-matching logic for old bills
     const packageGroups = {}
     const standalone = []
 
@@ -130,7 +304,7 @@ function BillDetailPage() {
     })
 
     return [...Object.values(packageGroups), ...standalone]
-  }, [bill?.items])
+  }, [bill?.items, bill?.package_summary])
 
   const handlePrint = () => {
     const printContent = printRef.current
@@ -206,7 +380,7 @@ function BillDetailPage() {
     )
   }
 
-  const isPending = bill.status === 'pending'
+  const isPending = bill.status === 'pending' || bill.status === 'partial'
 
   return (
     <div className="space-y-6">
@@ -231,11 +405,23 @@ function BillDetailPage() {
           {isPending && (
             <>
               <Button
-                onClick={() => setCompleteBillModalOpen(true)}
+                onClick={() => {
+                  setPartialBillMode(false)
+                  setCompleteBillModalOpen(true)
+                }}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <Check className="h-4 w-4 mr-2" />
                 Complete Bill
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPartialBillMode(true)
+                  setCompleteBillModalOpen(true)
+                }}
+              >
+                Partial Bill
               </Button>
               <Button
                 variant="outline"
@@ -397,52 +583,140 @@ function BillDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bill.items?.map((item, index) => (
-                  <TableRow key={item.item_id}>
-                    <TableCell className="text-gray-500">{index + 1}</TableCell>
-                    <TableCell>
-                      <div className="font-medium">
-                        {item.item_name ??
-                          item.service?.service_name ??
-                          item.service?.serviceName ??
-                          item.package?.package_name ??
-                          item.package?.packageName ??
-                          item.product?.product_name ??
-                          item.product?.productName ??
-                          item.notes ??
-                          'Unknown Item'}
-                      </div>
-                      <div className="text-sm text-gray-500 capitalize">
-                        {item.item_type}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {item.employees && item.employees.length > 0
-                        ? item.employees.map(e => e.full_name).join(', ')
-                        : item.employee?.full_name || '-'}
-                    </TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(item.unit_price)}
-                    </TableCell>
-                    <TableCell className="text-right text-red-500">
-                      {item.discount_amount > 0
-                        ? `-${formatCurrency(item.discount_amount)}`
-                        : '-'}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(item.total_price)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge
-                        variant={item.status === 'pending' ? 'warning' : 'success'}
-                        className="text-xs capitalize"
-                      >
-                        {item.status || 'completed'}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {(() => {
+                  let rowNum = 0
+                  return groupedBillItems.map((group, gIdx) => {
+                    if (group.type === 'package') {
+                      rowNum++
+                      const headerNum = rowNum
+                      return (
+                        <React.Fragment key={`pkg-${group.package_instance_id || gIdx}`}>
+                          {/* Package header row */}
+                          <TableRow className="bg-blue-50/60">
+                            <TableCell className="text-gray-500">{headerNum}</TableCell>
+                            <TableCell colSpan={2}>
+                              <div className="flex items-center gap-2">
+                                <Package className="h-4 w-4 text-blue-600" />
+                                <span className="font-semibold text-blue-900">
+                                  {group.package_name}
+                                </span>
+                                <Badge variant="outline" className="text-xs">Package</Badge>
+                                {group.savings > 0 && (
+                                  <Badge variant="success" className="text-xs">
+                                    Save {formatCurrency(group.savings)}
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">1</TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(group.subtotal)}
+                            </TableCell>
+                            <TableCell className="text-right text-red-500">
+                              {group.discount > 0 ? `-${formatCurrency(group.discount)}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(group.total)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {group.items.some((i) => i.status === 'pending') ? (
+                                <Badge variant="warning" className="text-xs">Pending</Badge>
+                              ) : (
+                                <Badge variant="success" className="text-xs">Completed</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                          {/* Indented service rows */}
+                          {group.items.map((item) => (
+                            <TableRow key={item.item_id} className="bg-blue-50/30">
+                              <TableCell></TableCell>
+                              <TableCell>
+                                <div className="pl-6 text-sm text-gray-700">
+                                  {item.item_name ?? item.service?.service_name ?? 'Service'}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-600">
+                                {item.employees && item.employees.length > 0
+                                  ? item.employees.map(e => e.full_name).join(', ')
+                                  : item.employee?.full_name || '-'}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">{item.quantity}</TableCell>
+                              <TableCell className="text-right text-sm">
+                                {formatCurrency(item.unit_price)}
+                              </TableCell>
+                              <TableCell className="text-right text-sm text-red-500">
+                                {item.discount_amount > 0
+                                  ? `-${formatCurrency(item.discount_amount)}`
+                                  : '-'}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {formatCurrency(item.total_price)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge
+                                  variant={item.status === 'pending' ? 'warning' : 'success'}
+                                  className="text-xs capitalize"
+                                >
+                                  {item.status || 'completed'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </React.Fragment>
+                      )
+                    }
+
+                    // Single item
+                    rowNum++
+                    const item = group.item
+                    return (
+                      <TableRow key={item.item_id}>
+                        <TableCell className="text-gray-500">{rowNum}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">
+                            {item.item_name ??
+                              item.service?.service_name ??
+                              item.service?.serviceName ??
+                              item.package?.package_name ??
+                              item.package?.packageName ??
+                              item.product?.product_name ??
+                              item.product?.productName ??
+                              item.notes ??
+                              'Unknown Item'}
+                          </div>
+                          <div className="text-sm text-gray-500 capitalize">
+                            {item.item_type}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {item.employees && item.employees.length > 0
+                            ? item.employees.map(e => e.full_name).join(', ')
+                            : item.employee?.full_name || '-'}
+                        </TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(item.unit_price)}
+                        </TableCell>
+                        <TableCell className="text-right text-red-500">
+                          {item.discount_amount > 0
+                            ? `-${formatCurrency(item.discount_amount)}`
+                            : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(item.total_price)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            variant={item.status === 'pending' ? 'warning' : 'success'}
+                            className="text-xs capitalize"
+                          >
+                            {item.status || 'completed'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                })()}
               </TableBody>
               <TableFooter>
                 <TableRow>
@@ -652,52 +926,151 @@ function BillDetailPage() {
         </div>
       </div>
 
-      {/* Edit Bill — item status (pending / completed) */}
+      {/* Edit Bill — item status + package operations */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="h-5 w-5" />
-              Edit Bill — Item Status
+              Edit Bill
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-500">
-            Mark items as Pending (to be done later) or Completed.
+            Update item statuses, remove or reconfigure packages.
           </p>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {bill?.items?.map((item) => (
-              <div
-                key={item.item_id}
-                className="flex items-center justify-between p-2 rounded border bg-gray-50"
-              >
-                <span className="text-sm font-medium truncate flex-1">
-                  {item.item_name ??
-                    item.service?.service_name ??
-                    item.service?.serviceName ??
-                    item.package?.package_name ??
-                    item.package?.packageName ??
-                    item.product?.product_name ??
-                    item.product?.productName ??
-                    item.notes ??
-                    'Unknown'}
-                </span>
-                <select
-                  className="ml-2 h-8 px-2 text-sm border rounded-md min-w-[100px]"
-                  value={editItemStatuses[item.item_id] || item.status || 'completed'}
-                  onChange={(e) =>
-                    setEditItemStatuses((prev) => ({
-                      ...prev,
-                      [item.item_id]: e.target.value,
-                    }))
-                  }
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            {groupedBillItems.map((group, gIdx) => {
+              if (group.type === 'package') {
+                const isRemoved = group.package_instance_id &&
+                  removedPackageInstanceIds.includes(group.package_instance_id)
+
+                return (
+                  <div
+                    key={`edit-pkg-${group.package_instance_id || gIdx}`}
+                    className={`border rounded-lg p-3 ${isRemoved ? 'opacity-50 bg-red-50' : 'bg-blue-50/40'}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium text-sm">{group.package_name}</span>
+                        <Badge variant="outline" className="text-xs">Package</Badge>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {isPending && group.package_instance_id && group.package_id && !isRemoved && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              setReconfigPackage({
+                                package_instance_id: group.package_instance_id,
+                                package_id: group.package_id,
+                                package_name: group.package_name,
+                              })
+                              // Initialize with current service/employee assignments
+                              setReconfigServices(
+                                group.items.map((item) => ({
+                                  service_id: item.service_id || item.service?.service_id,
+                                  employee_id: item.employee?.employee_id || null,
+                                  employee_ids: item.employees?.map(e => e.employee_id) || [],
+                                }))
+                              )
+                              setReconfigPrice(group.subtotal?.toString() || '')
+                              setReconfigModalOpen(true)
+                            }}
+                          >
+                            <Settings2 className="h-3 w-3 mr-1" />
+                            Reconfigure
+                          </Button>
+                        )}
+                        {group.package_instance_id && (
+                          <Button
+                            variant={isRemoved ? 'outline' : 'destructive'}
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              if (isRemoved) {
+                                setRemovedPackageInstanceIds((prev) =>
+                                  prev.filter((id) => id !== group.package_instance_id)
+                                )
+                              } else {
+                                setRemovedPackageInstanceIds((prev) => [
+                                  ...prev,
+                                  group.package_instance_id,
+                                ])
+                              }
+                            }}
+                          >
+                            {isRemoved ? 'Undo Remove' : 'Remove'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {!isRemoved && group.items.map((item) => (
+                      <div
+                        key={item.item_id}
+                        className="flex items-center justify-between py-1 pl-6 text-sm"
+                      >
+                        <span className="truncate flex-1 text-gray-700">
+                          {item.item_name ?? item.service?.service_name ?? 'Service'}
+                        </span>
+                        <select
+                          className="ml-2 h-7 px-2 text-xs border rounded-md min-w-[100px]"
+                          value={editItemStatuses[item.item_id] || item.status || 'completed'}
+                          onChange={(e) =>
+                            setEditItemStatuses((prev) => ({
+                              ...prev,
+                              [item.item_id]: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In progress</option>
+                          <option value="completed">Completed</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+
+              // Single item
+              const item = group.item
+              return (
+                <div
+                  key={item.item_id}
+                  className="flex items-center justify-between p-2 rounded border bg-gray-50"
                 >
-                  <option value="pending">Pending</option>
-                  <option value="in_progress">In progress</option>
-                  <option value="completed">Completed</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-            ))}
+                  <span className="text-sm font-medium truncate flex-1">
+                    {item.item_name ??
+                      item.service?.service_name ??
+                      item.service?.serviceName ??
+                      item.package?.package_name ??
+                      item.package?.packageName ??
+                      item.product?.product_name ??
+                      item.product?.productName ??
+                      item.notes ??
+                      'Unknown'}
+                  </span>
+                  <select
+                    className="ml-2 h-8 px-2 text-sm border rounded-md min-w-[100px]"
+                    value={editItemStatuses[item.item_id] || item.status || 'completed'}
+                    onChange={(e) =>
+                      setEditItemStatuses((prev) => ({
+                        ...prev,
+                        [item.item_id]: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+              )
+            })}
           </div>
           <DialogFooter>
             <Button
@@ -709,11 +1082,28 @@ function BillDetailPage() {
             </Button>
             <Button
               onClick={() => {
-                const items = bill.items.map((i) => ({
-                  item_id: i.item_id,
-                  status: editItemStatuses[i.item_id] ?? i.status ?? 'completed',
-                }))
-                updateBillMutation.mutate({ items })
+                // Build items payload (status changes, excluding removed packages)
+                const removedItemIds = new Set()
+                if (removedPackageInstanceIds.length > 0) {
+                  bill.items.forEach((i) => {
+                    if (i.package_instance_id && removedPackageInstanceIds.includes(i.package_instance_id)) {
+                      removedItemIds.add(i.item_id)
+                    }
+                  })
+                }
+                const items = bill.items
+                  .filter((i) => !removedItemIds.has(i.item_id))
+                  .map((i) => ({
+                    item_id: i.item_id,
+                    status: editItemStatuses[i.item_id] ?? i.status ?? 'completed',
+                  }))
+
+                const payload = { items }
+                if (removedPackageInstanceIds.length > 0) {
+                  payload.remove_package_instance_ids = removedPackageInstanceIds
+                }
+
+                updateBillMutation.mutate(payload)
               }}
               disabled={updateBillMutation.isPending}
             >
@@ -726,11 +1116,175 @@ function BillDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Reconfigure Package Sub-Modal */}
+      <Dialog open={reconfigModalOpen} onOpenChange={setReconfigModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5" />
+              Reconfigure — {reconfigPackage?.package_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            {/* Package price */}
+            <div>
+              <Label className="text-sm font-medium">Package Price</Label>
+              <Input
+                type="number"
+                value={reconfigPrice}
+                onChange={(e) => setReconfigPrice(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+
+            {/* Services list from package details */}
+            {reconfigPkgDetail ? (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Services</Label>
+                {/* Standalone services */}
+                {(reconfigPkgDetail.services || []).map((svc, sIdx) => (
+                  <div key={svc.service_id} className="border rounded p-2 space-y-1">
+                    <div className="text-sm font-medium">{svc.service_name}</div>
+                    <div className="text-xs text-gray-500">
+                      Price: {formatCurrency(svc.service_price)}
+                    </div>
+                    <select
+                      className="w-full h-8 px-2 text-sm border rounded-md"
+                      value={reconfigServices[sIdx]?.employee_id || ''}
+                      onChange={(e) => {
+                        setReconfigServices((prev) => {
+                          const next = [...prev]
+                          if (!next[sIdx]) next[sIdx] = { service_id: svc.service_id }
+                          next[sIdx] = { ...next[sIdx], service_id: svc.service_id, employee_id: e.target.value || null }
+                          return next
+                        })
+                      }}
+                    >
+                      <option value="">No employee</option>
+                      {employees.map((emp) => (
+                        <option key={emp.employee_id} value={emp.employee_id}>
+                          {emp.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                {/* Service groups (OR groups) */}
+                {(reconfigPkgDetail.service_groups || []).map((group, gIdx) => {
+                  const serviceIdx = (reconfigPkgDetail.services || []).length + gIdx
+                  return (
+                    <div key={`group-${gIdx}`} className="border rounded p-2 space-y-1">
+                      <div className="text-sm font-medium text-blue-700">
+                        Choose one (Group {gIdx + 1})
+                      </div>
+                      <select
+                        className="w-full h-8 px-2 text-sm border rounded-md"
+                        value={reconfigServices[serviceIdx]?.service_id || ''}
+                        onChange={(e) => {
+                          setReconfigServices((prev) => {
+                            const next = [...prev]
+                            next[serviceIdx] = {
+                              service_id: e.target.value || null,
+                              employee_id: next[serviceIdx]?.employee_id || null,
+                            }
+                            return next
+                          })
+                        }}
+                      >
+                        <option value="">Select service</option>
+                        {(group.services || []).map((s) => (
+                          <option key={s.service_id} value={s.service_id}>
+                            {s.service_name} ({formatCurrency(s.service_price)})
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="w-full h-8 px-2 text-sm border rounded-md"
+                        value={reconfigServices[serviceIdx]?.employee_id || ''}
+                        onChange={(e) => {
+                          setReconfigServices((prev) => {
+                            const next = [...prev]
+                            if (!next[serviceIdx]) next[serviceIdx] = {}
+                            next[serviceIdx] = { ...next[serviceIdx], employee_id: e.target.value || null }
+                            return next
+                          })
+                        }}
+                      >
+                        <option value="">No employee</option>
+                        {employees.map((emp) => (
+                          <option key={emp.employee_id} value={emp.employee_id}>
+                            {emp.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-500">Loading package details...</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReconfigModalOpen(false)
+                setReconfigPackage(null)
+              }}
+              disabled={updateBillMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const selectedServices = reconfigServices
+                  .filter((s) => s?.service_id)
+                  .map((s) => {
+                    const entry = { service_id: s.service_id }
+                    if (s.employee_ids?.length > 1) {
+                      entry.employee_ids = s.employee_ids
+                    } else if (s.employee_id) {
+                      entry.employee_id = s.employee_id
+                    }
+                    return entry
+                  })
+
+                const payload = {
+                  items: bill.items.map((i) => ({
+                    item_id: i.item_id,
+                    status: editItemStatuses[i.item_id] ?? i.status ?? 'completed',
+                  })),
+                  update_package_services: {
+                    package_instance_id: reconfigPackage.package_instance_id,
+                    package_price: parseFloat(reconfigPrice) || 0,
+                    selected_services: selectedServices,
+                  },
+                }
+                updateBillMutation.mutate(payload)
+                setReconfigModalOpen(false)
+                setReconfigPackage(null)
+              }}
+              disabled={updateBillMutation.isPending || !reconfigPkgDetail}
+            >
+              {updateBillMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Save Reconfiguration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Complete Bill Modal */}
       <CompleteBillModal
         open={completeBillModalOpen}
         onOpenChange={setCompleteBillModalOpen}
         bill={bill}
+        partial={partialBillMode}
       />
     </div>
   )

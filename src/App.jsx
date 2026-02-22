@@ -23,6 +23,7 @@ import StaffFormPage from './pages/StaffFormPage'
 import StaffPerformancePage from './pages/StaffPerformancePage'
 import SettingsPage from './pages/SettingsPage'
 import CashReconciliationPage from './pages/CashReconciliationPage'
+import ExpensesPage from './pages/ExpensesPage'
 import ChairManagementPage from './pages/ChairManagementPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
@@ -89,6 +90,7 @@ function App() {
         <Route path="staff-performance" element={<StaffPerformancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="cash-reconciliation" element={<CashReconciliationPage />} />
+        <Route path="expenses" element={<ExpensesPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

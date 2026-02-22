@@ -7,22 +7,39 @@ function buildReceiptHTML(bill) {
   const formatAmt = (amt) => formatCurrency(amt)
 
   // Group package items together, show non-package items individually
-  const packageGroups = {}
-  const standaloneItems = []
+  let packageGroups = {}
+  let standaloneItems = []
 
-  items.forEach((item) => {
-    // Items with notes containing a package name are expanded package services
-    if (item.notes && items.filter((i) => i.notes === item.notes).length > 1) {
-      const pkgName = item.notes
-      if (!packageGroups[pkgName]) {
-        packageGroups[pkgName] = { name: pkgName, total: 0, discount: 0 }
+  if (bill.package_summary?.length) {
+    // New backend format: use package_summary for grouping
+    const usedItemIds = new Set()
+    bill.package_summary.forEach((pkg) => {
+      const pkgItems = items.filter((i) => i.package_instance_id === pkg.package_instance_id)
+      pkgItems.forEach((i) => usedItemIds.add(i.item_id))
+      const total = pkgItems.reduce((s, i) => s + i.total_price, 0)
+      const discount = pkgItems.reduce((s, i) => s + (i.discount_amount || 0), 0)
+      packageGroups[pkg.package_instance_id] = { name: pkg.package_name, total, discount }
+    })
+    items.forEach((item) => {
+      if (!usedItemIds.has(item.item_id)) {
+        standaloneItems.push(item)
       }
-      packageGroups[pkgName].total += item.total_price
-      packageGroups[pkgName].discount += item.discount_amount || 0
-    } else {
-      standaloneItems.push(item)
-    }
-  })
+    })
+  } else {
+    // Legacy fallback: group by matching notes
+    items.forEach((item) => {
+      if (item.notes && items.filter((i) => i.notes === item.notes).length > 1) {
+        const pkgName = item.notes
+        if (!packageGroups[pkgName]) {
+          packageGroups[pkgName] = { name: pkgName, total: 0, discount: 0 }
+        }
+        packageGroups[pkgName].total += item.total_price
+        packageGroups[pkgName].discount += item.discount_amount || 0
+      } else {
+        standaloneItems.push(item)
+      }
+    })
+  }
 
   let itemRows = ''
 

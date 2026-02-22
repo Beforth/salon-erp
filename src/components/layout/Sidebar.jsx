@@ -21,6 +21,7 @@ import {
   TrendingUp,
   BookOpen,
   Armchair,
+  Wallet,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -108,6 +109,12 @@ const getNavItemsByRole = (role) => {
       title: 'Cash Drawer',
       href: '/cash-reconciliation',
       icon: Calculator,
+      roles: ['owner', 'developer', 'manager', 'cashier'],
+    },
+    {
+      title: 'Expenses',
+      href: '/expenses',
+      icon: Wallet,
       roles: ['owner', 'developer', 'manager', 'cashier'],
     },
     {

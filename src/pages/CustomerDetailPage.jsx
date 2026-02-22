@@ -163,7 +163,7 @@ function CustomerDetailPage() {
               {customer.phone && (
                 <div className="flex items-center gap-3">
                   <Phone className="h-4 w-4 text-gray-400" />
-                  <span>{customer.phone}</span>
+                  <span>{customer.phone_masked || customer.phone}</span>
                 </div>
               )}
               {customer.email && (

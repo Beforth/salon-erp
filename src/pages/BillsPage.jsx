@@ -50,6 +50,7 @@ import CompleteBillModal from '@/components/modals/CompleteBillModal'
 const statusColors = {
   completed: 'success',
   pending: 'warning',
+  partial: 'warning',
   draft: 'secondary',
   cancelled: 'destructive',
 }
@@ -57,6 +58,7 @@ const statusColors = {
 const STATUS_TABS = [
   { value: '', label: 'All' },
   { value: 'pending', label: 'Pending' },
+  { value: 'partial', label: 'Partial' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
@@ -496,7 +498,7 @@ function BillsPage() {
                             <Receipt className="h-4 w-4 mr-2" />
                             View
                           </DropdownMenuItem>
-                          {bill.status === 'pending' && (
+                          {(bill.status === 'pending' || bill.status === 'partial') && (
                             <DropdownMenuItem onClick={() => handleOpenComplete(bill)}>
                               <Check className="h-4 w-4 mr-2" />
                               Complete

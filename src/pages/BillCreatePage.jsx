@@ -47,6 +47,8 @@ import {
   Play,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import CustomerModal from '@/components/modals/CustomerModal'
+import { UserPlus } from 'lucide-react'
 
 const PAYMENT_MODES = [
   { value: 'cash', label: 'Cash', icon: Banknote },
@@ -73,6 +75,7 @@ function BillCreatePage() {
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false)
 
   // Branch
   const [selectedBranch, setSelectedBranch] = useState(branchId)
@@ -93,7 +96,6 @@ function BillCreatePage() {
 
   // Edit modal
   const [editingItemIndex, setEditingItemIndex] = useState(null)
-  const [editingPackageGroupId, setEditingPackageGroupId] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
 
   // Checkout
@@ -101,7 +103,6 @@ function BillCreatePage() {
   const [discountReason, setDiscountReason] = useState('')
   const [addDiscountPercent, setAddDiscountPercent] = useState(0)
   const [addDiscountAmount, setAddDiscountAmount] = useState('')
-  const [addPackageServiceDiscounts, setAddPackageServiceDiscounts] = useState({}) // { [idx]: { percent: number, amount: string } }
   const [packageGroupSelections, setPackageGroupSelections] = useState({}) // { [packageId]: [ serviceId for group0, ... ] }
   const [payments, setPayments] = useState([{ payment_mode: 'cash', amount: '' }])
   const [notes, setNotes] = useState('')
@@ -215,16 +216,16 @@ function BillCreatePage() {
     if (item.discount_amount_override != null && item.discount_amount_override >= 0) {
       return Math.min(Number(item.discount_amount_override), lineTotal)
     }
-    return (lineTotal * (item.discount_percent || 0)) / 100
+    return Math.round((lineTotal * (item.discount_percent || 0)) / 100)
   }
 
   // Calculate totals
   const subtotal = cartItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
   const itemsDiscount = cartItems.reduce((sum, item) => sum + getItemDiscount(item), 0)
   const billDiscount =
-    subtotal > 0 ? (subtotal - itemsDiscount) * (billDiscountPercent / 100) : 0
+    subtotal > 0 ? Math.round((subtotal - itemsDiscount) * (billDiscountPercent / 100)) : 0
   const totalDiscount = itemsDiscount + billDiscount
-  const totalAmount = subtotal - totalDiscount
+  const totalAmount = Math.round(subtotal - totalDiscount)
   const totalPaid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
   const remaining = totalAmount - totalPaid
 
@@ -248,6 +249,15 @@ function BillCreatePage() {
       toast.error(error.response?.data?.error?.message || 'Failed to create bill')
     },
   })
+
+  // Build prefill for inline customer add modal
+  const customerPrefill = useMemo(() => {
+    if (!customerSearch || customerSearch.length < 2) return null
+    const isPhone = /^\d+$/.test(customerSearch.trim())
+    return isPhone
+      ? { phone: customerSearch.trim() }
+      : { customer_name: customerSearch.trim() }
+  }, [customerSearch])
 
   // Handlers
   const handleSelectCustomer = (customer) => {
@@ -276,7 +286,7 @@ function BillCreatePage() {
     setItemQuantity(1)
   }
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedItemId || !itemPrice) return
 
     if (selectedCategory === 'packages') {
@@ -296,132 +306,107 @@ function BillCreatePage() {
         }
       }
 
-      if (standaloneServices.length > 0 || hasGroups) {
-        const totalIndividualPrice = pkg.individual_price || 0
-        const packagePrice = parseFloat(itemPrice) || totalIndividualPrice
-        const ratio = totalIndividualPrice > 0 ? packagePrice / totalIndividualPrice : 1
-        const groupId = crypto.randomUUID()
+      const packagePrice = parseFloat(itemPrice) || (pkg.individual_price || 0)
 
-        const expanded = []
+      if (standaloneServices.length > 0 || hasGroups) {
+        // Build selected_services array from standalone + OR-group chosen services
+        const selectedServices = []
         let idx = 0
+
         standaloneServices.forEach((ps) => {
-          const d = addPackageServiceDiscounts[idx]
-          const useAmount = d?.amount && parseFloat(d.amount) > 0
-          expanded.push({
-            cart_id: crypto.randomUUID(),
-            item_type: 'service',
+          selectedServices.push({
             service_id: ps.service_id,
-            item_name: ps.service_name,
-            unit_price: parseFloat((ps.service_price * ratio).toFixed(2)),
-            quantity: ps.quantity,
+            service_name: ps.service_name,
+            original_service_price: ps.service_price,
             employee_ids: (componentEmployees[idx] || []).filter(Boolean),
-            employee_id: null,
-            discount_percent: useAmount ? 0 : (d?.percent ?? 0),
-            discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
             star_points: getPackageServiceStarPoints(ps),
-            source_package_id: pkg.id,
-            source_package_name: pkg.name,
-            source_individual_price: totalIndividualPrice,
-            package_group_id: groupId,
             is_multi_employee: ps.is_multi_employee ?? false,
             employee_count: ps.employee_count ?? null,
+            quantity: ps.quantity,
             item_status: 'completed',
           })
           idx += 1
         })
+
         serviceGroups.forEach((g, gi) => {
           const selectedId = (packageGroupSelections[pkg.id] || [])[gi]
           const chosen = (g.services || []).find((s) => s.service_id === selectedId)
           if (chosen) {
-            const d = addPackageServiceDiscounts[idx]
-            const useAmount = d?.amount && parseFloat(d.amount) > 0
-            expanded.push({
-              cart_id: crypto.randomUUID(),
-              item_type: 'service',
+            selectedServices.push({
               service_id: chosen.service_id,
-              item_name: chosen.service_name,
-              unit_price: parseFloat((chosen.service_price * ratio).toFixed(2)),
-              quantity: chosen.quantity,
+              service_name: chosen.service_name,
+              original_service_price: chosen.service_price,
               employee_ids: (componentEmployees[idx] || []).filter(Boolean),
-              employee_id: null,
-              discount_percent: useAmount ? 0 : (d?.percent ?? 0),
-              discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
               star_points: getPackageServiceStarPoints(chosen),
-              source_package_id: pkg.id,
-              source_package_name: pkg.name,
-              source_individual_price: totalIndividualPrice,
-              package_group_id: groupId,
               is_multi_employee: chosen.is_multi_employee ?? false,
               employee_count: chosen.employee_count ?? null,
+              quantity: chosen.quantity,
               item_status: 'completed',
             })
             idx += 1
           }
         })
-        setCartItems([...cartItems, ...expanded])
-      } else {
-        // Flat package — parse name by "+" to extract components
-        const totalIndividualPrice = pkg.individual_price || 0
-        const packagePrice = parseFloat(itemPrice) || totalIndividualPrice
-        const components = pkg.name
-          .split('+')
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0)
 
-        const flatGroupId = crypto.randomUUID()
-
-        if (components.length <= 1) {
-          // Single component or unparseable — add as single item
-          const d = addPackageServiceDiscounts[0]
-          const useAmount = d?.amount && parseFloat(d.amount) > 0
-          setCartItems([
-            ...cartItems,
-            {
-              cart_id: crypto.randomUUID(),
-              item_type: 'package',
-              package_id: selectedItemId,
-              item_name: pkg.name,
-              unit_price: packagePrice,
-              quantity: 1,
-              employee_ids: componentEmployees[0] || [],
-              employee_id: null,
-              discount_percent: useAmount ? 0 : (d?.percent ?? 0),
-              discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
-              source_package_name: pkg.name,
-              source_individual_price: totalIndividualPrice,
-              package_group_id: flatGroupId,
-              item_status: 'completed',
-            },
-          ])
-        } else {
-          // Split price equally across components — discount per component
-          const pricePerComponent = parseFloat((packagePrice / components.length).toFixed(2))
-          const lastPrice = parseFloat(
-            (packagePrice - pricePerComponent * (components.length - 1)).toFixed(2)
-          )
-
-          const expandedItems = components.map((name, idx) => {
-            const d = addPackageServiceDiscounts[idx]
-            const useAmount = d?.amount && parseFloat(d.amount) > 0
-            return {
-              cart_id: crypto.randomUUID(),
-              item_type: 'package',
-              package_id: selectedItemId,
-              item_name: name,
-              unit_price: idx === components.length - 1 ? lastPrice : pricePerComponent,
-              quantity: 1,
-              employee_ids: componentEmployees[idx] || [],
-              employee_id: null,
-              discount_percent: useAmount ? 0 : (d?.percent ?? 0),
-              discount_amount_override: useAmount ? parseFloat(d.amount) : undefined,
-              source_package_name: pkg.name,
-              source_individual_price: totalIndividualPrice,
-              package_group_id: flatGroupId,
-              item_status: 'completed',
-            }
+        // Fetch distributed prices from backend
+        try {
+          const previewRes = await serviceService.previewPackageDistribution({
+            package_id: pkg.id,
+            package_price: packagePrice,
+            selected_services: selectedServices.map((s) => ({ service_id: s.service_id })),
           })
-          setCartItems([...cartItems, ...expandedItems])
+          const distributed = previewRes.data?.services || previewRes.data?.data?.services || []
+          distributed.forEach((ds) => {
+            const match = selectedServices.find((s) => s.service_id === ds.service_id)
+            if (match) match.distributed_price = ds.distributed_price
+          })
+        } catch (err) {
+          // Preview failed — continue without distributed prices
+          console.warn('Package distribution preview failed:', err)
         }
+
+        const totalStarPoints = selectedServices.reduce((sum, s) => sum + (s.star_points || 0), 0)
+
+        setCartItems([
+          ...cartItems,
+          {
+            cart_id: crypto.randomUUID(),
+            item_type: 'package',
+            package_id: pkg.id,
+            item_name: pkg.name,
+            unit_price: packagePrice,
+            quantity: 1,
+            employee_ids: [],
+            employee_id: null,
+            discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
+            discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
+            star_points: totalStarPoints,
+            source_package_name: pkg.name,
+            source_individual_price: pkg.individual_price || 0,
+            selected_services: selectedServices,
+            item_status: 'completed',
+          },
+        ])
+      } else {
+        // Flat package — single cart item with selected_services: []
+        setCartItems([
+          ...cartItems,
+          {
+            cart_id: crypto.randomUUID(),
+            item_type: 'package',
+            package_id: pkg.id,
+            item_name: pkg.name,
+            unit_price: packagePrice,
+            quantity: 1,
+            employee_ids: (componentEmployees[0] || []).filter(Boolean),
+            employee_id: null,
+            discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
+            discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
+            source_package_name: pkg.name,
+            source_individual_price: pkg.individual_price || 0,
+            selected_services: [],
+            item_status: 'completed',
+          },
+        ])
       }
     } else if (selectedCategory === 'services') {
       const empIds = (componentEmployees[0] || []).filter(Boolean)
@@ -469,7 +454,6 @@ function BillCreatePage() {
     setItemQuantity(1)
     setAddDiscountPercent(0)
     setAddDiscountAmount('')
-    setAddPackageServiceDiscounts({})
     setComponentEmployees({})
   }
 
@@ -489,11 +473,55 @@ function BillCreatePage() {
     )
   }
 
-  const setPackageGroupPending = (groupId, pending) => {
+  // Set entire package + all its services to pending/completed
+  const setPackagePending = (cartIndex, pending) => {
     const nextStatus = pending ? 'pending' : 'completed'
     setCartItems((items) =>
-      items.map((item) =>
-        item.package_group_id === groupId ? { ...item, item_status: nextStatus } : item
+      items.map((item, i) =>
+        i === cartIndex
+          ? {
+              ...item,
+              item_status: nextStatus,
+              selected_services: (item.selected_services || []).map((svc) => ({
+                ...svc, item_status: nextStatus,
+              })),
+            }
+          : item
+      )
+    )
+  }
+
+  // Toggle one service's status within a package
+  const togglePackageServicePending = (cartIndex, serviceIdx) => {
+    setCartItems((items) =>
+      items.map((item, i) => {
+        if (i !== cartIndex) return item
+        const updated = item.selected_services.map((svc, si) =>
+          si === serviceIdx
+            ? { ...svc, item_status: svc.item_status === 'pending' ? 'completed' : 'pending' }
+            : svc
+        )
+        const allPending = updated.every((s) => s.item_status === 'pending')
+        const allDone = updated.every((s) => s.item_status === 'completed')
+        return {
+          ...item,
+          selected_services: updated,
+          item_status: allPending ? 'pending' : allDone ? 'completed' : item.item_status,
+        }
+      })
+    )
+  }
+
+  // Update employee_ids for one service within a package
+  const updatePackageServiceEmployees = (cartIndex, serviceIdx, newEmployeeIds) => {
+    setCartItems((items) =>
+      items.map((item, i) =>
+        i !== cartIndex ? item : {
+          ...item,
+          selected_services: item.selected_services.map((svc, si) =>
+            si === serviceIdx ? { ...svc, employee_ids: newEmployeeIds } : svc
+          ),
+        }
       )
     )
   }
@@ -502,81 +530,25 @@ function BillCreatePage() {
     setCartItems((items) => items.filter((_, i) => i !== index))
   }
 
-  const handleRemovePackageGroup = (groupId) => {
-    setCartItems((items) => items.filter((item) => item.package_group_id !== groupId))
-  }
-
-  const updatePackageGroupDiscount = (groupId, discountPercent) => {
-    setCartItems((items) =>
-      items.map((item) =>
-        item.package_group_id === groupId
-          ? { ...item, discount_percent: discountPercent, discount_amount_override: undefined }
-          : item
-      )
-    )
-  }
-
-  const updatePackageGroupDiscountAmount = (groupId, amount) => {
-    const num = parseFloat(amount)
-    if (!Number.isFinite(num) || num <= 0) {
-      setCartItems((items) =>
-        items.map((item) =>
-          item.package_group_id === groupId
-            ? { ...item, discount_amount_override: undefined }
-            : item
-        )
-      )
-      return
-    }
-    setCartItems((items) => {
-      const groupItems = items.filter((i) => i.package_group_id === groupId)
-      const groupSubtotal = groupItems.reduce((s, gi) => s + gi.unit_price * gi.quantity, 0)
-      const totalAmount = Math.min(num, groupSubtotal)
-      return items.map((item) => {
-        if (item.package_group_id !== groupId) return item
-        const itemSubtotal = item.unit_price * item.quantity
-        const proportion = groupSubtotal > 0 ? itemSubtotal / groupSubtotal : 0
-        return {
-          ...item,
-          discount_amount_override: totalAmount * proportion,
-          discount_percent: 0,
-        }
-      })
-    })
-  }
-
-  // Group cart items: packages grouped together, standalone items separate
+  // Group cart items: packages as single items, standalone items separate
   const groupedCart = useMemo(() => {
     const groups = []
-    const seenGroups = new Set()
     cartItems.forEach((item, index) => {
-      if (item.package_group_id) {
-        if (seenGroups.has(item.package_group_id)) return
-        seenGroups.add(item.package_group_id)
-        const groupItems = cartItems
-          .map((ci, i) => ({ ...ci, _index: i }))
-          .filter((ci) => ci.package_group_id === item.package_group_id)
-        const groupSubtotal = groupItems.reduce((sum, gi) => sum + gi.unit_price * gi.quantity, 0)
-        const groupDiscountTotal = groupItems.reduce(
-          (sum, gi) => sum + getItemDiscount(gi),
-          0
-        )
-        const groupTotal = groupSubtotal - groupDiscountTotal
-        const groupIndividualPrice = groupItems[0]?.source_individual_price
-        const groupSavings = groupIndividualPrice != null && groupIndividualPrice > groupTotal
-          ? groupIndividualPrice - groupTotal
-          : 0
+      if (item.item_type === 'package' && item.selected_services) {
+        const lineTotal = item.unit_price * item.quantity
+        const lineDiscount = getItemDiscount(item)
+        const total = lineTotal - lineDiscount
+        const individualPrice = item.source_individual_price
+        const savings = individualPrice != null && individualPrice > total ? individualPrice - total : 0
         groups.push({
           type: 'package',
-          package_group_id: item.package_group_id,
-          package_name: item.source_package_name,
-          items: groupItems,
-          total: groupTotal,
-          groupSubtotal: groupSubtotal,
-          groupDiscountTotal,
-          discount_percent: groupItems[0]?.discount_percent || 0,
-          individual_price: groupIndividualPrice,
-          savings: groupSavings,
+          index,
+          item,
+          total,
+          subtotal: lineTotal,
+          discount: lineDiscount,
+          individual_price: individualPrice,
+          savings,
         })
       } else {
         groups.push({ type: 'single', item, index })
@@ -607,6 +579,62 @@ function BillCreatePage() {
     )
     const remainingAmount = Math.max(0, totalAmount - otherPayments)
     handlePaymentChange(index, 'amount', remainingAmount.toFixed(2))
+  }
+
+  // Convert cart items into the API format at submit time
+  const buildSubmitItems = (items) => {
+    return items.map((item) => {
+      if (item.item_type === 'package') {
+        const lineTotal = item.unit_price * item.quantity
+        const discount = getItemDiscount(item)
+        const selectedServices = (item.selected_services || []).map((svc) => {
+          const empIds = (svc.employee_ids || []).filter(Boolean)
+          return {
+            service_id: svc.service_id,
+            ...(empIds.length > 1
+              ? { employee_ids: empIds }
+              : empIds.length === 1
+                ? { employee_id: empIds[0] }
+                : {}),
+          }
+        })
+        return {
+          item_type: 'package',
+          package_id: item.package_id || null,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount_amount: parseFloat(discount.toFixed(2)),
+          discount_percentage:
+            lineTotal > 0 ? parseFloat(((discount / lineTotal) * 100).toFixed(2)) : 0,
+          selected_services: selectedServices,
+          notes: item.source_package_name || null,
+          status: item.item_status === 'pending' ? 'pending' : 'completed',
+        }
+      }
+
+      // Non-package items
+      return {
+        item_type: item.item_type,
+        service_id: item.service_id || null,
+        package_id: item.package_id || null,
+        product_id: item.product_id || null,
+        employee_id: null,
+        employee_ids: (item.employee_ids || []).filter(Boolean).length > 0
+          ? (item.employee_ids || []).filter(Boolean)
+          : null,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        discount_amount: parseFloat(getItemDiscount(item).toFixed(2)),
+        discount_percentage:
+          item.unit_price * item.quantity > 0
+            ? parseFloat(
+                ((getItemDiscount(item) / (item.unit_price * item.quantity)) * 100).toFixed(2)
+              )
+            : 0,
+        notes: item.source_package_name || null,
+        status: item.item_status === 'pending' ? 'pending' : 'completed',
+      }
+    })
   }
 
   const handleSubmit = () => {
@@ -657,25 +685,7 @@ function BillCreatePage() {
       bill_type: billType,
       bill_date: billDateTime,
       chair_id: selectedChair || undefined,
-      items: cartItems.map((item) => ({
-        item_type: item.item_type,
-        service_id: item.service_id || null,
-        package_id: item.package_id || null,
-        product_id: item.product_id || null,
-        employee_id: null,
-        employee_ids: (item.employee_ids || []).filter(Boolean).length > 0 ? (item.employee_ids || []).filter(Boolean) : null,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        discount_amount: parseFloat(getItemDiscount(item).toFixed(2)),
-        discount_percentage:
-          item.unit_price * item.quantity > 0
-            ? parseFloat(
-                ((getItemDiscount(item) / (item.unit_price * item.quantity)) * 100).toFixed(2)
-              )
-            : 0,
-        notes: item.source_package_name || null,
-        status: item.item_status === 'pending' ? 'pending' : 'completed',
-      })),
+      items: buildSubmitItems(cartItems),
       payments: validPayments.map((p) => ({
         payment_mode: p.payment_mode,
         amount: parseFloat(p.amount),
@@ -719,25 +729,7 @@ function BillCreatePage() {
       bill_type: billType,
       bill_date: billDateTime,
       chair_id: selectedChair || undefined,
-      items: cartItems.map((item) => ({
-        item_type: item.item_type,
-        service_id: item.service_id || null,
-        package_id: item.package_id || null,
-        product_id: item.product_id || null,
-        employee_id: null,
-        employee_ids: (item.employee_ids || []).filter(Boolean).length > 0 ? (item.employee_ids || []).filter(Boolean) : null,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        discount_amount: parseFloat(getItemDiscount(item).toFixed(2)),
-        discount_percentage:
-          item.unit_price * item.quantity > 0
-            ? parseFloat(
-                ((getItemDiscount(item) / (item.unit_price * item.quantity)) * 100).toFixed(2)
-              )
-            : 0,
-        notes: item.source_package_name || null,
-        status: item.item_status === 'pending' ? 'pending' : 'completed',
-      })),
+      items: buildSubmitItems(cartItems),
       payments: [],
       discount_amount: parseFloat(billDiscount.toFixed(2)),
       discount_reason: discountReason,
@@ -825,7 +817,21 @@ function BillCreatePage() {
                       Searching...
                     </div>
                   ) : customers.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">No customers found</div>
+                    <div className="p-4 text-center">
+                      <p className="text-gray-500 text-sm mb-2">No customers found</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowCustomerDropdown(false)
+                          setAddCustomerModalOpen(true)
+                        }}
+                      >
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        Add New Customer
+                      </Button>
+                    </div>
                   ) : (
                     customers.map((customer) => (
                       <div
@@ -1084,11 +1090,10 @@ function BillCreatePage() {
                   {/* Package services list with employee assignment */}
                   {selectedCategory === 'packages' && selectedItem.services?.length > 0 && (
                     <div className="text-sm">
-                      <p className="font-medium text-gray-700 mb-2">Services — discount & employees (per service):</p>
+                      <p className="font-medium text-gray-700 mb-2">Services — employees (per service):</p>
                       <div className="space-y-2">
                         {selectedItem.services.map((ps, idx) => {
                           const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                          const d = addPackageServiceDiscounts[idx] || { percent: 0, amount: '' }
                           return (
                             <div key={ps.service_id} className="p-2 bg-white rounded border space-y-2">
                               <div className="flex items-center justify-between">
@@ -1100,46 +1105,7 @@ function BillCreatePage() {
                                       {getPackageServiceStarPoints(ps)}
                                     </span>
                                   </div>
-                                  <div className="text-xs text-gray-400">x{ps.quantity} - {formatCurrency(ps.service_price)}</div>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs text-gray-500">Discount %</span>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.5"
-                                    className="h-7 w-14 text-xs px-1.5"
-                                    value={d.amount ? '' : (d.percent ?? '')}
-                                    placeholder="0"
-                                    onChange={(e) => {
-                                      const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                                      setAddPackageServiceDiscounts((prev) => ({
-                                        ...prev,
-                                        [idx]: { ...prev[idx], percent: v, amount: '' },
-                                      }))
-                                    }}
-                                  />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs text-gray-500">Discount ₹</span>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    className="h-7 w-14 text-xs px-1.5"
-                                    value={d.amount}
-                                    placeholder="0"
-                                    onChange={(e) => {
-                                      const v = e.target.value
-                                      setAddPackageServiceDiscounts((prev) => ({
-                                        ...prev,
-                                        [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
-                                      }))
-                                    }}
-                                  />
+                                  <div className="text-xs text-gray-400">x{ps.quantity} — {formatCurrency(ps.service_price)}</div>
                                 </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
@@ -1157,7 +1123,10 @@ function BillCreatePage() {
                                       }}
                                     >
                                       <option value="">—</option>
-                                      {employees.map((emp) => (
+                                      {employees.filter((emp) => {
+                                        const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                        return !others.includes(String(emp.employee_id))
+                                      }).map((emp) => (
                                         <option key={emp.employee_id} value={emp.employee_id}>
                                           {emp.full_name}
                                         </option>
@@ -1198,14 +1167,14 @@ function BillCreatePage() {
                     </div>
                   )}
 
-                  {/* OR groups: merged selection + discount + employees per group */}
+                  {/* OR groups: selection + employees per group */}
                   {selectedCategory === 'packages' &&
                     selectedItem.service_groups?.length > 0 &&
                     (() => {
                       const standaloneLen = (selectedItem.services || []).length
                       return (
                         <div className="text-sm">
-                          <p className="font-medium text-gray-700 mb-2">OR group choices — select service, discount & employees:</p>
+                          <p className="font-medium text-gray-700 mb-2">OR group choices — select service & employees:</p>
                           <div className="space-y-2">
                             {selectedItem.service_groups.map((group, groupIdx) => {
                               const selectedId = (packageGroupSelections[selectedItemId] || [])[groupIdx]
@@ -1213,7 +1182,6 @@ function BillCreatePage() {
                               const groupServices = group.services || []
                               const idx = standaloneLen + groupIdx
                               const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                              const d = addPackageServiceDiscounts[idx] || { percent: 0, amount: '' }
                               return (
                                 <div key={group.group_id || groupIdx} className="p-2 bg-amber-50/50 rounded border border-amber-200 space-y-2">
                                   <div>
@@ -1232,104 +1200,79 @@ function BillCreatePage() {
                                       }}
                                     >
                                       <option value="">— Select one —</option>
-                                      {groupServices.map((s) => (
-                                        <option key={s.service_id} value={s.service_id}>
-                                          {s.service_name} — {formatCurrency(s.service_price)}{getPackageServiceStarPoints(s) > 0 ? ` (⭐ ${getPackageServiceStarPoints(s)})` : ''}
-                                        </option>
-                                      ))}
+                                      {groupServices.map((s) => {
+                                        const bonusNames = (s.bonus_services || []).map(b => b.service_name).join(', ')
+                                        return (
+                                          <option key={s.service_id} value={s.service_id}>
+                                            {s.service_name} — {formatCurrency(s.service_price)}{getPackageServiceStarPoints(s) > 0 ? ` (⭐ ${getPackageServiceStarPoints(s)})` : ''}{bonusNames ? ` (+ Free: ${bonusNames})` : ''}
+                                          </option>
+                                        )
+                                      })}
                                     </select>
                                   </div>
+                                  {chosen?.bonus_services?.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-1 px-1">
+                                      <span className="text-xs text-green-600 font-medium">🎁 Free:</span>
+                                      {chosen.bonus_services.map((bs) => (
+                                        <span key={bs.service_id} className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-200">
+                                          {bs.service_name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                   {chosen && (
-                                    <>
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-xs text-gray-500">Discount %</span>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            step="0.5"
-                                            className="h-7 w-14 text-xs px-1.5"
-                                            value={d.amount ? '' : (d.percent ?? '')}
-                                            placeholder="0"
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {slots.map((_, slotIdx) => (
+                                        <div key={slotIdx} className="flex items-center gap-1">
+                                          <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
+                                          <select
+                                            className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
+                                            value={(componentEmployees[idx] || [])[slotIdx] || ''}
                                             onChange={(e) => {
-                                              const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                                              setAddPackageServiceDiscounts((prev) => ({
-                                                ...prev,
-                                                [idx]: { ...prev[idx], percent: v, amount: '' },
-                                              }))
+                                              const current = [...(componentEmployees[idx] || [])]
+                                              while (current.length <= slotIdx) current.push('')
+                                              current[slotIdx] = e.target.value || ''
+                                              setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
                                             }}
-                                          />
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-xs text-gray-500">Discount ₹</span>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            step="1"
-                                            className="h-7 w-14 text-xs px-1.5"
-                                            value={d.amount}
-                                            placeholder="0"
-                                            onChange={(e) => {
-                                              const v = e.target.value
-                                              setAddPackageServiceDiscounts((prev) => ({
-                                                ...prev,
-                                                [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
-                                              }))
+                                          >
+                                            <option value="">—</option>
+                                            {employees.filter((emp) => {
+                                              const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                              return !others.includes(String(emp.employee_id))
+                                            }).map((emp) => (
+                                              <option key={emp.employee_id} value={emp.employee_id}>
+                                                {emp.full_name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
+                                            onClick={() => {
+                                              const current = [...(componentEmployees[idx] || [])]
+                                              const next = current.filter((_, i) => i !== slotIdx)
+                                              setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
                                             }}
-                                          />
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
                                         </div>
-                                      </div>
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        {slots.map((_, slotIdx) => (
-                                          <div key={slotIdx} className="flex items-center gap-1">
-                                            <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
-                                            <select
-                                              className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
-                                              value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                              onChange={(e) => {
-                                                const current = [...(componentEmployees[idx] || [])]
-                                                while (current.length <= slotIdx) current.push('')
-                                                current[slotIdx] = e.target.value || ''
-                                                setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                              }}
-                                            >
-                                              <option value="">—</option>
-                                              {employees.map((emp) => (
-                                                <option key={emp.employee_id} value={emp.employee_id}>
-                                                  {emp.full_name}
-                                                </option>
-                                              ))}
-                                            </select>
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
-                                              onClick={() => {
-                                                const current = [...(componentEmployees[idx] || [])]
-                                                const next = current.filter((_, i) => i !== slotIdx)
-                                                setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
-                                              }}
-                                            >
-                                              <Trash2 className="h-3 w-3" />
-                                            </Button>
-                                          </div>
-                                        ))}
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-8 text-xs"
-                                          onClick={() => {
-                                            const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                                            setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
-                                          }}
-                                        >
-                                          <Plus className="h-3 w-3 mr-1" /> Add
-                                        </Button>
-                                      </div>
-                                    </>
+                                      ))}
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs"
+                                        onClick={() => {
+                                          const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                                          setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                                        }}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" /> Add
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
                               )
@@ -1339,120 +1282,66 @@ function BillCreatePage() {
                       )
                     })()}
 
-                  {/* Flat package — show parsed components with employee assignment */}
+                  {/* Flat package — employee assignment */}
                   {selectedCategory === 'packages' &&
                     (!selectedItem.services || selectedItem.services.length === 0) &&
-                    !(selectedItem.service_groups?.length > 0) && (() => {
-                      const components = selectedItem.name
-                        .split('+')
-                        .map((s) => s.trim())
-                        .filter((s) => s.length > 0)
-                      if (components.length === 0) return null
-                      return (
-                        <div className="text-sm">
-                          <p className="font-medium text-gray-700 mb-2">Components — discount & employees (per item):</p>
-                          <div className="space-y-2">
-                            {components.map((name, idx) => {
-                              const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                              const d = addPackageServiceDiscounts[idx] || { percent: 0, amount: '' }
-                              return (
-                                <div key={idx} className="p-2 bg-white rounded border space-y-2">
-                                  <div className="text-gray-700 truncate font-medium">{name}</div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-500">%</span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        step="0.5"
-                                        className="h-7 w-14 text-xs px-1.5"
-                                        value={d.amount ? '' : (d.percent ?? '')}
-                                        placeholder="0"
-                                        onChange={(e) => {
-                                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                                          setAddPackageServiceDiscounts((prev) => ({
-                                            ...prev,
-                                            [idx]: { ...prev[idx], percent: v, amount: '' },
-                                          }))
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-500">₹</span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        className="h-7 w-14 text-xs px-1.5"
-                                        value={d.amount}
-                                        placeholder="0"
-                                        onChange={(e) => {
-                                          const v = e.target.value
-                                          setAddPackageServiceDiscounts((prev) => ({
-                                            ...prev,
-                                            [idx]: { ...prev[idx], amount: v, percent: v ? 0 : (prev[idx]?.percent ?? 0) },
-                                          }))
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    {slots.map((_, slotIdx) => (
-                                      <div key={slotIdx} className="flex items-center gap-1">
-                                        <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
-                                        <select
-                                          className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
-                                          value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                          onChange={(e) => {
-                                            const current = [...(componentEmployees[idx] || [])]
-                                            while (current.length <= slotIdx) current.push('')
-                                            current[slotIdx] = e.target.value || ''
-                                            setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                          }}
-                                        >
-                                          <option value="">—</option>
-                                          {employees.map((emp) => (
-                                            <option key={emp.employee_id} value={emp.employee_id}>
-                                              {emp.full_name}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 shrink-0 text-red-500"
-                                          onClick={() => {
-                                            const current = [...(componentEmployees[idx] || [])]
-                                            const next = current.filter((_, i) => i !== slotIdx)
-                                            setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
-                                          }}
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    ))}
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => {
-                                        const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                                        setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
-                                      }}
-                                    >
-                                      <Plus className="h-3 w-3 mr-1" /> Add
-                                    </Button>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
+                    !(selectedItem.service_groups?.length > 0) && (
+                      <div className="text-sm">
+                        <p className="font-medium text-gray-700 mb-2">Employees (for package):</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {((componentEmployees[0] || []).length ? componentEmployees[0] : ['']).map((_, slotIdx) => (
+                            <div key={slotIdx} className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
+                              <select
+                                className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
+                                value={(componentEmployees[0] || [])[slotIdx] || ''}
+                                onChange={(e) => {
+                                  const current = [...(componentEmployees[0] || [])]
+                                  while (current.length <= slotIdx) current.push('')
+                                  current[slotIdx] = e.target.value || ''
+                                  setComponentEmployees((prev) => ({ ...prev, [0]: current }))
+                                }}
+                              >
+                                <option value="">—</option>
+                                {employees.filter((emp) => {
+                                  const others = (componentEmployees[0] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                  return !others.includes(String(emp.employee_id))
+                                }).map((emp) => (
+                                  <option key={emp.employee_id} value={emp.employee_id}>
+                                    {emp.full_name}
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
+                                onClick={() => {
+                                  const current = [...(componentEmployees[0] || [])]
+                                  const next = current.filter((_, i) => i !== slotIdx)
+                                  setComponentEmployees((prev) => ({ ...prev, [0]: next.length ? next : [''] }))
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => {
+                              const current = (componentEmployees[0] || []).length ? (componentEmployees[0] || []) : ['']
+                              setComponentEmployees((prev) => ({ ...prev, [0]: [...current, ''] }))
+                            }}
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Add
+                          </Button>
                         </div>
-                      )
-                    })()}
+                      </div>
+                    )}
 
                   {/* Employee selector for single service/product — multiple employees allowed for any item */}
                   {selectedCategory !== 'packages' && (
@@ -1483,7 +1372,10 @@ function BillCreatePage() {
                               }}
                             >
                               <option value="">-- None --</option>
-                              {employees.map((emp) => (
+                              {employees.filter((emp) => {
+                                const others = (componentEmployees[0] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                return !others.includes(String(emp.employee_id))
+                              }).map((emp) => (
                                 <option key={emp.employee_id} value={emp.employee_id}>
                                   {emp.full_name}
                                 </option>
@@ -1588,27 +1480,28 @@ function BillCreatePage() {
                 <div className="space-y-2">
                   {groupedCart.map((group) => {
                     if (group.type === 'package') {
-                      // Package group — discount per service, not on package
+                      const pkgItem = group.item
+                      const lineDiscount = getItemDiscount(pkgItem)
                       return (
                         <div
-                          key={group.package_group_id}
+                          key={pkgItem.cart_id}
                           className="bg-gray-50 rounded-lg border overflow-hidden"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-100">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <Package className="h-4 w-4 text-primary flex-shrink-0" />
                               <span className="font-medium text-sm truncate">
-                                {group.package_name}
+                                {pkgItem.item_name}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                              {group.items.every((gi) => gi.item_status === 'pending') ? (
+                              {pkgItem.item_status === 'pending' || (pkgItem.selected_services || []).every((s) => s.item_status === 'pending') ? (
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
                                   className="h-7 text-xs"
-                                  onClick={() => setPackageGroupPending(group.package_group_id, false)}
+                                  onClick={() => setPackagePending(group.index, false)}
                                 >
                                   Mark done
                                 </Button>
@@ -1618,7 +1511,7 @@ function BillCreatePage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-7 text-xs text-amber-700 border-amber-300"
-                                  onClick={() => setPackageGroupPending(group.package_group_id, true)}
+                                  onClick={() => setPackagePending(group.index, true)}
                                 >
                                   Mark pending
                                 </Button>
@@ -1634,8 +1527,7 @@ function BillCreatePage() {
                               <button
                                 className="p-1 hover:bg-gray-200 rounded"
                                 onClick={() => {
-                                  setEditingPackageGroupId(group.package_group_id)
-                                  setEditingItemIndex(null)
+                                  setEditingItemIndex(group.index)
                                   setEditModalOpen(true)
                                 }}
                               >
@@ -1643,111 +1535,110 @@ function BillCreatePage() {
                               </button>
                               <button
                                 className="p-1 hover:bg-red-100 rounded"
-                                onClick={() => handleRemovePackageGroup(group.package_group_id)}
+                                onClick={() => handleRemoveItem(group.index)}
                               >
                                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
                               </button>
                             </div>
                           </div>
-                          <div className="px-3 py-2 space-y-2">
-                            <p className="text-[10px] text-gray-500 px-1">
-                              Mark whole package above, or mark each service below:
-                            </p>
-                            {group.items.map((gi) => {
-                              const lineTotal = gi.unit_price * gi.quantity
-                              const lineDiscount = getItemDiscount(gi)
-                              const lineNet = lineTotal - lineDiscount
-                              return (
+                          {/* Package-level discount */}
+                          <div className="px-3 py-2 flex flex-wrap items-center gap-2 border-b">
+                            <span className="text-xs text-gray-500">Discount:</span>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-xs text-gray-400">%</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.5"
+                                className="h-6 w-12 text-xs px-1"
+                                value={pkgItem.discount_amount_override != null ? '' : (pkgItem.discount_percent ?? '')}
+                                placeholder={pkgItem.discount_amount_override != null ? '—' : '0'}
+                                onChange={(e) => {
+                                  const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                                  setCartItems((items) =>
+                                    items.map((it, i) =>
+                                      i === group.index
+                                        ? { ...it, discount_percent: v, discount_amount_override: undefined }
+                                        : it
+                                    )
+                                  )
+                                }}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-xs text-gray-400">₹</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                className="h-6 w-12 text-xs px-1"
+                                value={pkgItem.discount_amount_override != null ? pkgItem.discount_amount_override : ''}
+                                placeholder="0"
+                                onChange={(e) => {
+                                  const v = e.target.value
+                                  const num = parseFloat(v)
+                                  setCartItems((items) =>
+                                    items.map((it, i) =>
+                                      i === group.index
+                                        ? {
+                                            ...it,
+                                            discount_amount_override:
+                                              v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
+                                            discount_percent: v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
+                                          }
+                                        : it
+                                    )
+                                  )
+                                }}
+                              />
+                            </div>
+                            {lineDiscount > 0 && (
+                              <span className="text-xs text-red-500">(-{formatCurrency(lineDiscount)})</span>
+                            )}
+                          </div>
+                          {(pkgItem.selected_services || []).length > 0 && (
+                            <div className="px-3 py-2 space-y-2">
+                              <p className="text-[10px] text-gray-500 px-1">
+                                Mark whole package above, or mark each service below:
+                              </p>
+                              {pkgItem.selected_services.map((svc, svcIdx) => (
                                 <div
-                                  key={gi.cart_id}
+                                  key={svcIdx}
                                   className="p-2 bg-white rounded border text-xs"
                                 >
                                   <div className="font-medium text-gray-700 truncate mb-1.5 flex items-center gap-1.5 flex-wrap">
-                                    {gi.item_name}
-                                    <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
-                                      <Star className="h-3 w-3 fill-amber-500" />
-                                      {gi.star_points ?? gi.starPoints ?? 0}
-                                    </span>
+                                    {svc.service_name}
+                                    {(svc.star_points || 0) > 0 && (
+                                      <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
+                                        <Star className="h-3 w-3 fill-amber-500" />
+                                        {svc.star_points}
+                                      </span>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2 flex-wrap mt-1">
-                                    <span className="text-gray-400 text-[10px]">This service:</span>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-gray-500 text-[10px]">
+                                      {formatCurrency(svc.distributed_price ?? svc.original_service_price)}
+                                      {svc.distributed_price != null && svc.distributed_price !== svc.original_service_price && (
+                                        <span className="line-through text-gray-300 ml-1">{formatCurrency(svc.original_service_price)}</span>
+                                      )}
+                                      {' '}× {svc.quantity || 1}
+                                    </span>
                                     <button
                                       type="button"
-                                      onClick={() => toggleItemPending(gi._index)}
+                                      onClick={() => togglePackageServicePending(group.index, svcIdx)}
                                       className={`shrink-0 text-xs px-2 py-1 rounded border font-medium ${
-                                        gi.item_status === 'pending'
+                                        svc.item_status === 'pending'
                                           ? 'bg-amber-100 text-amber-800 border-amber-300'
                                           : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
                                       }`}
                                     >
-                                      {gi.item_status === 'pending' ? 'Pending' : 'Done'}
+                                      {svc.item_status === 'pending' ? 'Pending' : 'Done'}
                                     </button>
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                                    <span className="text-gray-500">
-                                      {formatCurrency(gi.unit_price)} × {gi.quantity}
-                                    </span>
-                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                      <span className="text-gray-400">%</span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        step="0.5"
-                                        className="h-6 w-12 text-xs px-1"
-                                        value={gi.discount_amount_override != null ? '' : (gi.discount_percent ?? '')}
-                                        placeholder={gi.discount_amount_override != null ? '—' : '0'}
-                                        onChange={(e) => {
-                                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                                          setCartItems((items) =>
-                                            items.map((it, i) =>
-                                              i === gi._index
-                                                ? { ...it, discount_percent: v, discount_amount_override: undefined }
-                                                : it
-                                            )
-                                          )
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                      <span className="text-gray-400">₹</span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        className="h-6 w-12 text-xs px-1"
-                                        value={gi.discount_amount_override != null ? gi.discount_amount_override : ''}
-                                        placeholder="0"
-                                        onChange={(e) => {
-                                          const v = e.target.value
-                                          const num = parseFloat(v)
-                                          setCartItems((items) =>
-                                            items.map((it, i) =>
-                                              i === gi._index
-                                                ? {
-                                                    ...it,
-                                                    discount_amount_override:
-                                                      v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
-                                                    discount_percent: v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
-                                                  }
-                                                : it
-                                            )
-                                          )
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="font-semibold text-gray-800">
-                                      {formatCurrency(lineNet)}
-                                      {lineDiscount > 0 && (
-                                        <span className="text-red-500 font-normal ml-0.5">
-                                          (-{formatCurrency(lineDiscount)})
-                                        </span>
-                                      )}
-                                    </span>
-                                  </div>
-                                  {gi.employee_ids?.length > 0 && (
+                                  {svc.employee_ids?.length > 0 && (
                                     <div className="flex gap-1 flex-wrap mt-1">
-                                      {gi.employee_ids.map((eid) => {
+                                      {svc.employee_ids.map((eid) => {
                                         const emp = employees.find((e) => e.employee_id === eid)
                                         return (
                                           <Badge key={eid} variant="secondary" className="text-[10px] px-1 py-0">
@@ -1758,9 +1649,9 @@ function BillCreatePage() {
                                     </div>
                                   )}
                                 </div>
-                              )
-                            })}
-                          </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )
                     }
@@ -1880,7 +1771,6 @@ function BillCreatePage() {
                               className="p-1 hover:bg-gray-200 rounded"
                               onClick={() => {
                                 setEditingItemIndex(index)
-                                setEditingPackageGroupId(null)
                                 setEditModalOpen(true)
                               }}
                             >
@@ -2104,14 +1994,10 @@ function BillCreatePage() {
       {/* Edit Cart Item Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
-          {/* Package Group Edit */}
-          {editingPackageGroupId && (() => {
-            const groupItems = cartItems
-              .map((ci, i) => ({ ...ci, _index: i }))
-              .filter((ci) => ci.package_group_id === editingPackageGroupId)
-            if (groupItems.length === 0) return null
-            const pkgName = groupItems[0]?.source_package_name
-            const pkgTotal = groupItems.reduce((sum, gi) => sum + gi.unit_price * gi.quantity, 0)
+          {/* Package Edit */}
+          {editingItemIndex !== null && cartItems[editingItemIndex]?.item_type === 'package' && (() => {
+            const pkgItem = cartItems[editingItemIndex]
+            const pkgTotal = pkgItem.unit_price * pkgItem.quantity
             return (
               <>
                 <DialogHeader>
@@ -2121,146 +2007,161 @@ function BillCreatePage() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="font-medium text-lg">{pkgName}</span>
+                    <span className="font-medium text-lg">{pkgItem.item_name}</span>
                     <span className="font-bold text-lg text-primary">{formatCurrency(pkgTotal)}</span>
                   </div>
 
-                  <div>
-                    <Label className="mb-2 block">Services — discount & employees (per service)</Label>
-                    <div className="space-y-2 max-h-60 overflow-auto">
-                          {groupItems.map((gi) => {
-                        const currentIds = gi.employee_ids || []
-                        const slots = currentIds.length ? currentIds : ['']
-                        return (
-                          <div key={gi.cart_id} className="p-2 bg-gray-50 rounded border space-y-2">
-                            <div className="text-sm font-medium truncate flex items-center gap-1.5 flex-wrap">
-                              {gi.item_name}
-                              <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
-                                <Star className="h-3 w-3 fill-amber-500" />
-                                {gi.star_points ?? gi.starPoints ?? 0}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Label className="text-xs text-gray-500">Status</Label>
-                              <button
-                                type="button"
-                                onClick={() => toggleItemPending(gi._index)}
-                                className={`text-xs px-2 py-1 rounded border font-medium ${
-                                  gi.item_status === 'pending'
-                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                    : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
-                                }`}
-                              >
-                                {gi.item_status === 'pending' ? 'Pending' : 'Done'}
-                              </button>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Label className="text-xs text-gray-500">Discount %</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  className="h-7 w-14 text-xs"
-                                  value={gi.discount_amount_override != null ? '' : (gi.discount_percent ?? '')}
-                                  placeholder={gi.discount_amount_override != null ? '—' : '0'}
-                                  onChange={(e) => {
-                                    const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
-                                    setCartItems((items) =>
-                                      items.map((it, i) =>
-                                        i === gi._index
-                                          ? { ...it, discount_percent: v, discount_amount_override: undefined }
-                                          : it
-                                      )
-                                    )
-                                  }}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Label className="text-xs text-gray-500">Discount ₹</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  className="h-7 w-14 text-xs"
-                                  value={gi.discount_amount_override != null ? gi.discount_amount_override : ''}
-                                  placeholder="0"
-                                  onChange={(e) => {
-                                    const v = e.target.value
-                                    const num = parseFloat(v)
-                                    setCartItems((items) =>
-                                      items.map((it, i) =>
-                                        i === gi._index
-                                          ? {
-                                              ...it,
-                                              discount_amount_override:
-                                                v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
-                                              discount_percent: v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
-                                            }
-                                          : it
-                                      )
-                                    )
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            {slots.map((eid, slotIdx) => (
-                              <div key={slotIdx} className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500 w-16 shrink-0">E{slotIdx + 1}</span>
-                                <select
-                                  className="flex-1 h-8 px-2 text-xs border rounded-md min-w-0"
-                                  value={(currentIds[slotIdx] || '').toString()}
-                                  onChange={(e) => {
-                                    const updated = [...currentIds]
-                                    while (updated.length <= slotIdx) updated.push('')
-                                    updated[slotIdx] = e.target.value || ''
-                                    updateCartItem(gi._index, 'employee_ids', updated)
-                                  }}
-                                >
-                                  <option value="">— None —</option>
-                                  {employees.map((emp) => (
-                                    <option key={emp.employee_id} value={emp.employee_id}>
-                                      {emp.full_name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 shrink-0 text-red-500"
-                                  onClick={() => {
-                                    const updated = currentIds.filter((_, i) => i !== slotIdx)
-                                    updateCartItem(gi._index, 'employee_ids', updated.length ? updated : [])
-                                  }}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 text-xs"
-                              onClick={() => {
-                                updateCartItem(gi._index, 'employee_ids', [...currentIds, ''])
-                              }}
-                            >
-                              <Plus className="h-3 w-3 mr-1" /> Add employee
-                            </Button>
-                          </div>
-                        )
-                      })}
+                  {/* Package-level discount */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs text-gray-500">Discount %</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        className="h-8 w-16 text-xs"
+                        value={pkgItem.discount_amount_override != null ? '' : (pkgItem.discount_percent ?? '')}
+                        placeholder={pkgItem.discount_amount_override != null ? '—' : '0'}
+                        onChange={(e) => {
+                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                          setCartItems((items) =>
+                            items.map((it, i) =>
+                              i === editingItemIndex
+                                ? { ...it, discount_percent: v, discount_amount_override: undefined }
+                                : it
+                            )
+                          )
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs text-gray-500">Discount ₹</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="h-8 w-16 text-xs"
+                        value={pkgItem.discount_amount_override != null ? pkgItem.discount_amount_override : ''}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const v = e.target.value
+                          const num = parseFloat(v)
+                          setCartItems((items) =>
+                            items.map((it, i) =>
+                              i === editingItemIndex
+                                ? {
+                                    ...it,
+                                    discount_amount_override:
+                                      v === '' || !Number.isFinite(num) ? undefined : Math.max(0, num),
+                                    discount_percent: v === '' || !Number.isFinite(num) ? it.discount_percent : 0,
+                                  }
+                                : it
+                            )
+                          )
+                        }}
+                      />
                     </div>
                   </div>
+
+                  {(pkgItem.selected_services || []).length > 0 && (
+                    <div>
+                      <Label className="mb-2 block">Services — status & employees (per service)</Label>
+                      <div className="space-y-2 max-h-60 overflow-auto">
+                        {pkgItem.selected_services.map((svc, svcIdx) => {
+                          const currentIds = svc.employee_ids || []
+                          const slots = currentIds.length ? currentIds : ['']
+                          return (
+                            <div key={svcIdx} className="p-2 bg-gray-50 rounded border space-y-2">
+                              <div className="text-sm font-medium truncate flex items-center gap-1.5 flex-wrap">
+                                {svc.service_name}
+                                {(svc.star_points || 0) > 0 && (
+                                  <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
+                                    <Star className="h-3 w-3 fill-amber-500" />
+                                    {svc.star_points}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {formatCurrency(svc.distributed_price ?? svc.original_service_price)}
+                                {svc.distributed_price != null && svc.distributed_price !== svc.original_service_price && (
+                                  <span className="line-through text-gray-300 ml-1">{formatCurrency(svc.original_service_price)}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Label className="text-xs text-gray-500">Status</Label>
+                                <button
+                                  type="button"
+                                  onClick={() => togglePackageServicePending(editingItemIndex, svcIdx)}
+                                  className={`text-xs px-2 py-1 rounded border font-medium ${
+                                    svc.item_status === 'pending'
+                                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                      : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
+                                  }`}
+                                >
+                                  {svc.item_status === 'pending' ? 'Pending' : 'Done'}
+                                </button>
+                              </div>
+                              {slots.map((eid, slotIdx) => (
+                                <div key={slotIdx} className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500 w-16 shrink-0">E{slotIdx + 1}</span>
+                                  <select
+                                    className="flex-1 h-8 px-2 text-xs border rounded-md min-w-0"
+                                    value={(currentIds[slotIdx] || '').toString()}
+                                    onChange={(e) => {
+                                      const updated = [...currentIds]
+                                      while (updated.length <= slotIdx) updated.push('')
+                                      updated[slotIdx] = e.target.value || ''
+                                      updatePackageServiceEmployees(editingItemIndex, svcIdx, updated)
+                                    }}
+                                  >
+                                    <option value="">— None —</option>
+                                    {employees.filter((emp) => {
+                                      const othersSelected = currentIds.filter((id, i) => i !== slotIdx && id).map(String)
+                                      return !othersSelected.includes(String(emp.employee_id))
+                                    }).map((emp) => (
+                                      <option key={emp.employee_id} value={emp.employee_id}>
+                                        {emp.full_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 shrink-0 text-red-500"
+                                    onClick={() => {
+                                      const updated = currentIds.filter((_, i) => i !== slotIdx)
+                                      updatePackageServiceEmployees(editingItemIndex, svcIdx, updated.length ? updated : [])
+                                    }}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => {
+                                  updatePackageServiceEmployees(editingItemIndex, svcIdx, [...currentIds, ''])
+                                }}
+                              >
+                                <Plus className="h-3 w-3 mr-1" /> Add employee
+                              </Button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <DialogFooter className="gap-2">
                     <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => {
-                        handleRemovePackageGroup(editingPackageGroupId)
+                        handleRemoveItem(editingItemIndex)
                         setEditModalOpen(false)
                       }}
                     >
@@ -2274,7 +2175,7 @@ function BillCreatePage() {
           })()}
 
           {/* Single Item Edit */}
-          {editingItemIndex !== null && !editingPackageGroupId && cartItems[editingItemIndex] && (
+          {editingItemIndex !== null && cartItems[editingItemIndex]?.item_type !== 'package' && cartItems[editingItemIndex] && (
             <>
               <DialogHeader>
                 <DialogTitle>Edit Item</DialogTitle>
@@ -2404,7 +2305,11 @@ function BillCreatePage() {
                             }}
                           >
                             <option value="">— None —</option>
-                            {employees.map((emp) => (
+                            {employees.filter((emp) => {
+                              const currentIds = cartItems[editingItemIndex]?.employee_ids || []
+                              const othersSelected = currentIds.filter((id, i) => i !== slotIdx && id).map(String)
+                              return !othersSelected.includes(String(emp.employee_id))
+                            }).map((emp) => (
                               <option key={emp.employee_id} value={emp.employee_id}>
                                 {emp.full_name}
                               </option>
@@ -2459,6 +2364,17 @@ function BillCreatePage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Inline Add Customer Modal */}
+      <CustomerModal
+        open={addCustomerModalOpen}
+        onOpenChange={setAddCustomerModalOpen}
+        minimal
+        prefill={customerPrefill}
+        onCreated={(newCustomer) => {
+          handleSelectCustomer(newCustomer)
+        }}
+      />
     </div>
   )
 }

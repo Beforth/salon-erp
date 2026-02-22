@@ -34,7 +34,7 @@ const initialFormData = {
   notes: '',
 }
 
-function CustomerModal({ open, onOpenChange, customer = null }) {
+function CustomerModal({ open, onOpenChange, customer = null, minimal = false, prefill = null, onCreated = null }) {
   const queryClient = useQueryClient()
   const isEditing = !!customer
 
@@ -57,15 +57,18 @@ function CustomerModal({ open, onOpenChange, customer = null }) {
         notes: customer.notes || '',
       })
     } else {
-      setFormData(initialFormData)
+      setFormData(prefill ? { ...initialFormData, ...prefill } : initialFormData)
     }
-  }, [customer, open])
+  }, [customer, open, prefill])
 
   const createMutation = useMutation({
     mutationFn: customerService.createCustomer,
-    onSuccess: () => {
+    onSuccess: (response) => {
       toast.success('Customer created successfully')
       queryClient.invalidateQueries({ queryKey: ['customers'] })
+      if (onCreated && response?.data) {
+        onCreated(response.data)
+      }
       onOpenChange(false)
     },
     onError: (error) => {
@@ -151,20 +154,8 @@ function CustomerModal({ open, onOpenChange, customer = null }) {
             </div>
           </div>
 
-          {/* Email */}
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleChange('email', e.target.value)}
-              placeholder="email@example.com"
-            />
-          </div>
-
-          {/* Gender & Age Category */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Gender (shown in both minimal and full mode) */}
+          {minimal ? (
             <div className="space-y-2">
               <Label>Gender</Label>
               <Select
@@ -181,80 +172,114 @@ function CustomerModal({ open, onOpenChange, customer = null }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Age Category</Label>
-              <Select
-                value={formData.age_category}
-                onValueChange={(value) => handleChange('age_category', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select age" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="child">Child</SelectItem>
-                  <SelectItem value="teen">Teen</SelectItem>
-                  <SelectItem value="young">Young</SelectItem>
-                  <SelectItem value="middle">Middle</SelectItem>
-                  <SelectItem value="old">Senior</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          ) : (
+            <>
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  placeholder="email@example.com"
+                />
+              </div>
 
-          {/* Date of Birth */}
-          <div className="space-y-2">
-            <Label htmlFor="date_of_birth">Date of Birth</Label>
-            <Input
-              id="date_of_birth"
-              type="date"
-              value={formData.date_of_birth}
-              onChange={(e) => handleChange('date_of_birth', e.target.value)}
-            />
-          </div>
+              {/* Gender & Age Category */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Gender</Label>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(value) => handleChange('gender', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Age Category</Label>
+                  <Select
+                    value={formData.age_category}
+                    onValueChange={(value) => handleChange('age_category', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select age" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="child">Child</SelectItem>
+                      <SelectItem value="teen">Teen</SelectItem>
+                      <SelectItem value="young">Young</SelectItem>
+                      <SelectItem value="middle">Middle</SelectItem>
+                      <SelectItem value="old">Senior</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          {/* Address */}
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => handleChange('address', e.target.value)}
-              placeholder="Street address"
-            />
-          </div>
+              {/* Date of Birth */}
+              <div className="space-y-2">
+                <Label htmlFor="date_of_birth">Date of Birth</Label>
+                <Input
+                  id="date_of_birth"
+                  type="date"
+                  value={formData.date_of_birth}
+                  onChange={(e) => handleChange('date_of_birth', e.target.value)}
+                />
+              </div>
 
-          {/* City & Pincode */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="city">City</Label>
-              <Input
-                id="city"
-                value={formData.city}
-                onChange={(e) => handleChange('city', e.target.value)}
-                placeholder="City"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pincode">Pincode</Label>
-              <Input
-                id="pincode"
-                value={formData.pincode}
-                onChange={(e) => handleChange('pincode', e.target.value)}
-                placeholder="Pincode"
-              />
-            </div>
-          </div>
+              {/* Address */}
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => handleChange('address', e.target.value)}
+                  placeholder="Street address"
+                />
+              </div>
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Input
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Any additional notes"
-            />
-          </div>
+              {/* City & Pincode */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => handleChange('city', e.target.value)}
+                    placeholder="City"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pincode">Pincode</Label>
+                  <Input
+                    id="pincode"
+                    value={formData.pincode}
+                    onChange={(e) => handleChange('pincode', e.target.value)}
+                    placeholder="Pincode"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Input
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => handleChange('notes', e.target.value)}
+                  placeholder="Any additional notes"
+                />
+              </div>
+            </>
+          )}
 
           <DialogFooter>
             <Button

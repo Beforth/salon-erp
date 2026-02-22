@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { billService } from '@/services/bill.service'
 import {
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
 import {
   Loader2,
@@ -29,24 +30,45 @@ const PAYMENT_MODES = [
   { value: 'upi', label: 'UPI', icon: Smartphone },
 ]
 
-function CompleteBillModal({ open, onOpenChange, bill }) {
+function CompleteBillModal({ open, onOpenChange, bill, partial = false }) {
   const queryClient = useQueryClient()
   const [payments, setPayments] = useState([{ payment_mode: 'cash', amount: '' }])
   const [notes, setNotes] = useState('')
+  const [pendingItemIds, setPendingItemIds] = useState([])
 
   const totalAmount = bill?.total_amount || 0
 
+  // Calculate payable amount: full total when not partial, or only completing items when partial
+  const payableAmount = useMemo(() => {
+    if (!partial || !bill?.items) return totalAmount
+    const completingItems = bill.items.filter((item) => !pendingItemIds.includes(item.item_id))
+    return completingItems.reduce((sum, item) => sum + (item.total_price || 0), 0)
+  }, [partial, bill?.items, pendingItemIds, totalAmount])
+
   useEffect(() => {
     if (open && bill) {
-      setPayments([{ payment_mode: 'cash', amount: totalAmount > 0 ? totalAmount.toFixed(2) : '' }])
       setNotes('')
+      setPendingItemIds([])
+      if (partial) {
+        // In partial mode, start with empty payment until user selects items
+        setPayments([{ payment_mode: 'cash', amount: '' }])
+      } else {
+        setPayments([{ payment_mode: 'cash', amount: totalAmount > 0 ? totalAmount.toFixed(2) : '' }])
+      }
     }
-  }, [open, bill, totalAmount])
+  }, [open, bill, totalAmount, partial])
+
+  // Auto-update payment amount when pending selection changes (single payment mode only)
+  useEffect(() => {
+    if (partial && payments.length === 1 && payableAmount > 0) {
+      setPayments([{ ...payments[0], amount: payableAmount.toFixed(2) }])
+    }
+  }, [payableAmount, partial])
 
   const completeMutation = useMutation({
     mutationFn: (data) => billService.completeBill(bill.bill_id, data),
     onSuccess: () => {
-      toast.success('Bill completed successfully!')
+      toast.success(partial ? 'Partial bill completed!' : 'Bill completed successfully!')
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['bill', String(bill.bill_id)] })
       queryClient.invalidateQueries({ queryKey: ['chairs'] })
@@ -59,7 +81,7 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
   })
 
   const totalPaid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
-  const remaining = totalAmount - totalPaid
+  const remaining = payableAmount - totalPaid
 
   const handleAddPayment = () => {
     setPayments([...payments, { payment_mode: 'cash', amount: '' }])
@@ -80,8 +102,16 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
       (sum, p, i) => (i !== index ? sum + (parseFloat(p.amount) || 0) : sum),
       0
     )
-    const remainingAmount = Math.max(0, totalAmount - otherPayments)
+    const remainingAmount = Math.max(0, payableAmount - otherPayments)
     handlePaymentChange(index, 'amount', remainingAmount.toFixed(2))
+  }
+
+  const handleTogglePendingItem = (itemId) => {
+    setPendingItemIds((prev) =>
+      prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId]
+    )
   }
 
   const handleSubmit = () => {
@@ -91,21 +121,39 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
       return
     }
 
+    if (partial) {
+      // Validate: at least 1 item must stay pending, and not all items can be pending
+      if (pendingItemIds.length === 0) {
+        toast.error('Select at least one item to keep pending for partial completion')
+        return
+      }
+      if (bill.items && pendingItemIds.length === bill.items.length) {
+        toast.error('Cannot keep all items pending — select some items to complete')
+        return
+      }
+    }
+
     const paymentTotal = validPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0)
-    if (Math.abs(paymentTotal - totalAmount) > 0.01) {
+    if (Math.abs(paymentTotal - payableAmount) > 0.01) {
       toast.error(
-        `Payment total (${formatCurrency(paymentTotal)}) must equal bill total (${formatCurrency(totalAmount)})`
+        `Payment total (${formatCurrency(paymentTotal)}) must equal ${partial ? 'payable' : 'bill'} total (${formatCurrency(payableAmount)})`
       )
       return
     }
 
-    completeMutation.mutate({
+    const payload = {
       payments: validPayments.map((p) => ({
         payment_mode: p.payment_mode,
         amount: parseFloat(p.amount),
       })),
       notes: notes || undefined,
-    })
+    }
+
+    if (partial && pendingItemIds.length > 0) {
+      payload.pending_item_ids = pendingItemIds
+    }
+
+    completeMutation.mutate(payload)
   }
 
   if (!bill) return null
@@ -114,15 +162,56 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Complete Bill</DialogTitle>
+          <DialogTitle>{partial ? 'Partial Bill Completion' : 'Complete Bill'}</DialogTitle>
           <p className="text-sm text-gray-500">
             {bill.bill_number} {bill.customer?.customer_name && `\u2022 ${bill.customer.customer_name}`}
           </p>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Items Summary */}
-          {bill.items?.length > 0 && (
+          {/* Partial mode: item selection with checkboxes */}
+          {partial && bill.items?.length > 0 && (
+            <div>
+              <Label className="text-sm font-medium mb-2 block">
+                Check items to keep <span className="text-amber-600 font-semibold">pending</span>
+              </Label>
+              <div className="border rounded-lg divide-y max-h-48 overflow-auto">
+                {bill.items.map((item) => {
+                  const isPending = pendingItemIds.includes(item.item_id)
+                  return (
+                    <label
+                      key={item.item_id}
+                      className={`flex items-center gap-3 p-2.5 cursor-pointer hover:bg-gray-50 ${isPending ? 'bg-amber-50' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isPending}
+                        onChange={() => handleTogglePendingItem(item.item_id)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <span className={`text-sm flex-1 truncate ${isPending ? 'text-amber-700' : 'text-gray-700'}`}>
+                        {item.item_name || item.service?.service_name || item.package?.package_name || item.product?.product_name || 'Item'}
+                      </span>
+                      <span className="text-sm text-gray-500 shrink-0">
+                        {formatCurrency(item.total_price)}
+                      </span>
+                      {isPending && (
+                        <Badge variant="warning" className="text-[10px] px-1.5 py-0">Pending</Badge>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
+              {pendingItemIds.length > 0 && (
+                <p className="text-xs text-amber-600 mt-1.5">
+                  {pendingItemIds.length} item{pendingItemIds.length > 1 ? 's' : ''} will remain pending
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Items Summary (non-partial mode only) */}
+          {!partial && bill.items?.length > 0 && (
             <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1 max-h-40 overflow-auto">
               {bill.items.map((item) => (
                 <div key={item.item_id} className="flex justify-between">
@@ -140,18 +229,18 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
           {/* Totals */}
           <div className="text-sm space-y-1">
             <div className="flex justify-between">
-              <span className="text-gray-500">Subtotal</span>
-              <span>{formatCurrency(bill.subtotal)}</span>
+              <span className="text-gray-500">Bill Total</span>
+              <span>{formatCurrency(totalAmount)}</span>
             </div>
-            {bill.discount_amount > 0 && (
-              <div className="flex justify-between text-red-500">
-                <span>Discount</span>
-                <span>-{formatCurrency(bill.discount_amount)}</span>
+            {partial && pendingItemIds.length > 0 && (
+              <div className="flex justify-between text-amber-600">
+                <span>Pending Amount</span>
+                <span>{formatCurrency(totalAmount - payableAmount)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-lg pt-1 border-t">
-              <span>Total</span>
-              <span className="text-primary">{formatCurrency(totalAmount)}</span>
+              <span>{partial ? 'Pay Now' : 'Total'}</span>
+              <span className="text-primary">{formatCurrency(payableAmount)}</span>
             </div>
           </div>
 
@@ -252,7 +341,7 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={completeMutation.isPending || Math.abs(totalPaid - totalAmount) > 0.01}
+            disabled={completeMutation.isPending || Math.abs(totalPaid - payableAmount) > 0.01 || (partial && pendingItemIds.length === 0)}
           >
             {completeMutation.isPending ? (
               <>
@@ -262,7 +351,7 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
             ) : (
               <>
                 <Check className="h-4 w-4 mr-2" />
-                Complete Payment {formatCurrency(totalAmount)}
+                {partial ? `Pay ${formatCurrency(payableAmount)}` : `Complete Payment ${formatCurrency(payableAmount)}`}
               </>
             )}
           </Button>

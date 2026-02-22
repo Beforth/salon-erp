@@ -28,4 +28,6 @@ export const serviceService = {
   createPackage: (data) => api.post('/packages', data),
 
   updatePackage: (id, data) => api.put(`/packages/${id}`, data),
+
+  previewPackageDistribution: (data) => api.post('/packages/preview-distribution', data),
 }

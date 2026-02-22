@@ -11,7 +11,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Plus, Minus, Trash2, Package, Star, Search } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, Plus, Minus, Trash2, Package, Star, Search, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
 
@@ -23,10 +24,10 @@ const initialFormData = {
   description: '',
   is_active: true,
   services: [], // [{ service_id, service_name, quantity, service_price, star_points }]
-  service_groups: [], // [{ group_label, services: [{ service_id, service_name, quantity, service_price, star_points }] }]
+  service_groups: [], // [{ group_label, services: [{ service_id, service_name, quantity, service_price, star_points, bonus_services: [] }] }]
 }
 
-function ServiceSearchDropdown({ services, onSelect, label, placeholder = 'Search services...' }) {
+function ServiceSearchDropdown({ services, onSelect, label, placeholder = 'Search services...', compact = false }) {
   const [query, setQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef(null)
@@ -60,10 +61,10 @@ function ServiceSearchDropdown({ services, onSelect, label, placeholder = 'Searc
   }, [])
 
   return (
-    <div className="space-y-2">
+    <div className={compact ? '' : 'space-y-2'}>
       {label && <Label>{label}</Label>}
       <div className="relative" ref={containerRef}>
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Search className={`absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 ${compact ? 'h-3 w-3' : 'h-4 w-4'}`} />
         <Input
           placeholder={placeholder}
           value={query}
@@ -72,7 +73,7 @@ function ServiceSearchDropdown({ services, onSelect, label, placeholder = 'Searc
             setIsOpen(true)
           }}
           onFocus={() => setIsOpen(true)}
-          className="pl-9"
+          className={compact ? 'pl-8 h-7 text-xs' : 'pl-9'}
         />
         {isOpen && (
           <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-52 overflow-y-auto">
@@ -146,6 +147,7 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
     let individualPrice = formData.services.reduce((sum, s) => sum + (s.service_price * s.quantity), 0)
     let totalStars = formData.services.reduce((sum, s) => sum + ((s.star_points || 0) * s.quantity), 0)
     formData.service_groups.forEach((g) => {
+      // Only parent option prices count (bonus services are free)
       const groupPrices = (g.services || []).map(s => (s.service_price || 0) * (s.quantity || 1))
       individualPrice += groupPrices.length ? Math.max(...groupPrices) : 0
       const groupStars = (g.services || []).map(s => ((s.star_points || 0)) * (s.quantity || 1))
@@ -182,6 +184,11 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
             quantity: s.quantity,
             service_price: s.service_price,
             star_points: s.star_points || 0,
+            bonus_services: (s.bonus_services || []).map(bs => ({
+              service_id: bs.service_id,
+              service_name: bs.service_name,
+              quantity: bs.quantity || 1,
+            })),
           })),
         })) || [],
       })
@@ -294,6 +301,7 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
         quantity: 1,
         service_price: service.price,
         star_points: service.star_points || 0,
+        bonus_services: [],
       })
     }
     updated[groupIndex] = { ...group, services: [...list] }
@@ -324,6 +332,38 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
     const updated = [...formData.service_groups]
     const list = [...(updated[groupIndex].services || [])]
     list[serviceIndex] = { ...list[serviceIndex], service_price: num }
+    updated[groupIndex] = { ...updated[groupIndex], services: list }
+    handleChange('service_groups', updated)
+  }
+
+  // Bonus service handlers
+  const handleAddBonusService = (groupIndex, serviceIndex, bonusService) => {
+    const updated = [...formData.service_groups]
+    const list = [...(updated[groupIndex].services || [])]
+    const parentService = { ...list[serviceIndex] }
+    const bonuses = [...(parentService.bonus_services || [])]
+    // Don't add duplicate bonus
+    if (bonuses.find((b) => b.service_id === bonusService.service_id)) {
+      toast.error('This bonus service is already added')
+      return
+    }
+    bonuses.push({
+      service_id: bonusService.service_id,
+      service_name: bonusService.service_name,
+      quantity: 1,
+    })
+    parentService.bonus_services = bonuses
+    list[serviceIndex] = parentService
+    updated[groupIndex] = { ...updated[groupIndex], services: list }
+    handleChange('service_groups', updated)
+  }
+
+  const handleRemoveBonusService = (groupIndex, serviceIndex, bonusIndex) => {
+    const updated = [...formData.service_groups]
+    const list = [...(updated[groupIndex].services || [])]
+    const parentService = { ...list[serviceIndex] }
+    parentService.bonus_services = (parentService.bonus_services || []).filter((_, i) => i !== bonusIndex)
+    list[serviceIndex] = parentService
     updated[groupIndex] = { ...updated[groupIndex], services: list }
     handleChange('service_groups', updated)
   }
@@ -360,11 +400,24 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
         .filter((g) => (g.services || []).length > 0)
         .map((g) => ({
           group_label: (g.group_label || '').trim() || 'Choose one',
-          services: (g.services || []).map((s) => ({
-            service_id: s.service_id,
-            quantity: Number(s.quantity) || 1,
-            service_price: s.service_price != null ? Number(s.service_price) : null,
-          })),
+          services: (g.services || []).flatMap((s) => {
+            // Parent option service
+            const parentEntry = {
+              service_id: s.service_id,
+              quantity: Number(s.quantity) || 1,
+              service_price: s.service_price != null ? Number(s.service_price) : null,
+              is_free: false,
+            }
+            // Bonus services linked to this parent
+            const bonusEntries = (s.bonus_services || []).map((bs) => ({
+              service_id: bs.service_id,
+              quantity: Number(bs.quantity) || 1,
+              service_price: 0,
+              is_free: true,
+              bonus_for_service_id: s.service_id,
+            }))
+            return [parentEntry, ...bonusEntries]
+          }),
         })),
     }
 
@@ -555,49 +608,84 @@ function PackageModal({ open, onOpenChange, pkg = null }) {
                 {(group.services || []).length > 0 && (
                   <div className="divide-y border rounded bg-white">
                     {(group.services || []).map((s, sIdx) => (
-                      <div key={sIdx} className="p-2 flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium">
-                          {s.service_name}
-                          {s.star_points > 0 && (
-                            <span className="inline-flex items-center ml-1.5 text-amber-600 text-xs font-normal">
-                              <Star className="h-3 w-3 fill-amber-400 stroke-amber-500 mr-0.5" />
-                              {s.star_points * (s.quantity || 1)}
-                            </span>
-                          )}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            className="w-20 h-7 text-xs"
-                            value={s.service_price}
-                            onChange={(e) => handleUpdateGroupServicePrice(groupIndex, sIdx, e.target.value)}
-                          />
-                          <div className="flex items-center border rounded">
+                      <div key={sIdx} className="p-2 space-y-1.5">
+                        {/* Parent option row */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium flex items-center gap-1.5">
+                            {s.service_name}
+                            {s.star_points > 0 && (
+                              <span className="inline-flex items-center text-amber-600 text-xs font-normal">
+                                <Star className="h-3 w-3 fill-amber-400 stroke-amber-500 mr-0.5" />
+                                {s.star_points * (s.quantity || 1)}
+                              </span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="w-20 h-7 text-xs"
+                              value={s.service_price}
+                              onChange={(e) => handleUpdateGroupServicePrice(groupIndex, sIdx, e.target.value)}
+                            />
+                            <div className="flex items-center border rounded">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateGroupServiceQuantity(groupIndex, sIdx, -1)}
+                                className="p-0.5 hover:bg-gray-100"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="px-1 text-xs">{s.quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateGroupServiceQuantity(groupIndex, sIdx, 1)}
+                                className="p-0.5 hover:bg-gray-100"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
                             <button
                               type="button"
-                              onClick={() => handleUpdateGroupServiceQuantity(groupIndex, sIdx, -1)}
-                              className="p-0.5 hover:bg-gray-100"
+                              onClick={() => handleRemoveServiceFromGroup(groupIndex, sIdx)}
+                              className="p-0.5 text-red-500 hover:bg-red-50 rounded"
                             >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <span className="px-1 text-xs">{s.quantity}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateGroupServiceQuantity(groupIndex, sIdx, 1)}
-                              className="p-0.5 hover:bg-gray-100"
-                            >
-                              <Plus className="h-3 w-3" />
+                              <Trash2 className="h-3 w-3" />
                             </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveServiceFromGroup(groupIndex, sIdx)}
-                            className="p-0.5 text-red-500 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                        </div>
+
+                        {/* Bonus services for this option */}
+                        {(s.bonus_services || []).length > 0 && (
+                          <div className="ml-5 space-y-1">
+                            {s.bonus_services.map((bs, bIdx) => (
+                              <div key={bIdx} className="flex items-center justify-between gap-2 py-0.5 px-2 bg-green-50 rounded text-xs">
+                                <span className="flex items-center gap-1.5 text-green-800">
+                                  <Gift className="h-3 w-3" />
+                                  {bs.service_name}
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0">Free</Badge>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBonusService(groupIndex, sIdx, bIdx)}
+                                  className="p-0.5 text-red-500 hover:bg-red-100 rounded"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add bonus service picker */}
+                        <div className="ml-5">
+                          <ServiceSearchDropdown
+                            services={services}
+                            onSelect={(service) => handleAddBonusService(groupIndex, sIdx, service)}
+                            placeholder="Add free bonus service..."
+                            compact
+                          />
                         </div>
                       </div>
                     ))}
