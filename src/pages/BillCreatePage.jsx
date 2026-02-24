@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, fuzzyMatch, fuzzyScore } from '@/lib/utils'
 import {
   Search,
   Plus,
@@ -86,6 +86,9 @@ function BillCreatePage() {
   // Item selection
   const [selectedCategory, setSelectedCategory] = useState('services')
   const [selectedItemId, setSelectedItemId] = useState(null)
+  const [itemSearch, setItemSearch] = useState('') // search filter for service/package/product name
+  const [itemDropdownOpen, setItemDropdownOpen] = useState(false)
+  const itemComboboxRef = useRef(null)
   const [itemPrice, setItemPrice] = useState('')
   const [itemQuantity, setItemQuantity] = useState(1)
   const [componentEmployees, setComponentEmployees] = useState({}) // { componentIndex: [employeeIds] }
@@ -195,6 +198,16 @@ function BillCreatePage() {
     }
     return []
   }, [selectedCategory, services, packages, products])
+
+  // Filtered item options (fuzzy search): type "hircut" → matches "Haircut", etc.
+  const filteredItemOptions = useMemo(() => {
+    const q = (itemSearch || '').trim()
+    if (!q) return itemOptions
+    const nameKey = 'name'
+    return itemOptions
+      .filter((o) => fuzzyMatch(o[nameKey] || '', q))
+      .sort((a, b) => fuzzyScore(b[nameKey] || '', q) - fuzzyScore(a[nameKey] || '', q))
+  }, [itemOptions, itemSearch])
 
   // Selected item details
   const selectedItem = useMemo(() => {
@@ -762,6 +775,17 @@ function BillCreatePage() {
     }
   }, [selectedCategory, selectedItemId, selectedItem?.service_groups, packageGroupSelections])
 
+  // Close item combobox dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (itemComboboxRef.current && !itemComboboxRef.current.contains(e.target)) {
+        setItemDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // Auto-set payment amount when total changes (single payment)
   useEffect(() => {
     if (payments.length === 1 && totalAmount >= 0) {
@@ -943,6 +967,7 @@ function BillCreatePage() {
                 onValueChange={(v) => {
                   setSelectedCategory(v)
                   setSelectedItemId(null)
+                  setItemSearch('')
                   setItemPrice('')
                 }}
               >
@@ -960,8 +985,8 @@ function BillCreatePage() {
               </Tabs>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-4 space-y-4">
-              {/* Item Dropdown */}
-              <div>
+              {/* Item Combobox: type to search, dropdown shows results — click to select */}
+              <div ref={itemComboboxRef} className="space-y-2">
                 <Label className="mb-2 block">
                   Select{' '}
                   {selectedCategory === 'services'
@@ -970,19 +995,55 @@ function BillCreatePage() {
                       ? 'Package'
                       : 'Product'}
                 </Label>
-                <select
-                  className="w-full h-10 px-3 border rounded-md"
-                  value={selectedItemId || ''}
-                  onChange={(e) => handleItemSelect(e.target.value)}
-                >
-                  <option value="">-- Choose --</option>
-                  {itemOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.description ? `[${opt.description}] ` : ''}{opt.name} - {formatCurrency(opt.price)}
-                      {selectedCategory === 'services' && opt.star_points != null && opt.star_points > 0 ? ` (⭐ ${opt.star_points})` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                  <Input
+                    type="text"
+                    placeholder={
+                      selectedCategory === 'services'
+                        ? 'Type to search service...'
+                        : selectedCategory === 'packages'
+                          ? 'Type to search package...'
+                          : 'Type to search product...'
+                    }
+                    value={itemSearch}
+                    onChange={(e) => {
+                      setItemSearch(e.target.value)
+                      setItemDropdownOpen(true)
+                    }}
+                    onFocus={() => setItemDropdownOpen(true)}
+                    className="pl-9 h-10"
+                  />
+                  {/* Dropdown list: appears below input when open */}
+                  {itemDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1 max-h-60 overflow-auto rounded-md border bg-popover shadow-lg z-50">
+                      {filteredItemOptions.length === 0 ? (
+                        <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                          No matching {selectedCategory === 'services' ? 'service' : selectedCategory === 'packages' ? 'package' : 'product'} found.
+                        </div>
+                      ) : (
+                        <ul className="p-1">
+                          {filteredItemOptions.map((opt) => (
+                            <li key={opt.id}>
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-2.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:outline-none"
+                                onClick={() => {
+                                  handleItemSelect(opt.id)
+                                  setItemSearch('')
+                                  setItemDropdownOpen(false)
+                                }}
+                              >
+                                {opt.description ? `[${opt.description}] ` : ''}{opt.name} — {formatCurrency(opt.price)}
+                                {selectedCategory === 'services' && opt.star_points != null && opt.star_points > 0 ? ` (⭐ ${opt.star_points})` : ''}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Item Details */}
