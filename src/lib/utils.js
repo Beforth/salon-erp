@@ -38,6 +38,35 @@ export function formatDateTime(date) {
   }).format(d)
 }
 
+/** Bill dates are stored as IST (no timezone conversion). Show as-is using UTC components. */
+export function formatDateStored(date) {
+  if (date == null || date === '') return '—'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'UTC',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(d)
+}
+
+/** Bill date+time stored as IST. Show as-is using UTC components. */
+export function formatDateTimeStored(date) {
+  if (date == null || date === '') return '—'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'UTC',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d)
+}
+
 /**
  * Fuzzy match: query chars must appear in text in order (not necessarily consecutive).
  * e.g. "hircut" matches "Haircut", "fcail" matches "Facial"

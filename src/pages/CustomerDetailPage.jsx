@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import CustomerModal from '@/components/modals/CustomerModal'
-import { formatDateTime, formatDate, formatCurrency } from '@/lib/utils'
+import { formatDateTime, formatDate, formatCurrency, formatDateStored } from '@/lib/utils'
 import {
   ArrowLeft,
   User,
@@ -328,7 +328,7 @@ function CustomerDetailPage() {
                       <TableCell className="font-mono text-sm">
                         {bill.bill_number}
                       </TableCell>
-                      <TableCell>{formatDate(bill.bill_date)}</TableCell>
+                      <TableCell>{formatDateStored(bill.bill_date)}</TableCell>
                       <TableCell>{bill.branch?.name || '-'}</TableCell>
                       <TableCell className="max-w-[200px] truncate">
                         {bill.items_summary || '-'}

@@ -17,7 +17,7 @@ import {
   TableRow,
   TableFooter,
 } from '@/components/ui/table'
-import { formatDateTime, formatCurrency, formatDate } from '@/lib/utils'
+import { formatDateTime, formatCurrency, formatDate, formatDateStored } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -547,7 +547,7 @@ function BillDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-semibold text-lg">{formatDate(bill.bill_date)}</p>
+              <p className="font-semibold text-lg">{formatDateStored(bill.bill_date)}</p>
               <p className="text-gray-600">
                 {bill.created_by?.full_name && `By ${bill.created_by.full_name}`}
               </p>

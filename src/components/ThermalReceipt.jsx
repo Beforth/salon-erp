@@ -1,4 +1,4 @@
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDateTimeStored } from '@/lib/utils'
 
 function buildReceiptHTML(bill) {
   const items = bill.items || []
@@ -103,7 +103,7 @@ function buildReceiptHTML(bill) {
   const branchAddress = bill.branch?.address || ''
   const billNumber = bill.bill_number || ''
   const bookNumber = bill.book_number || ''
-  const billDate = bill.bill_date ? formatDateTime(bill.bill_date) : ''
+  const billDate = bill.bill_date ? formatDateTimeStored(bill.bill_date) : ''
   const customerName = bill.customer?.customer_name || ''
   const customerPhone = bill.customer?.phone_masked || bill.customer?.phone || ''
   const cashierName = bill.created_by?.full_name || ''

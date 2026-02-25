@@ -50,6 +50,32 @@ import { toast } from 'sonner'
 import CustomerModal from '@/components/modals/CustomerModal'
 import { UserPlus } from 'lucide-react'
 
+const IST = 'Asia/Kolkata'
+
+/** Today's date string YYYY-MM-DD in IST */
+function getTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: IST })
+}
+
+/** Current time HH:mm in IST */
+function getCurrentTimeIST() {
+  return new Date().toLocaleTimeString('en-IN', {
+    timeZone: IST,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+/** Current date and time formatted for display in IST */
+function getCurrentDateTimeIST() {
+  const d = new Date()
+  return {
+    date: d.toLocaleDateString('en-IN', { timeZone: IST, day: '2-digit', month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString('en-IN', { timeZone: IST, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+  }
+}
+
 const PAYMENT_MODES = [
   { value: 'cash', label: 'Cash', icon: Banknote },
   { value: 'card', label: 'Card', icon: CreditCard },
@@ -691,7 +717,7 @@ function BillCreatePage() {
     let billDateTime = null
     if (billType === 'previous') {
       const time = billTime || '12:00'
-      billDateTime = new Date(`${billDate}T${time}:00`).toISOString()
+      billDateTime = `${billDate}T${time}:00.000Z`
     }
 
     const billData = {
@@ -736,7 +762,7 @@ function BillCreatePage() {
     let billDateTime = null
     if (billType === 'previous') {
       const time = billTime || '12:00'
-      billDateTime = new Date(`${billDate}T${time}:00`).toISOString()
+      billDateTime = `${billDate}T${time}:00.000Z`
     }
 
     const billData = {
@@ -763,6 +789,14 @@ function BillCreatePage() {
       setSelectedBranch(branchId)
     }
   }, [branchId, selectedBranch])
+
+  // Default date/time to today and current time in IST when switching to Previous Bill
+  useEffect(() => {
+    if (billType === 'previous' && !billDate) {
+      setBillDate(getTodayIST())
+      setBillTime(getCurrentTimeIST())
+    }
+  }, [billType, billDate])
 
   // Clear cart when branch changes
   useEffect(() => {
@@ -797,8 +831,8 @@ function BillCreatePage() {
     }
   }, [totalAmount])
 
-  // Get today's date string for max date on picker
-  const todayStr = new Date().toISOString().split('T')[0]
+  // Today in IST for max date on picker and defaults
+  const todayStr = getTodayIST()
 
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] gap-4 min-h-0">
@@ -958,14 +992,10 @@ function BillCreatePage() {
                 </div>
               </>
             ) : (
-              <div className="w-44">
-                <Label className="mb-2 block text-gray-400">Date/Time</Label>
+              <div className="w-56">
+                <Label className="mb-2 block text-gray-400">Date/Time (IST)</Label>
                 <div className="h-10 px-3 flex items-center text-sm text-gray-500 bg-gray-50 border rounded-md">
-                  {new Date().toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
+                  {getCurrentDateTimeIST().date}, {getCurrentDateTimeIST().time}
                 </div>
               </div>
             )}

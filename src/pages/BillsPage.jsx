@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatDateTime, formatCurrency } from '@/lib/utils'
+import { formatDateTimeStored, formatCurrency } from '@/lib/utils'
 import { exportToCSV, exportToExcel, exportToPDF } from '@/lib/export-utils'
 import { printThermalReceipt } from '@/components/ThermalReceipt'
 import {
@@ -480,7 +480,7 @@ function BillsPage() {
                         <span className="text-gray-400">—</span>
                       )}
                     </TableCell>
-                    <TableCell>{formatDateTime(bill.bill_date)}</TableCell>
+                    <TableCell>{formatDateTimeStored(bill.bill_date)}</TableCell>
                     <TableCell className="font-bold">
                       {formatCurrency(bill.total_amount)}
                     </TableCell>
