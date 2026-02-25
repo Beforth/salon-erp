@@ -102,6 +102,7 @@ function buildReceiptHTML(bill) {
   const branchPhone = bill.branch?.phone || ''
   const branchAddress = bill.branch?.address || ''
   const billNumber = bill.bill_number || ''
+  const bookNumber = bill.book_number || ''
   const billDate = bill.bill_date ? formatDateTime(bill.bill_date) : ''
   const customerName = bill.customer?.customer_name || ''
   const customerPhone = bill.customer?.phone_masked || bill.customer?.phone || ''
@@ -162,6 +163,7 @@ function buildReceiptHTML(bill) {
       <!-- Bill Info -->
       <div style="font-size:9px;">
         <div>Bill #: ${billNumber}</div>
+        ${bookNumber ? `<div>No.   : ${bookNumber}</div>` : ''}
         <div>Date  : ${billDate}</div>
         <div>Customer: ${customerName}</div>
         ${customerPhone ? `<div>Phone: ${customerPhone}</div>` : ''}

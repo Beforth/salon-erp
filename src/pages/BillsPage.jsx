@@ -280,7 +280,7 @@ function BillsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search by bill number or customer..."
+                placeholder="Search by bill number, book no. or customer..."
                 className="pl-10"
                 value={search}
                 onChange={(e) => {
@@ -457,6 +457,9 @@ function BillsPage() {
                   <TableRow key={bill.bill_id}>
                     <TableCell className="font-mono text-sm">
                       {bill.bill_number}
+                      {bill.book_number && (
+                        <span className="text-muted-foreground font-normal ml-1">(No. {bill.book_number})</span>
+                      )}
                     </TableCell>
                     <TableCell className="font-medium">
                       <button

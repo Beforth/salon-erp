@@ -82,6 +82,8 @@ function BillCreatePage() {
 
   // Chair (optional)
   const [selectedChair, setSelectedChair] = useState('')
+  // Bill book number / No. (optional)
+  const [bookNumber, setBookNumber] = useState('')
 
   // Item selection
   const [selectedCategory, setSelectedCategory] = useState('services')
@@ -698,6 +700,7 @@ function BillCreatePage() {
       bill_type: billType,
       bill_date: billDateTime,
       chair_id: selectedChair || undefined,
+      book_number: bookNumber.trim() || undefined,
       items: buildSubmitItems(cartItems),
       payments: validPayments.map((p) => ({
         payment_mode: p.payment_mode,
@@ -742,6 +745,7 @@ function BillCreatePage() {
       bill_type: billType,
       bill_date: billDateTime,
       chair_id: selectedChair || undefined,
+      book_number: bookNumber.trim() || undefined,
       items: buildSubmitItems(cartItems),
       payments: [],
       discount_amount: parseFloat(billDiscount.toFixed(2)),
@@ -914,6 +918,19 @@ function BillCreatePage() {
                 </select>
               </div>
             )}
+
+            {/* Bill book no. / No. (optional) */}
+            <div className="w-36">
+              <Label className="mb-2 block">No. (Bill book no.)</Label>
+              <Input
+                type="text"
+                placeholder="e.g. 123"
+                className="h-10"
+                value={bookNumber}
+                onChange={(e) => setBookNumber(e.target.value)}
+                maxLength={50}
+              />
+            </div>
 
             {/* Date/Time */}
             {billType === 'previous' ? (

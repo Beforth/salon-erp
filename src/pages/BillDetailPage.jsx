@@ -395,6 +395,11 @@ function BillDetailPage() {
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Receipt className="h-6 w-6" />
               {bill.bill_number}
+              {bill.book_number && (
+                <span className="text-lg font-normal text-muted-foreground">
+                  (No. {bill.book_number})
+                </span>
+              )}
             </h1>
             <p className="text-gray-500">
               Created on {formatDateTime(bill.created_at)}
