@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
-import { TrendingUp, Calendar, Loader2, Star, Pencil, Check, X, Users, IndianRupee, Target, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { TrendingUp, Calendar, Loader2, Star, Pencil, Check, X, Users, IndianRupee, Target, Clock, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { HorizontalBarChart } from '@/components/charts'
 import { toast } from 'sonner'
 
@@ -140,6 +140,47 @@ function StaffPerformancePage() {
   useEffect(() => {
     setMatrixPage(1)
   }, [effectiveStart, matrixPageSize])
+
+  const handleDownloadServicesByTimeCsv = async () => {
+    try {
+      const { data } = await reportsService.getEmployeePerformance({
+        start_date: effectiveStart,
+        end_date: effectiveEnd,
+        branch_id: selectedBranch || undefined,
+        employee_id: selectedEmployee || undefined,
+        page: 1,
+        page_size: 10000,
+      })
+      const empList = data?.employees || []
+      const rows = data?.daily_timeline || []
+      const escapeCsv = (v) => {
+        const s = v == null ? '' : String(v)
+        if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+        return s
+      }
+      const header = ['Service', 'Time', ...empList.map((e) => e.employee_name)]
+      const csvRows = [header.map(escapeCsv).join(',')]
+      for (const row of rows) {
+        const amounts = row.amounts || {}
+        csvRows.push([
+          escapeCsv(row.service_name),
+          escapeCsv(row.time),
+          ...empList.map((emp) => escapeCsv(amounts[emp.employee_id] ?? '')),
+        ].join(','))
+      }
+      const csv = csvRows.join('\r\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `services-by-time-${effectiveStart}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('CSV downloaded')
+    } catch (err) {
+      toast.error(err.response?.data?.error?.message || 'Failed to download CSV')
+    }
+  }
 
   if (!isOwner) {
     return <Navigate to="/" replace />
@@ -321,13 +362,26 @@ function StaffPerformancePage() {
           {isSingleDay && singleDayMatrix.length > 0 && !activeEmployeeId && (
             <Card className="min-w-0 overflow-hidden">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Clock className="h-4 w-4" />
-                  Services by time — {effectiveStart}
-                </CardTitle>
-                <CardDescription>
-                  Employee columns show day total. Each row is a service; cells show amount earned. Click row to open bill.
-                </CardDescription>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Clock className="h-4 w-4" />
+                      Services by time — {effectiveStart}
+                    </CardTitle>
+                    <CardDescription>
+                      Employee columns show day total. Each row is a service; cells show amount earned. Click row to open bill.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadServicesByTimeCsv}
+                    className="shrink-0"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download full CSV
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto min-w-0 w-full" style={{ maxWidth: '100%' }}>

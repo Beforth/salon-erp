@@ -81,6 +81,8 @@ function BillDetailPage() {
   const [reconfigPackage, setReconfigPackage] = useState(null) // { package_instance_id, package_id, package_name }
   const [reconfigServices, setReconfigServices] = useState([]) // [{ service_id, employee_id, employee_ids }]
   const [reconfigPrice, setReconfigPrice] = useState('')
+  const [editBookNumberOpen, setEditBookNumberOpen] = useState(false)
+  const [editBookNumberValue, setEditBookNumberValue] = useState('')
 
   const deleteBillMutation = useMutation({
     mutationFn: () => billService.cancelBill(id),
@@ -548,6 +550,23 @@ function BillDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="font-semibold text-lg">{formatDateStored(bill.bill_date)}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-gray-600 font-medium">
+                  Bill Book No.: {bill.book_number || '—'}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  onClick={() => {
+                    setEditBookNumberValue(bill.book_number || '')
+                    setEditBookNumberOpen(true)
+                  }}
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Edit
+                </Button>
+              </div>
               <p className="text-gray-600">
                 {bill.created_by?.full_name && `By ${bill.created_by.full_name}`}
               </p>
@@ -1115,6 +1134,42 @@ function BillDetailPage() {
               {updateBillMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Bill Book Number */}
+      <Dialog open={editBookNumberOpen} onOpenChange={setEditBookNumberOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Bill Book Number</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="edit-book-number">Bill Book No. (No.)</Label>
+            <Input
+              id="edit-book-number"
+              value={editBookNumberValue}
+              onChange={(e) => setEditBookNumberValue(e.target.value)}
+              placeholder="e.g. 123"
+              maxLength={50}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBookNumberOpen(false)} disabled={updateBillMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                updateBillMutation.mutate(
+                  { book_number: editBookNumberValue.trim() || null },
+                  { onSuccess: () => setEditBookNumberOpen(false) }
+                )
+              }}
+              disabled={updateBillMutation.isPending}
+            >
+              {updateBillMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save
             </Button>
           </DialogFooter>
