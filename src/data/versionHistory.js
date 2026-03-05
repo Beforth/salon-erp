@@ -1,6 +1,57 @@
-export const CURRENT_VERSION = 'v2.0.0'
+export const CURRENT_VERSION = 'v2.1.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.1.0',
+    date: 'Mar 2026',
+    title: 'Billing UI Redesign',
+    highlights: [
+      'Collapsible sidebar navigation (global)',
+      'Single-screen POS-style billing layout',
+      'Cart + Checkout merged into one panel',
+      'Compact inline employee assignment for packages',
+      'Two-column service grid in cart for packages',
+      'Payment modes show icon + label text',
+    ],
+    details: [
+      {
+        section: 'Collapsible Sidebar (Global)',
+        items: [
+          'Sidebar toggles between full width (256px) and icon-only rail (64px)',
+          'Flyout menus on hover for grouped nav items when collapsed',
+          'Collapse/expand toggle button at bottom of sidebar',
+          'Content area max-width constraint removed when sidebar is collapsed',
+        ],
+      },
+      {
+        section: 'Billing Page — Layout Overhaul',
+        items: [
+          'Sidebar auto-collapses on billing page entry, restores on exit',
+          'Top section condensed from a full Card to a compact inline strip',
+          'Bottom checkout bar eliminated — merged into the right cart panel',
+          'Cart panel widened from 400px to 480px for better content density',
+          'Barcode scanner only shown when Products tab is selected',
+        ],
+      },
+      {
+        section: 'Package UX Improvements',
+        items: [
+          'Inline single-row employee assignment — service name, price, and staff dropdowns on one row',
+          'OR group service selector and employees on one compact row',
+          'Package services in cart displayed in a two-column grid layout',
+          'Employee name badges styled with primary color and white text for visibility',
+        ],
+      },
+      {
+        section: 'Payment & Checkout',
+        items: [
+          'Payment mode buttons show icon + label text (Cash, Card, UPI) instead of icon-only',
+          'Discount, payment splits, notes, and submit buttons in scrollable cart panel',
+          'Sticky cart header and submit buttons — always visible while cart content scrolls',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.0.0',
     date: 'Mar 2026',

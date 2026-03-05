@@ -51,6 +51,7 @@ import {
 import { toast } from 'sonner'
 import CustomerModal from '@/components/modals/CustomerModal'
 import { UserPlus } from 'lucide-react'
+import { useSidebar } from '@/contexts/SidebarContext'
 
 const IST = 'Asia/Kolkata'
 
@@ -89,6 +90,7 @@ function BillCreatePage() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { user } = useSelector((state) => state.auth)
+  const { collapsed: sidebarCollapsed, collapse: collapseSidebar, setCollapsed: setSidebarCollapsed } = useSidebar()
   const branchId = user?.branchId || null
 
   // Bill type from URL param or default to 'current'
@@ -870,177 +872,161 @@ function BillCreatePage() {
     }
   }, [totalAmount])
 
+  // Auto-collapse sidebar on mount, restore on unmount
+  useEffect(() => {
+    const wasCollapsed = sidebarCollapsed
+    collapseSidebar()
+    return () => {
+      if (!wasCollapsed) setSidebarCollapsed(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Today in IST for max date on picker and defaults
   const todayStr = getTodayIST()
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] gap-4 min-h-0">
-      {/* Back button + title */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/bills')}>
+    <div className="flex flex-col h-[calc(100vh-5rem)] min-h-0">
+      {/* Compact Top Strip - Back, Bill Type, Customer, Branch, Chair, Book No, Date */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3">
+        <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => navigate('/bills')}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
-        <h1 className="text-xl font-bold text-gray-900">
-          {billType === 'current' ? 'Current Bill' : 'Previous Bill'}
-        </h1>
-      </div>
 
-      {/* Top Section - Customer, Date */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-4 items-end">
-            {/* Customer Search */}
-            <div className="flex-1 min-w-[250px] relative">
-              <Label className="mb-2 block">Customer</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by name, phone or customer ID..."
-                  className="pl-10"
-                  value={customerSearch}
-                  onChange={(e) => {
-                    setCustomerSearch(e.target.value)
-                    setShowCustomerDropdown(true)
-                    if (!e.target.value) setSelectedCustomer(null)
-                  }}
-                  onFocus={() => setShowCustomerDropdown(true)}
-                />
-                {selectedCustomer && (
-                  <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
-                )}
-              </div>
-              {showCustomerDropdown && customerSearch.length >= 2 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
-                  {customersLoading ? (
-                    <div className="p-4 text-center text-gray-500">
-                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                      Searching...
-                    </div>
-                  ) : customers.length === 0 ? (
-                    <div className="p-4 text-center">
-                      <p className="text-gray-500 text-sm mb-2">No customers found</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setShowCustomerDropdown(false)
-                          setAddCustomerModalOpen(true)
-                        }}
-                      >
-                        <UserPlus className="h-4 w-4 mr-1" />
-                        Add New Customer
-                      </Button>
-                    </div>
-                  ) : (
-                    customers.map((customer) => (
-                      <div
-                        key={customer.customer_id}
-                        className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                        onClick={() => handleSelectCustomer(customer)}
-                      >
-                        <div className="font-medium">
-                          {customer.customer_code && <span className="text-gray-400 font-mono text-sm mr-2">#{customer.customer_code}</span>}
-                          {customer.customer_name}
-                        </div>
-                        <div className="text-sm text-gray-500">{customer.phone_masked}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+        <Tabs
+          value={billType}
+          onValueChange={(v) => setBillType(v)}
+          className="h-8"
+        >
+          <TabsList className="h-8">
+            <TabsTrigger value="current" className="h-7 text-xs px-3">Current</TabsTrigger>
+            <TabsTrigger value="previous" className="h-7 text-xs px-3">Previous</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-            {/* Branch */}
-            {!branchId && (
-              <div className="w-48">
-                <Label className="mb-2 block">Branch</Label>
-                <select
-                  className="w-full h-10 px-3 border rounded-md"
-                  value={selectedBranch || ''}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                >
-                  <option value="">Select Branch</option>
-                  {branches.map((branch) => (
-                    <option key={branch.branch_id} value={branch.branch_id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Chair (optional) */}
-            {selectedBranch && (
-              <div className="w-52">
-                <Label className="mb-2 block flex items-center gap-1">
-                  <Armchair className="h-3.5 w-3.5" /> Chair (optional)
-                </Label>
-                <select
-                  className="w-full h-10 px-3 border rounded-md"
-                  value={selectedChair}
-                  onChange={(e) => setSelectedChair(e.target.value)}
-                >
-                  <option value="">No Chair</option>
-                  {availableChairs.map((chair) => (
-                    <option key={chair.chair_id} value={chair.chair_id}>
-                      {chair.chair_number}{chair.chair_name ? ` - ${chair.chair_name}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Bill book no. / No. (optional) */}
-            <div className="w-36">
-              <Label className="mb-2 block">No. (Bill book no.)</Label>
-              <Input
-                type="text"
-                placeholder="e.g. 123"
-                className="h-10"
-                value={bookNumber}
-                onChange={(e) => setBookNumber(e.target.value)}
-                maxLength={50}
-              />
-            </div>
-
-            {/* Date/Time */}
-            {billType === 'previous' ? (
-              <>
-                <div className="w-44">
-                  <Label className="mb-2 block flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" /> Date
-                  </Label>
-                  <Input
-                    type="date"
-                    value={billDate}
-                    onChange={(e) => setBillDate(e.target.value)}
-                    max={todayStr}
-                  />
-                </div>
-                <div className="w-36">
-                  <Label className="mb-2 block flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" /> Time
-                  </Label>
-                  <Input
-                    type="time"
-                    value={billTime}
-                    onChange={(e) => setBillTime(e.target.value)}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="w-56">
-                <Label className="mb-2 block text-gray-400">Date/Time (IST)</Label>
-                <div className="h-10 px-3 flex items-center text-sm text-gray-500 bg-gray-50 border rounded-md">
-                  {getCurrentDateTimeIST().date}, {getCurrentDateTimeIST().time}
-                </div>
-              </div>
+        <div className="flex-1 min-w-[200px] max-w-[320px] relative">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              placeholder="Customer name, phone or ID..."
+              className="h-8 pl-8 pr-8 text-sm"
+              value={customerSearch}
+              onChange={(e) => {
+                setCustomerSearch(e.target.value)
+                setShowCustomerDropdown(true)
+                if (!e.target.value) setSelectedCustomer(null)
+              }}
+              onFocus={() => setShowCustomerDropdown(true)}
+            />
+            {selectedCustomer && (
+              <Check className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-green-500" />
             )}
           </div>
-        </CardContent>
-      </Card>
+          {showCustomerDropdown && customerSearch.length >= 2 && (
+            <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
+              {customersLoading ? (
+                <div className="p-3 text-center text-gray-500 text-sm">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin inline mr-1" />
+                  Searching...
+                </div>
+              ) : customers.length === 0 ? (
+                <div className="p-3 text-center">
+                  <p className="text-gray-500 text-xs mb-2">No customers found</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setShowCustomerDropdown(false)
+                      setAddCustomerModalOpen(true)
+                    }}
+                  >
+                    <UserPlus className="h-3.5 w-3.5 mr-1" />
+                    Add New
+                  </Button>
+                </div>
+              ) : (
+                customers.map((customer) => (
+                  <div
+                    key={customer.customer_id}
+                    className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                    onClick={() => handleSelectCustomer(customer)}
+                  >
+                    <div className="font-medium text-sm">
+                      {customer.customer_code && <span className="text-gray-400 font-mono text-xs mr-1">#{customer.customer_code}</span>}
+                      {customer.customer_name}
+                    </div>
+                    <div className="text-xs text-gray-500">{customer.phone_masked}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {!branchId && (
+          <select
+            className="h-8 px-2 text-sm border rounded-md w-36"
+            value={selectedBranch || ''}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+          >
+            <option value="">Branch...</option>
+            {branches.map((branch) => (
+              <option key={branch.branch_id} value={branch.branch_id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {selectedBranch && (
+          <select
+            className="h-8 px-2 text-sm border rounded-md w-40"
+            value={selectedChair}
+            onChange={(e) => setSelectedChair(e.target.value)}
+            title="Chair (optional)"
+          >
+            <option value="">Chair...</option>
+            {availableChairs.map((chair) => (
+              <option key={chair.chair_id} value={chair.chair_id}>
+                {chair.chair_number}{chair.chair_name ? ` - ${chair.chair_name}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <Input
+          type="text"
+          placeholder="Book No."
+          className="h-8 w-24 text-sm"
+          value={bookNumber}
+          onChange={(e) => setBookNumber(e.target.value)}
+          maxLength={50}
+        />
+
+        {billType === 'previous' ? (
+          <>
+            <Input
+              type="date"
+              className="h-8 w-36 text-sm"
+              value={billDate}
+              onChange={(e) => setBillDate(e.target.value)}
+              max={todayStr}
+            />
+            <Input
+              type="time"
+              className="h-8 w-28 text-sm"
+              value={billTime}
+              onChange={(e) => setBillTime(e.target.value)}
+            />
+          </>
+        ) : (
+          <span className="text-xs text-gray-400 px-2 py-1 bg-gray-50 border rounded-md">
+            {getCurrentDateTimeIST().date}, {getCurrentDateTimeIST().time}
+          </span>
+        )}
+      </div>
 
       {/* Main Content - Two Panels */}
       <div className="flex flex-1 gap-4 overflow-hidden">
@@ -1071,19 +1057,21 @@ function BillCreatePage() {
               </Tabs>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-4 space-y-4">
-              {/* Barcode Scan Input */}
-              <div>
-                <Input
-                  placeholder="Scan barcode..."
-                  className="font-mono"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.target.value.trim()) {
-                      handleBarcodeScan(e.target.value.trim())
-                      e.target.value = ''
-                    }
-                  }}
-                />
-              </div>
+              {/* Barcode Scan Input — products only */}
+              {selectedCategory === 'products' && (
+                <div>
+                  <Input
+                    placeholder="Scan barcode..."
+                    className="font-mono"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.target.value.trim()) {
+                        handleBarcodeScan(e.target.value.trim())
+                        e.target.value = ''
+                      }
+                    }}
+                  />
+                </div>
+              )}
               {/* Item Combobox: type to search, dropdown shows results — click to select */}
               <div ref={itemComboboxRef} className="space-y-2">
                 <Label className="mb-2 block">
@@ -1247,259 +1235,217 @@ function BillCreatePage() {
                   </div>
 
 
-                  {/* Package services list with employee assignment */}
+                  {/* Package services — inline single-row: name, stars, qty, price, employee dropdowns */}
                   {selectedCategory === 'packages' && selectedItem.services?.length > 0 && (
-                    <div className="text-sm">
-                      <p className="font-medium text-gray-700 mb-2">Services — employees (per service):</p>
-                      <div className="space-y-2">
-                        {selectedItem.services.map((ps, idx) => {
-                          const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                          return (
-                            <div key={ps.service_id} className="p-2 bg-white rounded border space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="min-w-0">
-                                  <div className="text-gray-700 truncate flex items-center gap-1.5 flex-wrap">
-                                    {ps.service_name}
-                                    <span className="inline-flex items-center text-amber-600 text-xs shrink-0">
-                                      <Star className="h-3 w-3 fill-amber-500" />
-                                      {getPackageServiceStarPoints(ps)}
-                                    </span>
-                                  </div>
-                                  <div className="text-xs text-gray-400">x{ps.quantity} — {formatCurrency(ps.service_price)}</div>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {slots.map((_, slotIdx) => (
-                                  <div key={slotIdx} className="flex items-center gap-1">
-                                    <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
-                                    <select
-                                      className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
-                                      value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                      onChange={(e) => {
-                                        const current = [...(componentEmployees[idx] || [])]
-                                        while (current.length <= slotIdx) current.push('')
-                                        current[slotIdx] = e.target.value || ''
-                                        setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                      }}
-                                    >
-                                      <option value="">—</option>
-                                      {employees.filter((emp) => {
-                                        const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
-                                        return !others.includes(String(emp.employee_id))
-                                      }).map((emp) => (
-                                        <option key={emp.employee_id} value={emp.employee_id}>
-                                          {emp.full_name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
-                                      onClick={() => {
-                                        const current = [...(componentEmployees[idx] || [])]
-                                        const next = current.filter((_, i) => i !== slotIdx)
-                                        setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
-                                      }}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ))}
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs"
-                                  onClick={() => {
-                                    const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                                    setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                    <div className="text-sm space-y-1">
+                      {selectedItem.services.map((ps, idx) => {
+                        const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                        return (
+                          <div key={ps.service_id} className="flex items-center gap-2 p-1.5 bg-white rounded border flex-wrap">
+                            <span className="text-gray-700 text-xs font-medium truncate max-w-[140px]" title={ps.service_name}>
+                              {ps.service_name}
+                            </span>
+                            {getPackageServiceStarPoints(ps) > 0 && (
+                              <span className="inline-flex items-center text-amber-600 text-[10px] shrink-0">
+                                <Star className="h-2.5 w-2.5 fill-amber-500" />
+                                {getPackageServiceStarPoints(ps)}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-gray-400 shrink-0">x{ps.quantity} {formatCurrency(ps.service_price)}</span>
+                            <div className="flex items-center gap-1 ml-auto flex-wrap">
+                              {slots.map((_, slotIdx) => (
+                                <select
+                                  key={slotIdx}
+                                  className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
+                                  value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                  onChange={(e) => {
+                                    const current = [...(componentEmployees[idx] || [])]
+                                    while (current.length <= slotIdx) current.push('')
+                                    current[slotIdx] = e.target.value || ''
+                                    // Remove empty trailing slots
+                                    if (!e.target.value && current.length > 1) {
+                                      const next = current.filter((_, i) => i !== slotIdx)
+                                      setComponentEmployees((prev) => ({ ...prev, [idx]: next }))
+                                    } else {
+                                      setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                    }
                                   }}
                                 >
-                                  <Plus className="h-3 w-3 mr-1" /> Add
-                                </Button>
-                              </div>
+                                  <option value="">Staff...</option>
+                                  {employees.filter((emp) => {
+                                    const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                    return !others.includes(String(emp.employee_id))
+                                  }).map((emp) => (
+                                    <option key={emp.employee_id} value={emp.employee_id}>
+                                      {emp.full_name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ))}
+                              <button
+                                type="button"
+                                className="h-6 w-6 flex items-center justify-center rounded border border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 shrink-0"
+                                title="Add employee"
+                                onClick={() => {
+                                  const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                                  setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
+                                }}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
                             </div>
-                          )
-                        })}
-                      </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
 
-                  {/* OR groups: selection + employees per group */}
+                  {/* OR groups — inline: service selector + employee dropdowns on same row */}
                   {selectedCategory === 'packages' &&
                     selectedItem.service_groups?.length > 0 &&
                     (() => {
                       const standaloneLen = (selectedItem.services || []).length
                       return (
-                        <div className="text-sm">
-                          <p className="font-medium text-gray-700 mb-2">OR group choices — select service & employees:</p>
-                          <div className="space-y-2">
-                            {selectedItem.service_groups.map((group, groupIdx) => {
-                              const selectedId = (packageGroupSelections[selectedItemId] || [])[groupIdx]
-                              const chosen = (group.services || []).find((s) => s.service_id === selectedId)
-                              const groupServices = group.services || []
-                              const idx = standaloneLen + groupIdx
-                              const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
-                              return (
-                                <div key={group.group_id || groupIdx} className="p-2 bg-amber-50/50 rounded border border-amber-200 space-y-2">
-                                  <div>
-                                    <Label className="text-xs font-medium text-gray-700">{group.group_label || `Group ${groupIdx + 1}`}</Label>
-                                    <select
-                                      className="mt-1 w-full h-9 px-2 border rounded-md text-sm border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                                      value={selectedId || ''}
-                                      onChange={(e) => {
-                                        const sid = e.target.value || null
-                                        setPackageGroupSelections((prev) => {
-                                          const arr = [...(prev[selectedItemId] || [])]
-                                          while (arr.length <= groupIdx) arr.push(null)
-                                          arr[groupIdx] = sid
-                                          return { ...prev, [selectedItemId]: arr }
-                                        })
-                                      }}
-                                    >
-                                      <option value="">— Select one —</option>
-                                      {groupServices.map((s) => {
-                                        const bonusNames = (s.bonus_services || []).map(b => b.service_name).join(', ')
-                                        return (
-                                          <option key={s.service_id} value={s.service_id}>
-                                            {s.service_name} — {formatCurrency(s.service_price)}{getPackageServiceStarPoints(s) > 0 ? ` (⭐ ${getPackageServiceStarPoints(s)})` : ''}{bonusNames ? ` (+ Free: ${bonusNames})` : ''}
-                                          </option>
-                                        )
-                                      })}
-                                    </select>
-                                  </div>
-                                  {chosen?.bonus_services?.length > 0 && (
-                                    <div className="flex flex-wrap items-center gap-1 px-1">
-                                      <span className="text-xs text-green-600 font-medium">🎁 Free:</span>
-                                      {chosen.bonus_services.map((bs) => (
-                                        <span key={bs.service_id} className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-200">
-                                          {bs.service_name}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
+                        <div className="text-sm space-y-1.5">
+                          {selectedItem.service_groups.map((group, groupIdx) => {
+                            const selectedId = (packageGroupSelections[selectedItemId] || [])[groupIdx]
+                            const chosen = (group.services || []).find((s) => s.service_id === selectedId)
+                            const groupServices = group.services || []
+                            const idx = standaloneLen + groupIdx
+                            const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
+                            return (
+                              <div key={group.group_id || groupIdx} className="p-1.5 bg-amber-50/50 rounded border border-amber-200">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-medium text-amber-700 shrink-0">{group.group_label || `OR ${groupIdx + 1}`}</span>
+                                  <select
+                                    className="h-6 px-1 text-[11px] border rounded min-w-[120px] flex-1 border-amber-300"
+                                    value={selectedId || ''}
+                                    onChange={(e) => {
+                                      const sid = e.target.value || null
+                                      setPackageGroupSelections((prev) => {
+                                        const arr = [...(prev[selectedItemId] || [])]
+                                        while (arr.length <= groupIdx) arr.push(null)
+                                        arr[groupIdx] = sid
+                                        return { ...prev, [selectedItemId]: arr }
+                                      })
+                                    }}
+                                  >
+                                    <option value="">Select...</option>
+                                    {groupServices.map((s) => {
+                                      const bonusNames = (s.bonus_services || []).map(b => b.service_name).join(', ')
+                                      return (
+                                        <option key={s.service_id} value={s.service_id}>
+                                          {s.service_name} {formatCurrency(s.service_price)}{getPackageServiceStarPoints(s) > 0 ? ` (${getPackageServiceStarPoints(s)}pts)` : ''}{bonusNames ? ` +Free: ${bonusNames}` : ''}
+                                        </option>
+                                      )
+                                    })}
+                                  </select>
                                   {chosen && (
-                                    <div className="flex flex-wrap items-center gap-2">
+                                    <>
                                       {slots.map((_, slotIdx) => (
-                                        <div key={slotIdx} className="flex items-center gap-1">
-                                          <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
-                                          <select
-                                            className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
-                                            value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                            onChange={(e) => {
-                                              const current = [...(componentEmployees[idx] || [])]
-                                              while (current.length <= slotIdx) current.push('')
-                                              current[slotIdx] = e.target.value || ''
-                                              setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                            }}
-                                          >
-                                            <option value="">—</option>
-                                            {employees.filter((emp) => {
-                                              const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
-                                              return !others.includes(String(emp.employee_id))
-                                            }).map((emp) => (
-                                              <option key={emp.employee_id} value={emp.employee_id}>
-                                                {emp.full_name}
-                                              </option>
-                                            ))}
-                                          </select>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
-                                            onClick={() => {
-                                              const current = [...(componentEmployees[idx] || [])]
+                                        <select
+                                          key={slotIdx}
+                                          className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
+                                          value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                          onChange={(e) => {
+                                            const current = [...(componentEmployees[idx] || [])]
+                                            while (current.length <= slotIdx) current.push('')
+                                            current[slotIdx] = e.target.value || ''
+                                            if (!e.target.value && current.length > 1) {
                                               const next = current.filter((_, i) => i !== slotIdx)
-                                              setComponentEmployees((prev) => ({ ...prev, [idx]: next.length ? next : [''] }))
-                                            }}
-                                          >
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </div>
+                                              setComponentEmployees((prev) => ({ ...prev, [idx]: next }))
+                                            } else {
+                                              setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                            }
+                                          }}
+                                        >
+                                          <option value="">Staff...</option>
+                                          {employees.filter((emp) => {
+                                            const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                            return !others.includes(String(emp.employee_id))
+                                          }).map((emp) => (
+                                            <option key={emp.employee_id} value={emp.employee_id}>
+                                              {emp.full_name}
+                                            </option>
+                                          ))}
+                                        </select>
                                       ))}
-                                      <Button
+                                      <button
                                         type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 text-xs"
+                                        className="h-6 w-6 flex items-center justify-center rounded border border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 shrink-0"
+                                        title="Add employee"
                                         onClick={() => {
                                           const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
                                           setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
                                         }}
                                       >
-                                        <Plus className="h-3 w-3 mr-1" /> Add
-                                      </Button>
-                                    </div>
+                                        <Plus className="h-3 w-3" />
+                                      </button>
+                                    </>
                                   )}
                                 </div>
-                              )
-                            })}
-                          </div>
+                                {chosen?.bonus_services?.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1 mt-1">
+                                    <span className="text-[10px] text-green-600 font-medium">Free:</span>
+                                    {chosen.bonus_services.map((bs) => (
+                                      <span key={bs.service_id} className="text-[10px] bg-green-50 text-green-700 px-1 py-0.5 rounded border border-green-200">
+                                        {bs.service_name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       )
                     })()}
 
-                  {/* Flat package — employee assignment */}
+                  {/* Flat package — inline employee assignment */}
                   {selectedCategory === 'packages' &&
                     (!selectedItem.services || selectedItem.services.length === 0) &&
                     !(selectedItem.service_groups?.length > 0) && (
-                      <div className="text-sm">
-                        <p className="font-medium text-gray-700 mb-2">Employees (for package):</p>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {((componentEmployees[0] || []).length ? componentEmployees[0] : ['']).map((_, slotIdx) => (
-                            <div key={slotIdx} className="flex items-center gap-1">
-                              <span className="text-xs text-gray-400">E{slotIdx + 1}</span>
-                              <select
-                                className="h-8 px-2 text-xs border rounded-md min-w-[100px]"
-                                value={(componentEmployees[0] || [])[slotIdx] || ''}
-                                onChange={(e) => {
-                                  const current = [...(componentEmployees[0] || [])]
-                                  while (current.length <= slotIdx) current.push('')
-                                  current[slotIdx] = e.target.value || ''
-                                  setComponentEmployees((prev) => ({ ...prev, [0]: current }))
-                                }}
-                              >
-                                <option value="">—</option>
-                                {employees.filter((emp) => {
-                                  const others = (componentEmployees[0] || []).filter((id, i) => i !== slotIdx && id).map(String)
-                                  return !others.includes(String(emp.employee_id))
-                                }).map((emp) => (
-                                  <option key={emp.employee_id} value={emp.employee_id}>
-                                    {emp.full_name}
-                                  </option>
-                                ))}
-                              </select>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 shrink-0 text-red-500 hover:text-red-700"
-                                onClick={() => {
-                                  const current = [...(componentEmployees[0] || [])]
-                                  const next = current.filter((_, i) => i !== slotIdx)
-                                  setComponentEmployees((prev) => ({ ...prev, [0]: next.length ? next : [''] }))
-                                }}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => {
-                              const current = (componentEmployees[0] || []).length ? (componentEmployees[0] || []) : ['']
-                              setComponentEmployees((prev) => ({ ...prev, [0]: [...current, ''] }))
+                      <div className="flex items-center gap-2 flex-wrap text-sm">
+                        <span className="text-xs text-gray-500 shrink-0">Staff:</span>
+                        {((componentEmployees[0] || []).length ? componentEmployees[0] : ['']).map((_, slotIdx) => (
+                          <select
+                            key={slotIdx}
+                            className="h-7 px-1 text-xs border rounded min-w-[90px]"
+                            value={(componentEmployees[0] || [])[slotIdx] || ''}
+                            onChange={(e) => {
+                              const current = [...(componentEmployees[0] || [])]
+                              while (current.length <= slotIdx) current.push('')
+                              current[slotIdx] = e.target.value || ''
+                              if (!e.target.value && current.length > 1) {
+                                const next = current.filter((_, i) => i !== slotIdx)
+                                setComponentEmployees((prev) => ({ ...prev, [0]: next }))
+                              } else {
+                                setComponentEmployees((prev) => ({ ...prev, [0]: current }))
+                              }
                             }}
                           >
-                            <Plus className="h-3 w-3 mr-1" /> Add
-                          </Button>
-                        </div>
+                            <option value="">Staff...</option>
+                            {employees.filter((emp) => {
+                              const others = (componentEmployees[0] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                              return !others.includes(String(emp.employee_id))
+                            }).map((emp) => (
+                              <option key={emp.employee_id} value={emp.employee_id}>
+                                {emp.full_name}
+                              </option>
+                            ))}
+                          </select>
+                        ))}
+                        <button
+                          type="button"
+                          className="h-7 w-7 flex items-center justify-center rounded border border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 shrink-0"
+                          title="Add employee"
+                          onClick={() => {
+                            const current = (componentEmployees[0] || []).length ? (componentEmployees[0] || []) : ['']
+                            setComponentEmployees((prev) => ({ ...prev, [0]: [...current, ''] }))
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
                       </div>
                     )}
 
@@ -1583,14 +1529,15 @@ function BillCreatePage() {
           </Card>
         </div>
 
-        {/* Right Panel - Cart (collapsible sidebar) */}
+        {/* Right Panel - Cart + Checkout (collapsible) */}
         <div
           className={`flex flex-col flex-shrink-0 transition-[width] duration-200 ease-in-out ${
-            cartCollapsed ? 'w-14' : 'w-[420px]'
+            cartCollapsed ? 'w-14' : 'w-[480px]'
           }`}
         >
           <Card className="flex-1 overflow-hidden flex flex-col">
-            <CardHeader className="pb-2 flex flex-row items-center gap-0 p-0 min-h-0">
+            {/* Sticky Cart Header */}
+            <CardHeader className="pb-0 flex flex-row items-center gap-0 p-0 min-h-0 flex-shrink-0 border-b">
               {cartCollapsed ? (
                 <div className="flex flex-col items-center w-14 py-3 gap-2">
                   <button
@@ -1605,38 +1552,44 @@ function BillCreatePage() {
                   <Badge variant="secondary" className="text-xs w-6 h-6 flex items-center justify-center p-0">
                     {cartItems.length}
                   </Badge>
+                  {totalAmount > 0 && (
+                    <span className="text-xs font-bold text-primary [writing-mode:vertical-lr] rotate-180">
+                      {formatCurrency(totalAmount)}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <CardTitle className="flex items-center justify-between flex-1 py-2.5 px-4">
+                  <span className="flex items-center gap-2 text-sm">
+                    <ShoppingCart className="h-4 w-4" />
+                    Cart
+                    <Badge variant="secondary" className="text-xs">{cartItems.length}</Badge>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCartCollapsed(true)}
+                    className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+                    title="Collapse cart"
+                  >
+                    <ChevronRight className="h-4 w-4 text-gray-600" />
+                  </button>
+                </CardTitle>
+              )}
+            </CardHeader>
+
+            {!cartCollapsed && (
+            <>
+            {/* Scrollable Cart + Checkout Content */}
+            <CardContent className="flex-1 overflow-auto p-3 space-y-3">
+              {cartItems.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No items in cart</p>
+                  <p className="text-xs">Select items from the left panel</p>
                 </div>
               ) : (
                 <>
-                  <CardTitle className="flex items-center justify-between flex-1 py-3 px-4">
-                    <span className="flex items-center gap-2">
-                      <ShoppingCart className="h-5 w-5" />
-                      Cart
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{cartItems.length} items</Badge>
-                      <button
-                        type="button"
-                        onClick={() => setCartCollapsed(true)}
-                        className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
-                        title="Collapse cart"
-                      >
-                        <ChevronRight className="h-5 w-5 text-gray-600" />
-                      </button>
-                    </div>
-                  </CardTitle>
-                </>
-              )}
-            </CardHeader>
-            {!cartCollapsed && (
-            <CardContent className="flex-1 overflow-auto p-4">
-              {cartItems.length === 0 ? (
-                <div className="text-center py-10 text-gray-500">
-                  <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No items in cart</p>
-                  <p className="text-sm">Select items from the left panel</p>
-                </div>
-              ) : (
+                {/* Cart Items */}
                 <div className="space-y-2">
                   {groupedCart.map((group) => {
                     if (group.type === 'package') {
@@ -1647,20 +1600,20 @@ function BillCreatePage() {
                           key={pkgItem.cart_id}
                           className="bg-gray-50 rounded-lg border overflow-hidden"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-100">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <Package className="h-4 w-4 text-primary flex-shrink-0" />
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 p-2.5 bg-gray-100">
+                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                              <Package className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                               <span className="font-medium text-sm truncate">
                                 {pkgItem.item_name}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
                               {pkgItem.item_status === 'pending' || (pkgItem.selected_services || []).every((s) => s.item_status === 'pending') ? (
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  className="h-7 text-xs"
+                                  className="h-6 text-[10px] px-1.5"
                                   onClick={() => setPackagePending(group.index, false)}
                                 >
                                   Mark done
@@ -1670,14 +1623,14 @@ function BillCreatePage() {
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  className="h-7 text-xs text-amber-700 border-amber-300"
+                                  className="h-6 text-[10px] px-1.5 text-amber-700 border-amber-300"
                                   onClick={() => setPackagePending(group.index, true)}
                                 >
                                   Mark pending
                                 </Button>
                               )}
                               {group.savings > 0 && (
-                                <span className="text-xs text-green-600 font-medium">
+                                <span className="text-[10px] text-green-600 font-medium">
                                   Save {formatCurrency(group.savings)}
                                 </span>
                               )}
@@ -1685,33 +1638,33 @@ function BillCreatePage() {
                                 {formatCurrency(group.total)}
                               </span>
                               <button
-                                className="p-1 hover:bg-gray-200 rounded"
+                                className="p-0.5 hover:bg-gray-200 rounded"
                                 onClick={() => {
                                   setEditingItemIndex(group.index)
                                   setEditModalOpen(true)
                                 }}
                               >
-                                <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                                <Pencil className="h-3 w-3 text-gray-500" />
                               </button>
                               <button
-                                className="p-1 hover:bg-red-100 rounded"
+                                className="p-0.5 hover:bg-red-100 rounded"
                                 onClick={() => handleRemoveItem(group.index)}
                               >
-                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                <Trash2 className="h-3 w-3 text-red-500" />
                               </button>
                             </div>
                           </div>
                           {/* Package-level discount */}
-                          <div className="px-3 py-2 flex flex-wrap items-center gap-2 border-b">
-                            <span className="text-xs text-gray-500">Discount:</span>
-                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-xs text-gray-400">%</span>
+                          <div className="px-2.5 py-1.5 flex flex-wrap items-center gap-1.5 border-b">
+                            <span className="text-[10px] text-gray-500">Disc:</span>
+                            <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[10px] text-gray-400">%</span>
                               <Input
                                 type="number"
                                 min="0"
                                 max="100"
                                 step="0.5"
-                                className="h-6 w-12 text-xs px-1"
+                                className="h-5 w-10 text-[10px] px-1"
                                 value={pkgItem.discount_amount_override != null ? '' : (pkgItem.discount_percent ?? '')}
                                 placeholder={pkgItem.discount_amount_override != null ? '—' : '0'}
                                 onChange={(e) => {
@@ -1726,13 +1679,13 @@ function BillCreatePage() {
                                 }}
                               />
                             </div>
-                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-xs text-gray-400">₹</span>
+                            <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[10px] text-gray-400">₹</span>
                               <Input
                                 type="number"
                                 min="0"
                                 step="1"
-                                className="h-6 w-12 text-xs px-1"
+                                className="h-5 w-10 text-[10px] px-1"
                                 value={pkgItem.discount_amount_override != null ? pkgItem.discount_amount_override : ''}
                                 placeholder="0"
                                 onChange={(e) => {
@@ -1754,69 +1707,67 @@ function BillCreatePage() {
                               />
                             </div>
                             {lineDiscount > 0 && (
-                              <span className="text-xs text-red-500">(-{formatCurrency(lineDiscount)})</span>
+                              <span className="text-[10px] text-red-500">(-{formatCurrency(lineDiscount)})</span>
                             )}
                           </div>
                           {(pkgItem.selected_services || []).length > 0 && (
-                            <div className="px-3 py-2 space-y-2">
-                              <p className="text-[10px] text-gray-500 px-1">
-                                Mark whole package above, or mark each service below:
-                              </p>
-                              {pkgItem.selected_services.map((svc, svcIdx) => (
-                                <div
-                                  key={svcIdx}
-                                  className="p-2 bg-white rounded border text-xs"
-                                >
-                                  <div className="font-medium text-gray-700 truncate mb-1.5 flex items-center gap-1.5 flex-wrap">
-                                    {svc.service_name}
-                                    {(svc.star_points || 0) > 0 && (
-                                      <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
-                                        <Star className="h-3 w-3 fill-amber-500" />
-                                        {svc.star_points}
+                            <div className="px-2 py-1.5">
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {pkgItem.selected_services.map((svc, svcIdx) => (
+                                  <div
+                                    key={svcIdx}
+                                    className="p-1.5 bg-white rounded border text-[11px]"
+                                  >
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      <span className="font-medium text-gray-700 truncate" title={svc.service_name}>
+                                        {svc.service_name}
                                       </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-gray-500 text-[10px]">
-                                      {formatCurrency(svc.distributed_price ?? svc.original_service_price)}
-                                      {svc.distributed_price != null && svc.distributed_price !== svc.original_service_price && (
-                                        <span className="line-through text-gray-300 ml-1">{formatCurrency(svc.original_service_price)}</span>
+                                      {(svc.star_points || 0) > 0 && (
+                                        <span className="inline-flex items-center text-amber-600 font-normal shrink-0">
+                                          <Star className="h-2.5 w-2.5 fill-amber-500" />
+                                          {svc.star_points}
+                                        </span>
                                       )}
-                                      {' '}× {svc.quantity || 1}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => togglePackageServicePending(group.index, svcIdx)}
-                                      className={`shrink-0 text-xs px-2 py-1 rounded border font-medium ${
-                                        svc.item_status === 'pending'
-                                          ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                          : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
-                                      }`}
-                                    >
-                                      {svc.item_status === 'pending' ? 'Pending' : 'Done'}
-                                    </button>
-                                  </div>
-                                  {svc.employee_ids?.length > 0 && (
-                                    <div className="flex gap-1 flex-wrap mt-1">
-                                      {svc.employee_ids.map((eid) => {
-                                        const emp = employees.find((e) => e.employee_id === eid)
-                                        return (
-                                          <Badge key={eid} variant="secondary" className="text-[10px] px-1 py-0">
-                                            {emp?.full_name || '?'}
-                                          </Badge>
-                                        )
-                                      })}
+                                      <button
+                                        type="button"
+                                        onClick={() => togglePackageServicePending(group.index, svcIdx)}
+                                        className={`shrink-0 text-[10px] px-1 py-0.5 rounded border font-medium ml-auto ${
+                                          svc.item_status === 'pending'
+                                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                            : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
+                                        }`}
+                                      >
+                                        {svc.item_status === 'pending' ? 'Pend' : 'Done'}
+                                      </button>
                                     </div>
-                                  )}
-                                </div>
-                              ))}
+                                    <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                      <span className="text-gray-500 text-[10px]">
+                                        {formatCurrency(svc.distributed_price ?? svc.original_service_price)}
+                                        {svc.distributed_price != null && svc.distributed_price !== svc.original_service_price && (
+                                          <span className="line-through text-gray-300 ml-0.5">{formatCurrency(svc.original_service_price)}</span>
+                                        )}
+                                      </span>
+                                      {svc.employee_ids?.length > 0 &&
+                                        svc.employee_ids.map((eid) => {
+                                          const emp = employees.find((e) => e.employee_id === eid)
+                                          return (
+                                            <Badge key={eid} className="text-[9px] px-1 py-0 h-3.5 bg-primary text-white">
+                                              {emp?.full_name || '?'}
+                                            </Badge>
+                                          )
+                                        })
+                                      }
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
                       )
                     }
 
-                    // Single item — line shows price, qty, discount % or ₹ (editable), total
+                    // Single item
                     const { item, index } = group
                     const lineTotal = item.unit_price * item.quantity
                     const lineDiscount = getItemDiscount(item)
@@ -1824,41 +1775,61 @@ function BillCreatePage() {
                     return (
                       <div
                         key={item.cart_id}
-                        className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group/item"
+                        className="p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
-                        <div className="font-medium text-sm truncate mb-2 flex items-center gap-1.5 flex-wrap">
-                          {item.item_name}
-                          {(item.star_points ?? 0) > 0 && (
-                            <span className="inline-flex items-center text-amber-600 text-xs font-normal shrink-0">
-                              <Star className="h-3 w-3 fill-amber-500" />
-                              {item.star_points}
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => toggleItemPending(index)}
-                            className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${
-                              item.item_status === 'pending'
-                                ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-amber-50'
-                            }`}
-                          >
-                            {item.item_status === 'pending' ? 'Pending' : 'Done'}
-                          </button>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="flex items-center gap-1 flex-wrap min-w-0 flex-1">
+                            <span className="font-medium text-sm truncate">{item.item_name}</span>
+                            {(item.star_points ?? 0) > 0 && (
+                              <span className="inline-flex items-center text-amber-600 text-[10px] shrink-0">
+                                <Star className="h-2.5 w-2.5 fill-amber-500" />
+                                {item.star_points}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleItemPending(index)}
+                              className={`shrink-0 text-[10px] px-1 py-0.5 rounded border ${
+                                item.item_status === 'pending'
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                  : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-amber-50'
+                              }`}
+                            >
+                              {item.item_status === 'pending' ? 'Pending' : 'Done'}
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              type="button"
+                              className="p-0.5 hover:bg-gray-200 rounded"
+                              onClick={() => {
+                                setEditingItemIndex(index)
+                                setEditModalOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-3 w-3 text-gray-500" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-0.5 hover:bg-red-100 rounded"
+                              onClick={() => handleRemoveItem(index)}
+                            >
+                              <Trash2 className="h-3 w-3 text-red-500" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs mt-1">
                           <span className="text-gray-500">
-                            {formatCurrency(item.unit_price)} × {item.quantity}
+                            {formatCurrency(item.unit_price)} x {item.quantity}
                           </span>
-                          <span className="text-gray-400">|</span>
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <span className="text-gray-500 text-xs">%</span>
+                          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-gray-400 text-[10px]">%</span>
                             <Input
                               type="number"
                               min="0"
                               max="100"
                               step="0.5"
-                              className="h-7 w-14 text-xs px-1.5"
+                              className="h-5 w-10 text-[10px] px-1"
                               value={item.discount_amount_override != null ? '' : (item.discount_percent ?? '')}
                               placeholder={item.discount_amount_override != null ? '—' : '0'}
                               onChange={(e) => {
@@ -1872,14 +1843,12 @@ function BillCreatePage() {
                                 )
                               }}
                             />
-                          </div>
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <span className="text-gray-500 text-xs">₹</span>
+                            <span className="text-gray-400 text-[10px]">₹</span>
                             <Input
                               type="number"
                               min="0"
                               step="1"
-                              className="h-7 w-14 text-xs px-1.5"
+                              className="h-5 w-10 text-[10px] px-1"
                               value={item.discount_amount_override != null ? item.discount_amount_override : ''}
                               placeholder="0"
                               onChange={(e) => {
@@ -1901,79 +1870,69 @@ function BillCreatePage() {
                               }}
                             />
                           </div>
-                          <span className="font-semibold">
+                          <span className="font-semibold ml-auto">
                             {formatCurrency(lineNet)}
                             {lineDiscount > 0 && (
-                              <span className="text-xs text-red-500 font-normal ml-1">
+                              <span className="text-[10px] text-red-500 font-normal ml-0.5">
                                 (-{formatCurrency(lineDiscount)})
                               </span>
                             )}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between mt-1.5">
-                          {item.employee_ids?.length > 0 ? (
-                            <div className="flex gap-1 flex-wrap">
-                              {item.employee_ids.map((eid) => {
-                                const emp = employees.find((e) => e.employee_id === eid)
-                                return (
-                                  <Badge key={eid} variant="secondary" className="text-xs">
-                                    {emp?.full_name || 'Unknown'}
-                                  </Badge>
-                                )
-                              })}
-                            </div>
-                          ) : (
-                            <span />
-                          )}
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              className="p-1 hover:bg-gray-200 rounded"
-                              onClick={() => {
-                                setEditingItemIndex(index)
-                                setEditModalOpen(true)
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                            </button>
-                            <button
-                              type="button"
-                              className="p-1 hover:bg-red-100 rounded"
-                              onClick={() => handleRemoveItem(index)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                            </button>
+                        {item.employee_ids?.length > 0 && (
+                          <div className="flex gap-0.5 flex-wrap mt-1">
+                            {item.employee_ids.map((eid) => {
+                              const emp = employees.find((e) => e.employee_id === eid)
+                              return (
+                                <Badge key={eid} className="text-[10px] px-1 py-0 h-4 bg-primary text-white">
+                                  {emp?.full_name || 'Unknown'}
+                                </Badge>
+                              )
+                            })}
                           </div>
-                        </div>
+                        )}
                       </div>
                     )
                   })}
                 </div>
-              )}
-            </CardContent>
-            )}
-          </Card>
-        </div>
-      </div>
 
-      {/* Bottom Checkout Bar */}
-      <Card className="flex-shrink-0">
-        <CardContent className="p-4">
-          <div className="flex gap-6">
-            {/* Left: Discount, Payment, Notes */}
-            <div className="flex-1 space-y-3">
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <Label className="text-sm font-medium flex items-center gap-1 mb-1">
-                    <Percent className="h-3.5 w-3.5" /> Discount
+                {/* Summary */}
+                <div className="border-t pt-2 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Subtotal</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                  </div>
+                  {itemsDiscount > 0 && (
+                    <div className="flex justify-between text-red-500 text-xs">
+                      <span>Item Discounts</span>
+                      <span>-{formatCurrency(itemsDiscount)}</span>
+                    </div>
+                  )}
+                  {billDiscount > 0 && (
+                    <div className="flex justify-between text-red-500 text-xs">
+                      <span>Bill Discount ({billDiscountPercent}%)</span>
+                      <span>-{formatCurrency(billDiscount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-base pt-1 border-t">
+                    <span>Total</span>
+                    <span className="text-primary">{formatCurrency(totalAmount)}</span>
+                  </div>
+                </div>
+
+                {/* Bill Discount */}
+                <div className="border-t pt-2">
+                  <Label className="text-xs font-medium flex items-center gap-1 mb-1">
+                    <Percent className="h-3 w-3" /> Bill Discount
                   </Label>
-                  <div className="flex gap-2">
-                    <div className="w-24 relative">
+                  <div className="flex gap-1.5">
+                    <div className="w-16 relative">
                       <Input
                         type="number"
                         min="0"
                         max="100"
                         placeholder="%"
+                        className="h-8 text-sm pr-5"
                         value={billDiscountPercent || ''}
                         onChange={(e) =>
                           setBillDiscountPercent(
@@ -1981,153 +1940,145 @@ function BillCreatePage() {
                           )
                         }
                       />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
                         %
                       </span>
                     </div>
                     <Input
                       placeholder="Reason"
+                      className="h-8 text-sm flex-1"
                       value={discountReason}
                       onChange={(e) => setDiscountReason(e.target.value)}
-                      className="flex-1"
                     />
                   </div>
                 </div>
-                <div className="w-48">
-                  <Label className="text-sm font-medium mb-1 block">Notes</Label>
+
+                {/* Payment */}
+                <div className="border-t pt-2">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Label className="text-xs font-medium flex items-center gap-1">
+                      <Split className="h-3 w-3" /> Payment
+                      {payments.length > 1 && ` (${payments.length})`}
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAddPayment}
+                      className="h-5 text-[10px] px-1.5 ml-auto"
+                    >
+                      <Plus className="h-2.5 w-2.5 mr-0.5" /> Split
+                    </Button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {payments.map((payment, index) => (
+                      <div key={index} className="space-y-1.5">
+                        <div className="flex gap-1">
+                          {PAYMENT_MODES.map((mode) => (
+                            <button
+                              key={mode.value}
+                              type="button"
+                              onClick={() =>
+                                handlePaymentChange(index, 'payment_mode', mode.value)
+                              }
+                              className={`flex items-center gap-1 px-2 py-1 rounded border text-xs transition-colors ${
+                                payment.payment_mode === mode.value
+                                  ? 'border-primary bg-primary/5 text-primary font-medium'
+                                  : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                              }`}
+                            >
+                              <mode.icon className="h-3.5 w-3.5" />
+                              {mode.label}
+                            </button>
+                          ))}
+                        </div>
+                        {payment.payment_mode === 'upi' && upiAccounts.length > 0 && (
+                          <Select
+                            value={payment.upi_account_id || ''}
+                            onValueChange={(val) => handlePaymentChange(index, 'upi_account_id', val)}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="Select UPI Account" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {upiAccounts.map((acc) => (
+                                <SelectItem key={acc.account_id} value={acc.account_id}>{acc.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <div className="flex gap-1.5 items-center">
+                          <div className="flex-1 relative">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Amount"
+                              className="h-8 text-sm pr-10"
+                              value={payment.amount}
+                              onChange={(e) =>
+                                handlePaymentChange(index, 'amount', e.target.value)
+                              }
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSetFullAmount(index)}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-primary hover:underline font-medium"
+                            >
+                              Full
+                            </button>
+                          </div>
+                          {payments.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePayment(index)}
+                              className="p-1 text-red-500 hover:bg-red-50 rounded shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {payments.length > 1 && (
+                    <div className="text-[10px] flex gap-3 mt-1">
+                      <span className="text-gray-500">
+                        Paid: {formatCurrency(totalPaid)}
+                      </span>
+                      {remaining !== 0 && (
+                        <span
+                          className={
+                            remaining > 0 ? 'text-red-500' : 'text-green-500'
+                          }
+                        >
+                          {remaining > 0 ? 'Remaining' : 'Excess'}:{' '}
+                          {formatCurrency(Math.abs(remaining))}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes */}
+                <div className="border-t pt-2">
+                  <Label className="text-xs font-medium mb-1 block">Notes</Label>
                   <Input
                     placeholder="Add notes..."
+                    className="h-8 text-sm"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                   />
                 </div>
-              </div>
+                </>
+              )}
+            </CardContent>
 
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Label className="text-sm font-medium flex items-center gap-1">
-                    <Split className="h-3.5 w-3.5" /> Payment
-                    {payments.length > 1 && ` (${payments.length} splits)`}
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleAddPayment}
-                    className="h-6 text-xs px-2"
-                  >
-                    <Plus className="h-3 w-3 mr-1" /> Split
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {payments.map((payment, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <div className="flex gap-1">
-                        {PAYMENT_MODES.map((mode) => (
-                          <button
-                            key={mode.value}
-                            type="button"
-                            onClick={() =>
-                              handlePaymentChange(index, 'payment_mode', mode.value)
-                            }
-                            className={`p-1.5 rounded border transition-colors ${
-                              payment.payment_mode === mode.value
-                                ? 'border-primary bg-primary/5'
-                                : 'border-gray-200 hover:border-gray-300'
-                            }`}
-                            title={mode.label}
-                          >
-                            <mode.icon className="h-4 w-4" />
-                          </button>
-                        ))}
-                      </div>
-                      {payment.payment_mode === 'upi' && upiAccounts.length > 0 && (
-                        <Select
-                          value={payment.upi_account_id || ''}
-                          onValueChange={(val) => handlePaymentChange(index, 'upi_account_id', val)}
-                        >
-                          <SelectTrigger className="w-[100px]">
-                            <SelectValue placeholder="UPI Acct" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {upiAccounts.map((acc) => (
-                              <SelectItem key={acc.account_id} value={acc.account_id}>{acc.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      <div className="flex-1 relative">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Amount"
-                          value={payment.amount}
-                          onChange={(e) =>
-                            handlePaymentChange(index, 'amount', e.target.value)
-                          }
-                          className="pr-14"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSetFullAmount(index)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-primary hover:underline"
-                        >
-                          Full
-                        </button>
-                      </div>
-                      {payments.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePayment(index)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {payments.length > 1 && (
-                  <div className="text-xs flex gap-4 mt-1">
-                    <span className="text-gray-500">
-                      Paid: {formatCurrency(totalPaid)}
-                    </span>
-                    {remaining !== 0 && (
-                      <span
-                        className={
-                          remaining > 0 ? 'text-red-500' : 'text-green-500'
-                        }
-                      >
-                        {remaining > 0 ? 'Remaining' : 'Excess'}:{' '}
-                        {formatCurrency(Math.abs(remaining))}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Summary + Button */}
-            <div className="w-72 flex flex-col justify-between border-l pl-6">
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Subtotal</span>
-                  <span>{formatCurrency(subtotal)}</span>
-                </div>
-                {totalDiscount > 0 && (
-                  <div className="flex justify-between text-red-500">
-                    <span>Discount</span>
-                    <span>-{formatCurrency(totalDiscount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                  <span>Total</span>
-                  <span className="text-primary">{formatCurrency(totalAmount)}</span>
-                </div>
-              </div>
+            {/* Sticky Footer - Submit Buttons */}
+            {cartItems.length > 0 && (
+            <div className="flex-shrink-0 border-t p-3 space-y-1.5 bg-white">
               <Button
-                className="w-full h-11 text-base mt-3"
+                className="w-full h-10 text-sm"
                 onClick={handleSubmit}
                 disabled={
                   createBillMutation.isPending ||
@@ -2138,19 +2089,19 @@ function BillCreatePage() {
               >
                 {createBillMutation.isPending ? (
                   <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
                     Creating...
                   </>
                 ) : (
                   <>
-                    <Check className="h-5 w-5 mr-2" />
+                    <Check className="h-4 w-4 mr-1.5" />
                     Complete Bill - {formatCurrency(totalAmount)}
                   </>
                 )}
               </Button>
               <Button
                 variant="outline"
-                className="w-full h-9 text-sm mt-2 border-primary text-primary hover:bg-primary/5"
+                className="w-full h-8 text-xs border-primary text-primary hover:bg-primary/5"
                 onClick={handleStartService}
                 disabled={
                   createBillMutation.isPending ||
@@ -2158,13 +2109,16 @@ function BillCreatePage() {
                   cartItems.length === 0
                 }
               >
-                <Play className="h-4 w-4 mr-2" />
+                <Play className="h-3.5 w-3.5 mr-1.5" />
                 Start Service (Save as Pending)
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            )}
+            </>
+            )}
+          </Card>
+        </div>
+      </div>
 
       {/* Edit Cart Item Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
