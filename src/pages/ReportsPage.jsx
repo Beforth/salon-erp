@@ -55,6 +55,8 @@ const REPORT_TYPES = [
   { id: 'employees', label: 'Employee Performance', icon: Star },
   { id: 'services', label: 'Service Analytics', icon: Scissors },
   { id: 'inventory', label: 'Inventory Report', icon: Package },
+  { id: 'service-liability', label: 'Service Liability', icon: TrendingDown },
+  { id: 'supplier-credit', label: 'Supplier Credit', icon: DollarSign },
 ]
 
 function ReportsPage() {
@@ -134,12 +136,38 @@ function ReportsPage() {
     enabled: activeReport === 'inventory',
   })
 
+  // Service Liability
+  const [liabilityStartDate, setLiabilityStartDate] = useState('')
+  const [liabilityEndDate, setLiabilityEndDate] = useState('')
+  const [liabilityExpandedBill, setLiabilityExpandedBill] = useState(null)
+
+  const { data: liabilityData, isLoading: liabilityLoading } = useQuery({
+    queryKey: ['service-liability', { branch: selectedBranch || branchId, start: liabilityStartDate, end: liabilityEndDate }],
+    queryFn: () => reportsService.getServiceLiability({
+      branch_id: selectedBranch || branchId || undefined,
+      start_date: liabilityStartDate || undefined,
+      end_date: liabilityEndDate || undefined,
+    }),
+    enabled: activeReport === 'service-liability',
+  })
+
+  // Supplier Credit
+  const { data: supplierCreditData, isLoading: supplierCreditLoading } = useQuery({
+    queryKey: ['supplier-credit', { branch: selectedBranch || branchId }],
+    queryFn: () => reportsService.getSupplierCredit({
+      branch_id: selectedBranch || branchId || undefined,
+    }),
+    enabled: activeReport === 'supplier-credit',
+  })
+
   const dailySales = dailySalesData?.data
   const monthly = monthlyData?.data
   const customers = customerData?.data
   const employees = employeeData?.data
   const services = serviceData?.data
   const inventory = inventoryData?.data
+  const liability = liabilityData?.data || liabilityData || {}
+  const supplierCredit = supplierCreditData?.data || supplierCreditData || {}
 
   // Export button component with dropdown
   const ExportButton = ({ data, filename, title, summaryCards = [] }) => {
@@ -825,6 +853,172 @@ function ReportsPage() {
               )}
             </>
           ) : null}
+        </div>
+      )}
+
+      {/* Service Liability Report */}
+      {activeReport === 'service-liability' && (
+        <div className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardContent className="py-3 px-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">From</Label>
+                  <input type="date" value={liabilityStartDate} onChange={(e) => setLiabilityStartDate(e.target.value)} className="flex h-9 w-[150px] rounded-md border border-input bg-transparent px-3 py-1 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs">To</Label>
+                  <input type="date" value={liabilityEndDate} onChange={(e) => setLiabilityEndDate(e.target.value)} className="flex h-9 w-[150px] rounded-md border border-input bg-transparent px-3 py-1 text-sm" />
+                </div>
+                {(liabilityStartDate || liabilityEndDate) && (
+                  <Button variant="ghost" size="sm" onClick={() => { setLiabilityStartDate(''); setLiabilityEndDate('') }}>Clear</Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {liabilityLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : liability.summary ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="p-6">
+                    <p className="text-sm text-gray-500">Total Received</p>
+                    <p className="text-2xl font-bold">{formatCurrency(liability.summary.total_received)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-6">
+                    <p className="text-sm text-gray-500">Completed (Earned)</p>
+                    <p className="text-2xl font-bold text-green-600">{formatCurrency(liability.summary.total_completed)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-amber-200">
+                  <CardContent className="p-6">
+                    <p className="text-sm text-amber-600">Pending (Liability)</p>
+                    <p className="text-2xl font-bold text-amber-600">{formatCurrency(liability.summary.total_pending)}</p>
+                    <p className="text-xs text-gray-500 mt-1">{liability.summary.bills_with_pending} bills with pending items</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {(liability.bills || []).length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle>Bills with Pending Services</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Bill #</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Received</TableHead>
+                          <TableHead className="text-right">Pending</TableHead>
+                          <TableHead className="text-center">Items</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {liability.bills.map((b) => (
+                          <>
+                            <TableRow
+                              key={b.bill_id}
+                              className="cursor-pointer hover:bg-gray-50"
+                              onClick={() => setLiabilityExpandedBill(liabilityExpandedBill === b.bill_id ? null : b.bill_id)}
+                            >
+                              <TableCell className="font-medium">{b.bill_number}</TableCell>
+                              <TableCell>{b.customer?.customer_name || '—'}</TableCell>
+                              <TableCell>{b.bill_date ? new Date(b.bill_date).toLocaleDateString() : '—'}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(b.total_received)}</TableCell>
+                              <TableCell className="text-right text-amber-600 font-semibold">{formatCurrency(b.pending_amount)}</TableCell>
+                              <TableCell className="text-center">{(b.pending_items || []).length}</TableCell>
+                            </TableRow>
+                            {liabilityExpandedBill === b.bill_id && (b.pending_items || []).map((item) => (
+                              <TableRow key={item.item_id} className="bg-amber-50/50">
+                                <TableCell></TableCell>
+                                <TableCell colSpan={3} className="text-sm text-gray-600">
+                                  {item.item_name} <Badge variant="secondary" className="ml-1">{item.item_type}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right text-sm">{formatCurrency(item.amount)}</TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant="outline" className="text-amber-600">{item.status}</Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : (
+            <p className="text-center text-gray-500 py-8">No data available</p>
+          )}
+        </div>
+      )}
+
+      {/* Supplier Credit Report */}
+      {activeReport === 'supplier-credit' && (
+        <div className="space-y-6">
+          {supplierCreditLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : supplierCredit.summary ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="border-red-200">
+                  <CardContent className="p-6">
+                    <p className="text-sm text-red-500">Total Pending Credit</p>
+                    <p className="text-2xl font-bold text-red-600">{formatCurrency(supplierCredit.summary.total_pending)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-6">
+                    <p className="text-sm text-gray-500">Suppliers with Pending</p>
+                    <p className="text-2xl font-bold">{supplierCredit.summary.suppliers_with_pending}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {(supplierCredit.suppliers || []).length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle>Supplier Credit Summary</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Supplier</TableHead>
+                          <TableHead className="text-right">Total Amount</TableHead>
+                          <TableHead className="text-right">Paid</TableHead>
+                          <TableHead className="text-right">Pending</TableHead>
+                          <TableHead className="text-center">Batches</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {supplierCredit.suppliers.map((s) => (
+                          <TableRow key={s.supplier_id}>
+                            <TableCell className="font-medium">{s.supplier_name}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(s.total_amount)}</TableCell>
+                            <TableCell className="text-right text-green-600">{formatCurrency(s.paid_amount)}</TableCell>
+                            <TableCell className="text-right text-red-600 font-semibold">{formatCurrency(s.pending_amount)}</TableCell>
+                            <TableCell className="text-center">{s.batch_count}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : (
+            <p className="text-center text-gray-500 py-8">No data available</p>
+          )}
         </div>
       )}
     </div>

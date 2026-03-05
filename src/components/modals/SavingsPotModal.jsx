@@ -1,0 +1,140 @@
+import { useState, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { savingsPotService } from '@/services/savingsPot.service'
+import { branchService } from '@/services/branch.service'
+
+export default function SavingsPotModal({ open, onOpenChange, editPot }) {
+  const queryClient = useQueryClient()
+  const [formData, setFormData] = useState({
+    name: '',
+    target_amount: '',
+    duration_months: '',
+    start_date: '',
+    branch_id: '',
+  })
+
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchService.getBranches(),
+  })
+  const branches = branchesData?.data || []
+
+  useEffect(() => {
+    if (editPot) {
+      setFormData({
+        name: editPot.name || '',
+        target_amount: editPot.target_amount || '',
+        duration_months: editPot.duration_months || '',
+        start_date: editPot.start_date ? editPot.start_date.split('T')[0] : '',
+        branch_id: editPot.branch_id || '',
+      })
+    } else {
+      setFormData({ name: '', target_amount: '', duration_months: '', start_date: '', branch_id: '' })
+    }
+  }, [editPot, open])
+
+  const mutation = useMutation({
+    mutationFn: (data) =>
+      editPot ? savingsPotService.updatePot(editPot.pot_id, data) : savingsPotService.createPot(data),
+    onSuccess: () => {
+      toast.success(editPot ? 'Pot updated' : 'Pot created')
+      queryClient.invalidateQueries({ queryKey: ['savings-pots'] })
+      onOpenChange(false)
+    },
+    onError: (err) => toast.error(err.response?.data?.error?.message || 'Failed'),
+  })
+
+  const getMaturityDate = () => {
+    if (!formData.start_date || !formData.duration_months) return ''
+    const start = new Date(formData.start_date)
+    start.setMonth(start.getMonth() + Number(formData.duration_months))
+    return start.toISOString().split('T')[0]
+  }
+
+  const handleSubmit = () => {
+    if (!formData.name.trim()) return toast.error('Name is required')
+    mutation.mutate({
+      ...formData,
+      target_amount: formData.target_amount ? Number(formData.target_amount) : undefined,
+      duration_months: formData.duration_months ? Number(formData.duration_months) : undefined,
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <DialogTitle>{editPot ? 'Edit Savings Pot' : 'New Savings Pot'}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label>Name</Label>
+            <Input
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g. FD Account 1"
+            />
+          </div>
+          <div>
+            <Label>Target Amount</Label>
+            <Input
+              type="number"
+              value={formData.target_amount}
+              onChange={(e) => setFormData({ ...formData, target_amount: e.target.value })}
+              placeholder="100000"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Duration (months)</Label>
+              <Input
+                type="number"
+                value={formData.duration_months}
+                onChange={(e) => setFormData({ ...formData, duration_months: e.target.value })}
+                placeholder="12"
+              />
+            </div>
+            <div>
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={formData.start_date}
+                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+              />
+            </div>
+          </div>
+          {getMaturityDate() && (
+            <p className="text-sm text-gray-500">Maturity Date: <span className="font-medium">{getMaturityDate()}</span></p>
+          )}
+          <div>
+            <Label>Branch</Label>
+            <Select value={formData.branch_id} onValueChange={(val) => setFormData({ ...formData, branch_id: val })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select branch" />
+              </SelectTrigger>
+              <SelectContent>
+                {branches.map((b) => (
+                  <SelectItem key={b.branch_id} value={b.branch_id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={mutation.isPending}>
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            {editPot ? 'Update' : 'Create'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

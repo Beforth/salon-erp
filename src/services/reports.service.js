@@ -14,4 +14,8 @@ export const reportsService = {
   getServiceAnalytics: (params) => api.get('/reports/services', { params }),
 
   getInventoryReport: (params) => api.get('/reports/inventory', { params }),
+
+  getServiceLiability: (params) => api.get('/reports/service-liability', { params }),
+
+  getSupplierCredit: (params) => api.get('/reports/supplier-credit', { params }),
 }

@@ -14,4 +14,6 @@ export const productService = {
   getCategories: () => api.get('/products/categories'),
 
   getLowStock: () => api.get('/products/low-stock'),
+
+  getByBarcode: (barcode) => api.get(`/products/barcode/${barcode}`),
 }

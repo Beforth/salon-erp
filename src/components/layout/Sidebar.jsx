@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, Link, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { cn } from '@/lib/utils'
+import { CURRENT_VERSION } from '@/data/versionHistory'
 import {
   LayoutDashboard,
   Users,
@@ -22,6 +23,12 @@ import {
   BookOpen,
   Armchair,
   Wallet,
+  Landmark,
+  PiggyBank,
+  ArrowUpFromLine,
+  Truck,
+  PackagePlus,
+  Smartphone,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -97,6 +104,8 @@ const getNavItemsByRole = (role) => {
           href: '/inventory/transfers',
           icon: ArrowRightLeft,
         },
+        { title: 'Suppliers', href: '/suppliers', icon: Truck },
+        { title: 'Purchase Batches', href: '/purchase-batches', icon: PackagePlus },
       ],
     },
     {
@@ -106,22 +115,22 @@ const getNavItemsByRole = (role) => {
       roles: ['owner', 'developer', 'manager'],
     },
     {
-      title: 'Cash Drawer',
-      href: '/cash-reconciliation',
-      icon: Calculator,
+      title: 'Finance',
+      icon: Landmark,
       roles: ['owner', 'developer', 'manager', 'cashier'],
-    },
-    {
-      title: 'Expenses',
-      href: '/expenses',
-      icon: Wallet,
-      roles: ['owner', 'developer', 'manager', 'cashier'],
+      children: [
+        { title: 'Savings Pots', href: '/savings-pots', icon: PiggyBank },
+        { title: 'Counter Withdrawals', href: '/counter-withdrawals', icon: ArrowUpFromLine },
+        { title: 'Cash Drawer', href: '/cash-reconciliation', icon: Calculator },
+        { title: 'Expenses', href: '/expenses', icon: Wallet },
+        { title: 'UPI Accounts', href: '/upi-accounts', icon: Smartphone },
+      ],
     },
     {
       title: 'Staff',
       href: '/staff',
       icon: UserCog,
-      roles: ['owner', 'developer', 'manager'],
+      roles: ['owner', 'developer', 'manager', 'cashier'],
     },
     {
       title: 'Staff Performance',
@@ -153,10 +162,12 @@ function Sidebar() {
 
   // Auto-expand groups if current path matches
   const isCatalogPath = location.pathname.startsWith('/services') || location.pathname.startsWith('/packages')
-  const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products')
+  const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products') || location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/purchase-batches')
+  const isFinancePath = location.pathname.startsWith('/savings-pots') || location.pathname.startsWith('/counter-withdrawals') || location.pathname.startsWith('/cash-reconciliation') || location.pathname.startsWith('/expenses') || location.pathname.startsWith('/upi-accounts')
   const [expandedGroups, setExpandedGroups] = useState({
     ...(isCatalogPath ? { Catalog: true } : {}),
     ...(isInventoryPath ? { Inventory: true } : {}),
+    ...(isFinancePath ? { Finance: true } : {}),
   })
 
   const toggleGroup = (title) => {
@@ -172,7 +183,12 @@ function Sidebar() {
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <Scissors className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900">Salon ERP</span>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold text-gray-900">Salon ERP</span>
+              <Link to="/version-history" className="text-xs text-gray-400 hover:text-primary transition-colors -mt-1">
+                {CURRENT_VERSION}
+              </Link>
+            </div>
           </div>
         </div>
 

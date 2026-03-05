@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { billService } from '@/services/bill.service'
+import { upiAccountService } from '@/services/upiAccount.service'
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency } from '@/lib/utils'
 import {
   Loader2,
@@ -32,6 +34,13 @@ const PAYMENT_MODES = [
 
 function CompleteBillModal({ open, onOpenChange, bill, partial = false }) {
   const queryClient = useQueryClient()
+
+  const { data: upiAccountsData } = useQuery({
+    queryKey: ['upi-accounts', 'active'],
+    queryFn: () => upiAccountService.getAccounts({ is_active: 'true' }),
+  })
+  const upiAccounts = upiAccountsData?.data || []
+
   const [payments, setPayments] = useState([{ payment_mode: 'cash', amount: '' }])
   const [notes, setNotes] = useState('')
   const [pendingItemIds, setPendingItemIds] = useState([])
@@ -145,6 +154,7 @@ function CompleteBillModal({ open, onOpenChange, bill, partial = false }) {
       payments: validPayments.map((p) => ({
         payment_mode: p.payment_mode,
         amount: parseFloat(p.amount),
+        ...(p.upi_account_id ? { upi_account_id: p.upi_account_id } : {}),
       })),
       notes: notes || undefined,
     }
@@ -278,6 +288,21 @@ function CompleteBillModal({ open, onOpenChange, bill, partial = false }) {
                       </button>
                     ))}
                   </div>
+                  {payment.payment_mode === 'upi' && upiAccounts.length > 0 && (
+                    <Select
+                      value={payment.upi_account_id || ''}
+                      onValueChange={(val) => handlePaymentChange(index, 'upi_account_id', val)}
+                    >
+                      <SelectTrigger className="w-[100px]">
+                        <SelectValue placeholder="UPI Acct" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {upiAccounts.map((acc) => (
+                          <SelectItem key={acc.account_id} value={acc.account_id}>{acc.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <div className="flex-1 relative">
                     <Input
                       type="number"

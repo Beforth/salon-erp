@@ -8,6 +8,7 @@ import { productService } from '@/services/product.service'
 import { branchService } from '@/services/branch.service'
 import { billService } from '@/services/bill.service'
 import { chairService } from '@/services/chair.service'
+import { upiAccountService } from '@/services/upiAccount.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency, fuzzyMatch, fuzzyScore } from '@/lib/utils'
 import {
   Search,
@@ -181,6 +183,11 @@ function BillCreatePage() {
     enabled: !!selectedBranch,
   })
 
+  const { data: upiAccountsData } = useQuery({
+    queryKey: ['upi-accounts', 'active'],
+    queryFn: () => upiAccountService.getAccounts({ is_active: 'true' }),
+  })
+
   const customers = customersData?.data || []
   const services = servicesData?.data || []
   const packages = packagesData?.data || []
@@ -188,6 +195,7 @@ function BillCreatePage() {
   const branches = branchesData?.data || []
   const employees = employeesData?.data || []
   const availableChairs = chairsData?.data || []
+  const upiAccounts = upiAccountsData?.data || []
 
   // Item options based on selected category
   const itemOptions = useMemo(() => {
@@ -622,6 +630,36 @@ function BillCreatePage() {
     handlePaymentChange(index, 'amount', remainingAmount.toFixed(2))
   }
 
+  // Barcode scan handler
+  const handleBarcodeScan = async (barcode) => {
+    try {
+      const res = await productService.getByBarcode(barcode)
+      const product = res?.data || res
+      if (!product?.product_id) {
+        toast.error('Product not found for barcode')
+        return
+      }
+      setCartItems([
+        ...cartItems,
+        {
+          cart_id: crypto.randomUUID(),
+          item_type: 'product',
+          product_id: product.product_id,
+          item_name: product.name || product.product_name || '',
+          unit_price: parseFloat(product.selling_price || product.price || 0),
+          quantity: 1,
+          employee_ids: [],
+          employee_id: null,
+          discount_percent: 0,
+          item_status: 'completed',
+        },
+      ])
+      toast.success(`Added: ${product.name || product.product_name}`)
+    } catch {
+      toast.error('Product not found for this barcode')
+    }
+  }
+
   // Convert cart items into the API format at submit time
   const buildSubmitItems = (items) => {
     return items.map((item) => {
@@ -731,6 +769,7 @@ function BillCreatePage() {
       payments: validPayments.map((p) => ({
         payment_mode: p.payment_mode,
         amount: parseFloat(p.amount),
+        ...(p.upi_account_id ? { upi_account_id: p.upi_account_id } : {}),
       })),
       discount_amount: parseFloat(billDiscount.toFixed(2)),
       discount_reason: discountReason,
@@ -1032,6 +1071,19 @@ function BillCreatePage() {
               </Tabs>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-4 space-y-4">
+              {/* Barcode Scan Input */}
+              <div>
+                <Input
+                  placeholder="Scan barcode..."
+                  className="font-mono"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      handleBarcodeScan(e.target.value.trim())
+                      e.target.value = ''
+                    }
+                  }}
+                />
+              </div>
               {/* Item Combobox: type to search, dropdown shows results — click to select */}
               <div ref={itemComboboxRef} className="space-y-2">
                 <Label className="mb-2 block">
@@ -1989,6 +2041,21 @@ function BillCreatePage() {
                           </button>
                         ))}
                       </div>
+                      {payment.payment_mode === 'upi' && upiAccounts.length > 0 && (
+                        <Select
+                          value={payment.upi_account_id || ''}
+                          onValueChange={(val) => handlePaymentChange(index, 'upi_account_id', val)}
+                        >
+                          <SelectTrigger className="w-[100px]">
+                            <SelectValue placeholder="UPI Acct" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {upiAccounts.map((acc) => (
+                              <SelectItem key={acc.account_id} value={acc.account_id}>{acc.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <div className="flex-1 relative">
                         <Input
                           type="number"

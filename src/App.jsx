@@ -25,6 +25,14 @@ import SettingsPage from './pages/SettingsPage'
 import CashReconciliationPage from './pages/CashReconciliationPage'
 import ExpensesPage from './pages/ExpensesPage'
 import ChairManagementPage from './pages/ChairManagementPage'
+import SavingsPotsPage from './pages/SavingsPotsPage'
+import CounterWithdrawalsPage from './pages/CounterWithdrawalsPage'
+import UpiAccountsPage from './pages/UpiAccountsPage'
+import SuppliersPage from './pages/SuppliersPage'
+import PurchaseBatchesPage from './pages/PurchaseBatchesPage'
+import PurchaseBatchCreatePage from './pages/PurchaseBatchCreatePage'
+import PurchaseBatchDetailPage from './pages/PurchaseBatchDetailPage'
+import VersionHistoryPage from './pages/VersionHistoryPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
@@ -52,6 +60,15 @@ function App() {
       <Route
         path="/login"
         element={isAuthenticated ? <Navigate to={getDashboardByRole()} replace /> : <LoginPage />}
+      />
+
+      <Route
+        path="/version-history"
+        element={
+          <ProtectedRoute>
+            <VersionHistoryPage />
+          </ProtectedRoute>
+        }
       />
 
       <Route
@@ -91,6 +108,13 @@ function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="cash-reconciliation" element={<CashReconciliationPage />} />
         <Route path="expenses" element={<ExpensesPage />} />
+        <Route path="savings-pots" element={<SavingsPotsPage />} />
+        <Route path="counter-withdrawals" element={<CounterWithdrawalsPage />} />
+        <Route path="upi-accounts" element={<UpiAccountsPage />} />
+        <Route path="suppliers" element={<SuppliersPage />} />
+        <Route path="purchase-batches" element={<PurchaseBatchesPage />} />
+        <Route path="purchase-batches/new" element={<PurchaseBatchCreatePage />} />
+        <Route path="purchase-batches/:id" element={<PurchaseBatchDetailPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

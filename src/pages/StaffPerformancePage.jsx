@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
 import { branchService } from '@/services/branch.service'
 import { userService } from '@/services/user.service'
+import { incentiveService } from '@/services/incentive.service'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -19,8 +20,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
-import { TrendingUp, Calendar, Loader2, Star, Pencil, Check, X, Users, IndianRupee, Target, Clock, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { HorizontalBarChart } from '@/components/charts'
+import { TrendingUp, Calendar, Loader2, Star, Pencil, Check, X, Users, IndianRupee, Target, Clock, ChevronLeft, ChevronRight, ChevronDown, Download, ShoppingBag } from 'lucide-react'
+import { MultiBarChart } from '@/components/charts'
 import { toast } from 'sonner'
 
 function getDefaultDateRange() {
@@ -50,6 +51,7 @@ function StaffPerformancePage() {
   const [goalValue, setGoalValue] = useState('')
   const [matrixPage, setMatrixPage] = useState(1)
   const [matrixPageSize, setMatrixPageSize] = useState(10)
+  const [expandedIncentiveEmp, setExpandedIncentiveEmp] = useState(null)
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
@@ -96,6 +98,20 @@ function StaffPerformancePage() {
     },
   })
 
+  // Incentive report query — reuses the same date range & branch filters
+  const { data: incentiveReportData, isLoading: incentiveLoading } = useQuery({
+    queryKey: ['incentive-report', { start: effectiveStart, end: effectiveEnd, employee: selectedEmployee, branch: selectedBranch }],
+    queryFn: () => incentiveService.getReport({
+      start_date: effectiveStart || undefined,
+      end_date: effectiveEnd || undefined,
+      employee_id: selectedEmployee || undefined,
+      branch_id: selectedBranch || undefined,
+    }),
+    enabled: isOwner && !!effectiveStart && !!effectiveEnd,
+  })
+  const incentiveReport = incentiveReportData?.data || incentiveReportData || {}
+  const incentiveByEmployeeAll = incentiveReport.by_employee || []
+
   const handleBranchChange = (branchId) => {
     setSelectedBranch(branchId)
     setSelectedEmployee('')
@@ -113,13 +129,30 @@ function StaffPerformancePage() {
     return employees.find((e) => e.employee_id === activeEmployeeId) || null
   }, [activeEmployeeId, employees])
 
+  // Filter incentive data by selected employee pill
+  const incentiveByEmployee = useMemo(() => {
+    if (!activeEmployeeId) return incentiveByEmployeeAll
+    return incentiveByEmployeeAll.filter((e) => e.employee_id === activeEmployeeId)
+  }, [activeEmployeeId, incentiveByEmployeeAll])
+
+  const incentiveSummary = useMemo(() => {
+    if (!activeEmployeeId) return incentiveReport.summary || {}
+    return {
+      total_sales: incentiveByEmployee.reduce((s, e) => s + (e.total_sales || 0), 0),
+      total_incentive: incentiveByEmployee.reduce((s, e) => s + (e.total_incentive || 0), 0),
+      record_count: incentiveByEmployee.reduce((s, e) => s + (e.records?.length || 0), 0),
+    }
+  }, [activeEmployeeId, incentiveByEmployee, incentiveReport])
+
   // Compute totals for overview
   const totals = useMemo(() => {
     if (!employees.length) return null
     return {
       services: employees.reduce((s, e) => s + e.services_completed, 0),
       stars: employees.reduce((s, e) => s + e.star_points, 0),
-      earnings: employees.reduce((s, e) => s + e.revenue_generated, 0),
+      earnings: employees.reduce((s, e) => s + (e.revenue_generated - (e.product_incentives || 0)), 0),
+      productSales: employees.reduce((s, e) => s + (e.product_sales || 0), 0),
+      productIncentives: employees.reduce((s, e) => s + (e.product_incentives || 0), 0),
     }
   }, [employees])
 
@@ -158,12 +191,13 @@ function StaffPerformancePage() {
         if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
         return s
       }
-      const header = ['Service', 'Time', ...empList.map((e) => e.employee_name)]
+      const header = ['Service', 'Type', 'Time', ...empList.map((e) => e.employee_name)]
       const csvRows = [header.map(escapeCsv).join(',')]
       for (const row of rows) {
         const amounts = row.amounts || {}
         csvRows.push([
           escapeCsv(row.service_name),
+          escapeCsv(row.item_type || 'service'),
           escapeCsv(row.time),
           ...empList.map((emp) => escapeCsv(amounts[emp.employee_id] ?? '')),
         ].join(','))
@@ -406,24 +440,32 @@ function StaffPerformancePage() {
                             {emp.services_completed} {emp.services_completed === 1 ? 'service' : 'services'}
                           </div>
                           <div className="text-xs font-semibold text-green-600 mt-0.5">
-                            {formatCurrency(emp.revenue_generated)}
+                            {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
                           </div>
                         </TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {singleDayMatrix.map((row, idx) => (
+                    {singleDayMatrix.map((row, idx) => {
+                      const isProductRow = row.item_type === 'product'
+                      return (
                       <TableRow
                         key={row.bill_id ? `${row.bill_id}-${idx}` : idx}
-                        className="cursor-pointer hover:bg-primary/5"
+                        className={`cursor-pointer hover:bg-primary/5 ${isProductRow ? 'bg-green-50/50' : ''}`}
                         onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}`)}
                         title={[row.bill_number && `Bill: ${row.bill_number}`, row.book_number && `Book: ${row.book_number}`].filter(Boolean).join(' · ') || undefined}
                       >
-                        <TableCell className="font-medium sticky left-0 z-[1] bg-white border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px]">
-                          {row.service_name}
+                        <TableCell className={`font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
+                          <div className="flex items-center gap-1.5">
+                            {isProductRow && <ShoppingBag className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                            <span>{row.service_name}</span>
+                          </div>
+                          {isProductRow && row.sale_amount != null && (
+                            <div className="text-xs text-green-600 mt-0.5">Sale: {formatCurrency(row.sale_amount)}</div>
+                          )}
                         </TableCell>
-                        <TableCell className="font-mono text-sm sticky left-[160px] z-[1] bg-white border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem]">
+                        <TableCell className={`font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
                           {row.time}
                         </TableCell>
                         {employees.map((emp) => (
@@ -434,7 +476,8 @@ function StaffPerformancePage() {
                           </TableCell>
                         ))}
                       </TableRow>
-                    ))}
+                      )
+                    })}
                   </TableBody>
                 </Table>
                 </div>
@@ -487,7 +530,7 @@ function StaffPerformancePage() {
           {activeEmployee && (
             <>
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <Card>
                   <CardContent className="pt-5 pb-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -555,9 +598,32 @@ function StaffPerformancePage() {
                   <CardContent className="pt-5 pb-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
                       <IndianRupee className="h-4 w-4" />
-                      <span className="text-xs font-medium">Total Earnings</span>
+                      <span className="text-xs font-medium">Service Earnings</span>
                     </div>
-                    <div className="text-2xl font-bold">{formatCurrency(activeEmployee.revenue_generated)}</div>
+                    <div className="text-2xl font-bold">{formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-5 pb-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <ShoppingBag className="h-4 w-4 text-emerald-600" />
+                      <span className="text-xs font-medium">Product Sales</span>
+                    </div>
+                    <div className="text-2xl font-bold">{formatCurrency(activeEmployee.product_sales || 0)}</div>
+                  </CardContent>
+                </Card>
+                <Card
+                  className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
+                  onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
+                >
+                  <CardContent className="pt-5 pb-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <TrendingUp className="h-4 w-4 text-green-600" />
+                      <span className="text-xs font-medium">Incentives</span>
+                    </div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(activeEmployee.product_incentives || (incentiveByEmployee.find(e => e.employee_id === activeEmployee.employee_id))?.total_incentive || 0)}
+                    </div>
                   </CardContent>
                 </Card>
                 <Card>
@@ -589,7 +655,7 @@ function StaffPerformancePage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[40%]">Service</TableHead>
+                          <TableHead className="w-[35%]">Item</TableHead>
                           <TableHead className="w-20">Time</TableHead>
                           <TableHead>Split</TableHead>
                           <TableHead className="text-right">Amount</TableHead>
@@ -597,14 +663,21 @@ function StaffPerformancePage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {singleDayServicesByTime.map((s, i) => (
+                        {singleDayServicesByTime.map((s, i) => {
+                          const isProduct = s.item_type === 'product'
+                          return (
                           <TableRow
                             key={i}
-                            className="cursor-pointer hover:bg-primary/5"
+                            className={`cursor-pointer hover:bg-primary/5 ${isProduct ? 'bg-green-50/50' : ''}`}
                             onClick={() => s.bill_id && navigate(`/bills/${s.bill_id}`)}
                             title={[s.bill_number && `Bill: ${s.bill_number}`, s.book_number && `Book: ${s.book_number}`].filter(Boolean).join(' · ') || undefined}
                           >
-                            <TableCell className="font-medium">{s.service_name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1.5">
+                                {isProduct && <ShoppingBag className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                                {s.service_name}
+                              </div>
+                            </TableCell>
                             <TableCell className="font-mono text-sm">{s.time || '—'}</TableCell>
                             <TableCell>
                               {s.contribution_type === 'full' ? (
@@ -615,8 +688,15 @@ function StaffPerformancePage() {
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(s.earnings)}
+                            <TableCell className="text-right">
+                              {isProduct ? (
+                                <div>
+                                  <div className="font-medium">{formatCurrency(s.sale_amount)}</div>
+                                  <div className="text-xs text-green-600">→ {formatCurrency(s.earnings)} incentive</div>
+                                </div>
+                              ) : (
+                                <span className="font-medium">{formatCurrency(s.earnings)}</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <span className="flex items-center justify-end gap-1">
@@ -625,13 +705,14 @@ function StaffPerformancePage() {
                               </span>
                             </TableCell>
                           </TableRow>
-                        ))}
+                          )
+                        })}
                         <TableRow className="font-bold border-t-2 bg-muted/50">
                           <TableCell>Total</TableCell>
                           <TableCell></TableCell>
                           <TableCell></TableCell>
                           <TableCell className="text-right">
-                            {formatCurrency(activeEmployee.revenue_generated)}
+                            {formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}
                           </TableCell>
                           <TableCell className="text-right">
                             <span className="flex items-center justify-end gap-1">
@@ -666,20 +747,26 @@ function StaffPerformancePage() {
                             <TableCell>{day.services_count}</TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
-                                {day.services.map((s, i) => (
+                                {day.services.map((s, i) => {
+                                  const isProduct = s.item_type === 'product'
+                                  return (
                                   <Badge
                                     key={i}
-                                    variant={s.contribution_type === 'full' ? 'default' : 'secondary'}
-                                    className="text-xs cursor-pointer hover:ring-2 hover:ring-primary/50"
+                                    variant={isProduct ? 'outline' : s.contribution_type === 'full' ? 'default' : 'secondary'}
+                                    className={`text-xs cursor-pointer hover:ring-2 hover:ring-primary/50 ${isProduct ? 'border-green-300 text-green-700 bg-green-50' : ''}`}
                                     title={[s.bill_number && `Bill: ${s.bill_number}`, s.book_number && `Book: ${s.book_number}`].filter(Boolean).join(' · ') || undefined}
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       if (s.bill_id) navigate(`/bills/${s.bill_id}`)
                                     }}
                                   >
-                                    {s.time ? `${s.time} ` : ''}{s.service_name}: {s.contribution_type === 'full' ? 'Full' : `${s.contribution_percent}%`}
+                                    {isProduct
+                                      ? `${s.service_name}: ${formatCurrency(s.sale_amount)} → ${formatCurrency(s.earnings)} (${s.contribution_percent || ''}%)`
+                                      : `${s.time ? `${s.time} ` : ''}${s.service_name}: ${s.contribution_type === 'full' ? 'Full' : `${s.contribution_percent}%`}`
+                                    }
                                   </Badge>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -704,7 +791,7 @@ function StaffPerformancePage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatCurrency(activeEmployee.revenue_generated)}
+                            {formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}
                           </TableCell>
                         </TableRow>
                       </TableBody>
@@ -724,7 +811,7 @@ function StaffPerformancePage() {
             <>
               {/* Summary Row */}
               {totals && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   <Card>
                     <CardContent className="pt-5 pb-4 text-center">
                       <div className="text-xs text-muted-foreground mb-1">Total Services</div>
@@ -742,8 +829,23 @@ function StaffPerformancePage() {
                   </Card>
                   <Card>
                     <CardContent className="pt-5 pb-4 text-center">
-                      <div className="text-xs text-muted-foreground mb-1">Total Earnings</div>
+                      <div className="text-xs text-muted-foreground mb-1">Service Earnings</div>
                       <div className="text-2xl font-bold">{formatCurrency(totals.earnings)}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-5 pb-4 text-center">
+                      <div className="text-xs text-muted-foreground mb-1">Product Sales</div>
+                      <div className="text-2xl font-bold">{formatCurrency(totals.productSales)}</div>
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
+                    onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    <CardContent className="pt-5 pb-4 text-center">
+                      <div className="text-xs text-muted-foreground mb-1">Incentives</div>
+                      <div className="text-2xl font-bold text-green-600">{formatCurrency(totals.productIncentives || incentiveSummary.total_incentive || 0)}</div>
                     </CardContent>
                   </Card>
                 </div>
@@ -767,7 +869,9 @@ function StaffPerformancePage() {
                         <TableHead>Employee</TableHead>
                         <TableHead>Services</TableHead>
                         <TableHead>Stars</TableHead>
-                        <TableHead className="text-right">Earnings</TableHead>
+                        <TableHead className="text-right">Service Earnings</TableHead>
+                        <TableHead className="text-right">Product Sales</TableHead>
+                        <TableHead className="text-right">Incentives</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -787,7 +891,13 @@ function StaffPerformancePage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-bold">
-                            {formatCurrency(e.revenue_generated)}
+                            {formatCurrency(e.revenue_generated - (e.product_incentives || 0))}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {e.product_sales ? formatCurrency(e.product_sales) : '—'}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-green-600">
+                            {e.product_incentives ? formatCurrency(e.product_incentives) : '—'}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -800,35 +910,22 @@ function StaffPerformancePage() {
                 <CardHeader>
                   <CardTitle className="text-base">Revenue by Employee</CardTitle>
                   <CardDescription>
-                    Employee name, revenue generated, and total services in the selected period
+                    Service earnings vs product sales per employee
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead className="text-right">Revenue</TableHead>
-                        <TableHead className="text-right">Services</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {employees.map((e) => (
-                        <TableRow key={e.employee_id}>
-                          <TableCell className="font-medium">{e.employee_name}</TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">
-                            {formatCurrency(e.revenue_generated)}
-                          </TableCell>
-                          <TableCell className="text-right">{e.services_completed}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <HorizontalBarChart
-                    data={employees.slice(0, 15)}
-                    dataKey="revenue_generated"
-                    nameKey="employee_name"
-                    height={Math.max(250, Math.min(employees.length, 15) * 40)}
+                <CardContent>
+                  <MultiBarChart
+                    data={employees.slice(0, 15).map((e) => ({
+                      employee_name: e.employee_name,
+                      service_earnings: e.revenue_generated - (e.product_incentives || 0),
+                      product_sales: e.product_sales || 0,
+                    }))}
+                    bars={[
+                      { dataKey: 'service_earnings', name: 'Service Earnings', color: '#6366f1' },
+                      { dataKey: 'product_sales', name: 'Product Sales', color: '#10b981' },
+                    ]}
+                    xKey="employee_name"
+                    height={Math.max(250, Math.min(employees.length, 15) * 30)}
                   />
                 </CardContent>
               </Card>
@@ -844,6 +941,95 @@ function StaffPerformancePage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Product Incentive Report */}
+          <Card id="product-incentives">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <IndianRupee className="h-4 w-4" />
+                Product Incentives
+              </CardTitle>
+              <CardDescription>
+                Product sale incentive earnings for the selected period
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {incentiveLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : incentiveByEmployee.length === 0 ? (
+                <p className="text-center text-gray-500 py-6 text-sm">No incentive data for this period</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-gray-50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-500">Total Sales</p>
+                      <p className="text-lg font-bold">{formatCurrency(incentiveSummary.total_sales || 0)}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-500">Total Incentive</p>
+                      <p className="text-lg font-bold text-green-600">{formatCurrency(incentiveSummary.total_incentive || 0)}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-500">Records</p>
+                      <p className="text-lg font-bold">{incentiveSummary.record_count || 0}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {incentiveByEmployee.map((emp) => (
+                      <div key={emp.employee_id} className="border rounded-lg">
+                        <button
+                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                          onClick={() => setExpandedIncentiveEmp(expandedIncentiveEmp === emp.employee_id ? null : emp.employee_id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <ChevronDown className={`h-4 w-4 transition-transform ${expandedIncentiveEmp === emp.employee_id ? '' : '-rotate-90'}`} />
+                            <span className="font-medium">{emp.employee_name}</span>
+                          </div>
+                          <div className="flex gap-4 text-sm">
+                            <span>Sales: <span className="font-semibold">{formatCurrency(emp.total_sales)}</span></span>
+                            <span>Incentive: <span className="font-semibold text-green-600">{formatCurrency(emp.total_incentive)}</span></span>
+                          </div>
+                        </button>
+                        {expandedIncentiveEmp === emp.employee_id && (
+                          <div className="border-t">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Bill #</TableHead>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead>Product</TableHead>
+                                  <TableHead className="text-right">Sale</TableHead>
+                                  <TableHead className="text-right">%</TableHead>
+                                  <TableHead className="text-right">Incentive</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {(emp.records || []).map((r) => (
+                                  <TableRow key={r.incentive_id}>
+                                    <TableCell className="text-sm">{r.bill_number}</TableCell>
+                                    <TableCell className="text-sm">
+                                      {r.bill_date ? new Date(r.bill_date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                                    </TableCell>
+                                    <TableCell>{r.product_name}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(r.sale_amount)}</TableCell>
+                                    <TableCell className="text-right">{r.percentage}%</TableCell>
+                                    <TableCell className="text-right font-medium text-green-600">{formatCurrency(r.incentive_amount)}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

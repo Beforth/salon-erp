@@ -43,13 +43,33 @@ function buildReceiptHTML(bill) {
 
   let itemRows = ''
 
-  // Render package groups as single lines
-  Object.values(packageGroups).forEach((pkg) => {
+  // Build a map of package_instance_id -> services from package_summary for employee info
+  const pkgServiceMap = {}
+  if (bill.package_summary?.length) {
+    bill.package_summary.forEach((pkg) => {
+      pkgServiceMap[pkg.package_instance_id] = pkg.services || []
+    })
+  }
+
+  // Render package groups with service-level employee names
+  Object.entries(packageGroups).forEach(([pkgKey, pkg]) => {
+    const services = pkgServiceMap[pkgKey] || []
     itemRows += `
       <div style="margin-bottom:4px;">
-        <div style="font-size:10px;">${pkg.name} (Package)</div>
-        <div style="display:flex;justify-content:space-between;font-size:9px;">
-          <span>1 x ${formatAmt(pkg.total)}</span>
+        <div style="font-size:10px;font-weight:bold;">${pkg.name}</div>`
+    if (services.length > 0) {
+      services.forEach((svc) => {
+        const empName = svc.employee_name || (svc.employees || []).map((e) => e.full_name).join(', ') || ''
+        itemRows += `
+        <div style="display:flex;justify-content:space-between;font-size:9px;padding-left:8px;">
+          <span>- ${svc.service_name}</span>
+          <span>${empName}</span>
+        </div>`
+      })
+    }
+    itemRows += `
+        <div style="display:flex;justify-content:space-between;font-size:9px;margin-top:2px;">
+          <span>Package Total:</span>
           <span>${formatAmt(pkg.total)}</span>
         </div>`
     if (pkg.discount > 0) {
@@ -61,10 +81,11 @@ function buildReceiptHTML(bill) {
     itemRows += `</div>`
   })
 
-  // Render standalone items
+  // Render standalone items with employee name
   standaloneItems.forEach((item) => {
     const name = item.item_name || 'Item'
     const typeLabel = item.item_type === 'product' ? ' (Product)' : ''
+    const empName = item.employee_name || ''
     const qty = item.quantity
     const unitPrice = item.unit_price
     const total = item.total_price
@@ -72,7 +93,10 @@ function buildReceiptHTML(bill) {
 
     itemRows += `
       <div style="margin-bottom:4px;">
-        <div style="font-size:10px;">${name}${typeLabel}</div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;">
+          <span>${name}${typeLabel}</span>
+          ${empName ? `<span style="font-size:9px;color:#444;">${empName}</span>` : ''}
+        </div>
         <div style="display:flex;justify-content:space-between;font-size:9px;">
           <span>${qty} x ${formatAmt(unitPrice)}</span>
           <span>${formatAmt(total)}</span>
@@ -90,13 +114,46 @@ function buildReceiptHTML(bill) {
 
   const paymentRows = payments
     .map(
-      (p) => `
+      (p) => {
+        let modeLabel = p.payment_mode.toUpperCase()
+        if (p.payment_mode === 'upi' && p.upi_account_name) {
+          modeLabel = `UPI (${p.upi_account_name})`
+        }
+        return `
       <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:2px;">
-        <span>${p.payment_mode.toUpperCase()}</span>
+        <span>${modeLabel}</span>
         <span>${formatAmt(p.amount)}</span>
       </div>`
+      }
     )
     .join('')
+
+  // Collect unique employee names from all items
+  const allEmployeeNames = new Set()
+  items.forEach((item) => {
+    if (item.employee_name) {
+      item.employee_name.split(',').forEach((n) => {
+        const trimmed = n.trim()
+        if (trimmed) allEmployeeNames.add(trimmed)
+      })
+    }
+  })
+  if (bill.package_summary?.length) {
+    bill.package_summary.forEach((pkg) => {
+      (pkg.services || []).forEach((svc) => {
+        if (svc.employee_name) {
+          svc.employee_name.split(',').forEach((n) => {
+            const trimmed = n.trim()
+            if (trimmed) allEmployeeNames.add(trimmed)
+          })
+        }
+        (svc.employees || []).forEach((e) => {
+          if (e.full_name) allEmployeeNames.add(e.full_name)
+        })
+      })
+    })
+  }
+  const employeeLine = allEmployeeNames.size > 0 ? [...allEmployeeNames].join(', ') : ''
 
   const branchName = bill.branch?.branch_name || ''
   const branchPhone = bill.branch?.phone || ''
@@ -118,7 +175,7 @@ function buildReceiptHTML(bill) {
       <title>Receipt ${billNumber}</title>
       <style>
         @page {
-          size: 48mm auto;
+          size: 80mm auto;
           margin: 1mm;
         }
         * {
@@ -129,7 +186,7 @@ function buildReceiptHTML(bill) {
         body {
           font-family: 'Courier New', monospace;
           font-size: 10px;
-          width: 46mm;
+          width: 76mm;
           padding: 2mm;
           color: #000;
           line-height: 1.3;
@@ -220,6 +277,7 @@ function buildReceiptHTML(bill) {
       ${separator}
       ` : ''}
 
+      ${employeeLine ? `<div style="font-size:8px;">Employee: ${employeeLine}</div>` : ''}
       ${cashierName ? `<div style="font-size:8px;">Cashier: ${cashierName}</div>` : ''}
 
       <div class="center" style="margin-top:6px;font-size:9px;">

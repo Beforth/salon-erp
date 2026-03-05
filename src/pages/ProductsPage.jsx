@@ -24,7 +24,10 @@ import {
   Trash2,
   AlertTriangle,
   X,
+  ScanLine,
+  Printer,
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
 function ProductsPage() {
@@ -33,6 +36,11 @@ function ProductsPage() {
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [scanModalOpen, setScanModalOpen] = useState(false)
+  const [scanBarcode, setScanBarcode] = useState('')
+  const [scanResult, setScanResult] = useState(null)
+  const [scanLoading, setScanLoading] = useState(false)
   const [formData, setFormData] = useState({
     product_name: '',
     brand: '',
@@ -94,6 +102,29 @@ function ProductsPage() {
       toast.error(error.response?.data?.error?.message || 'Failed to delete product')
     },
   })
+
+  const handlePrintBarcodes = () => {
+    const selected = products.filter((p) => selectedIds.has(p.product_id))
+    if (selected.length === 0) return toast.error('No products selected')
+
+    const labelHtml = selected.map((p) => `
+      <div style="border:1px dashed #ccc;padding:8px;margin:4px;display:inline-block;text-align:center;font-family:monospace;">
+        <div style="font-size:12px;font-weight:bold;">${p.product_name}</div>
+        ${p.barcode ? `<div style="font-size:18px;letter-spacing:3px;margin:4px 0;">${p.barcode}</div>` : ''}
+        <div style="font-size:11px;">${formatCurrency(p.selling_price || p.mrp)}</div>
+      </div>
+    `).join('')
+
+    const printWindow = window.open('', '_blank')
+    printWindow.document.write(`
+      <!DOCTYPE html><html><head><title>Barcodes</title>
+      <style>@page{margin:5mm}body{font-family:monospace;}</style>
+      </head><body>${labelHtml}</body></html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print(); printWindow.close() }, 300)
+  }
 
   const openModal = (product = null) => {
     if (product) {
@@ -159,10 +190,22 @@ function ProductsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-gray-500">Manage your product catalog</p>
         </div>
-        <Button onClick={() => openModal()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Product
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setScanModalOpen(true)}>
+            <ScanLine className="h-4 w-4 mr-2" />
+            Scan
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button variant="outline" onClick={() => handlePrintBarcodes()}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print Barcodes ({selectedIds.size})
+            </Button>
+          )}
+          <Button onClick={() => openModal()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Product
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -209,6 +252,20 @@ function ProductsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      checked={products.length > 0 && products.every((p) => selectedIds.has(p.product_id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds(new Set(products.map((p) => p.product_id)))
+                        } else {
+                          setSelectedIds(new Set())
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Type</TableHead>
@@ -221,6 +278,19 @@ function ProductsPage() {
               <TableBody>
                 {products.map((product) => (
                   <TableRow key={product.product_id}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(product.product_id)}
+                        onChange={(e) => {
+                          const updated = new Set(selectedIds)
+                          if (e.target.checked) updated.add(product.product_id)
+                          else updated.delete(product.product_id)
+                          setSelectedIds(updated)
+                        }}
+                        className="rounded border-gray-300"
+                      />
+                    </TableCell>
                     <TableCell>
                       <div>
                         <div className="font-medium">{product.product_name}</div>
@@ -316,6 +386,55 @@ function ProductsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Scan Barcode Modal */}
+      <Dialog open={scanModalOpen} onOpenChange={(open) => { setScanModalOpen(open); if (!open) { setScanBarcode(''); setScanResult(null) } }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Scan Product Barcode</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              autoFocus
+              placeholder="Scan or type barcode..."
+              value={scanBarcode}
+              onChange={(e) => setScanBarcode(e.target.value)}
+              className="font-mono"
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && scanBarcode.trim()) {
+                  setScanLoading(true)
+                  setScanResult(null)
+                  try {
+                    const res = await productService.getByBarcode(scanBarcode.trim())
+                    setScanResult(res?.data || res)
+                  } catch {
+                    setScanResult(null)
+                    toast.error('Product not found')
+                  }
+                  setScanLoading(false)
+                }
+              }}
+            />
+            {scanLoading && (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+              </div>
+            )}
+            {scanResult && (
+              <Card>
+                <CardContent className="py-3">
+                  <div className="font-medium text-lg">{scanResult.product_name || scanResult.name}</div>
+                  {scanResult.barcode && <div className="text-sm text-gray-500 font-mono">{scanResult.barcode}</div>}
+                  <div className="flex gap-4 mt-2 text-sm">
+                    <span>Price: <span className="font-semibold">{formatCurrency(scanResult.selling_price || scanResult.mrp)}</span></span>
+                    <span>Stock: <span className="font-semibold">{scanResult.total_stock ?? '—'}</span></span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal */}
       {showModal && (
