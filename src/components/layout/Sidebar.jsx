@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, Link, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { cn } from '@/lib/utils'
@@ -33,6 +33,7 @@ import {
   Building,
   PanelLeftClose,
   PanelLeftOpen,
+  X,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -160,10 +161,181 @@ const getNavItemsByRole = (role) => {
   return allNavItems.filter((item) => item.roles.includes(role))
 }
 
+function SidebarContent({ collapsed, expandedGroups, toggleGroup, navItems, user }) {
+  return (
+    <div className="flex flex-col flex-grow bg-white overflow-y-auto overflow-x-hidden">
+      {/* Logo */}
+      <div className="flex items-center h-16 flex-shrink-0 px-3 border-b">
+        {collapsed ? (
+          <div className="w-10 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto">
+            <Scissors className="w-5 h-5 text-white" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <Scissors className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold text-gray-900">Salon ERP</span>
+              <Link to="/version-history" className="text-xs text-gray-400 hover:text-primary transition-colors -mt-1">
+                {CURRENT_VERSION}
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-2 py-4 space-y-1">
+        {navItems.map((item) =>
+          item.children ? (
+            collapsed ? (
+              // Collapsed: show only parent icon, first child as link on click
+              <div key={item.title} className="relative group/nav">
+                <div
+                  className="flex items-center justify-center w-full px-2 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
+                  title={item.title}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                </div>
+                {/* Tooltip flyout on hover */}
+                <div className="absolute left-full top-0 ml-2 hidden group-hover/nav:block z-50">
+                  <div className="bg-white border rounded-lg shadow-lg py-2 min-w-[160px]">
+                    <div className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase">{item.title}</div>
+                    {item.children.map((child) => (
+                      <NavLink
+                        key={child.href}
+                        to={child.href}
+                        end={child.href === '/inventory'}
+                        className={({ isActive }) =>
+                          cn(
+                            'flex items-center px-3 py-1.5 text-sm transition-colors',
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          )
+                        }
+                      >
+                        <child.icon className="mr-2 h-4 w-4 flex-shrink-0" />
+                        {child.title}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div key={item.title}>
+                <button
+                  onClick={() => toggleGroup(item.title)}
+                  className="group flex items-center w-full px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                  {item.title}
+                  <ChevronDown
+                    className={cn(
+                      'ml-auto h-4 w-4 transition-transform',
+                      expandedGroups[item.title] && 'rotate-180'
+                    )}
+                  />
+                </button>
+                {expandedGroups[item.title] && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {item.children.map((child) => (
+                      <NavLink
+                        key={child.href}
+                        to={child.href}
+                        end={child.href === '/inventory'}
+                        className={({ isActive }) =>
+                          cn(
+                            'group flex items-center px-3 py-1.5 text-sm rounded-md transition-colors',
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                          )
+                        }
+                      >
+                        <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
+                        {child.title}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          ) : collapsed ? (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center justify-center px-2 py-2 rounded-md transition-colors',
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                )
+              }
+              title={item.title}
+            >
+              <item.icon className="h-5 w-5 flex-shrink-0" />
+            </NavLink>
+          ) : (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              className={({ isActive }) =>
+                cn(
+                  'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                )
+              }
+            >
+              <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+              {item.title}
+            </NavLink>
+          )
+        )}
+      </nav>
+
+      {/* User info at bottom */}
+      <div className="flex-shrink-0 flex border-t border-gray-200 p-3">
+        {collapsed ? (
+          <div className="mx-auto" title={user?.fullName || 'User'}>
+            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+              <span className="text-primary font-semibold">
+                {user?.fullName?.charAt(0) || 'U'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center w-full">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-primary font-semibold">
+                  {user?.fullName?.charAt(0) || 'U'}
+                </span>
+              </div>
+            </div>
+            <div className="ml-3 overflow-hidden">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user?.fullName || 'User'}
+              </p>
+              <p className="text-xs text-gray-500 capitalize truncate">
+                {user?.role || 'Role'}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Sidebar() {
   const { user } = useSelector((state) => state.auth)
   const location = useLocation()
-  const { collapsed, toggle } = useSidebar()
+  const { collapsed, toggle, mobileOpen, closeMobile } = useSidebar()
   const navItems = getNavItemsByRole(user?.role || 'employee')
 
   // Auto-expand groups if current path matches
@@ -176,154 +348,65 @@ function Sidebar() {
     ...(isFinancePath ? { Finance: true } : {}),
   })
 
+  // Auto-close mobile drawer on route change
+  useEffect(() => {
+    closeMobile()
+  }, [location.pathname, closeMobile])
+
   const toggleGroup = (title) => {
     setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }))
   }
 
+  const sharedProps = { expandedGroups, toggleGroup, navItems, user }
+
   return (
-    <aside
-      className={cn(
-        'hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-[width] duration-200 ease-in-out z-30',
-        collapsed ? 'md:w-16' : 'md:w-64'
-      )}
-    >
-      <div className="flex flex-col flex-grow bg-white border-r border-gray-200 overflow-y-auto overflow-x-hidden">
-        {/* Logo */}
-        <div className="flex items-center h-16 flex-shrink-0 px-3 border-b">
-          {collapsed ? (
-            <div className="w-10 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto">
-              <Scissors className="w-5 h-5 text-white" />
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Scissors className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-bold text-gray-900">Salon ERP</span>
-                <Link to="/version-history" className="text-xs text-gray-400 hover:text-primary transition-colors -mt-1">
-                  {CURRENT_VERSION}
-                </Link>
-              </div>
-            </div>
+    <>
+      {/* Mobile drawer */}
+      <div
+        className={cn(
+          'fixed inset-0 z-50 md:hidden',
+          mobileOpen ? 'pointer-events-auto' : 'pointer-events-none'
+        )}
+      >
+        {/* Backdrop */}
+        <div
+          className={cn(
+            'absolute inset-0 bg-gray-600/75 transition-opacity duration-300',
+            mobileOpen ? 'opacity-100' : 'opacity-0'
           )}
-        </div>
+          onClick={closeMobile}
+        />
 
-        {/* Navigation */}
-        <nav className="flex-1 px-2 py-4 space-y-1">
-          {navItems.map((item) =>
-            item.children ? (
-              collapsed ? (
-                // Collapsed: show only parent icon, first child as link on click
-                <div key={item.title} className="relative group/nav">
-                  <div
-                    className="flex items-center justify-center w-full px-2 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer"
-                    title={item.title}
-                  >
-                    <item.icon className="h-5 w-5 flex-shrink-0" />
-                  </div>
-                  {/* Tooltip flyout on hover */}
-                  <div className="absolute left-full top-0 ml-2 hidden group-hover/nav:block z-50">
-                    <div className="bg-white border rounded-lg shadow-lg py-2 min-w-[160px]">
-                      <div className="px-3 py-1 text-xs font-semibold text-gray-400 uppercase">{item.title}</div>
-                      {item.children.map((child) => (
-                        <NavLink
-                          key={child.href}
-                          to={child.href}
-                          end={child.href === '/inventory'}
-                          className={({ isActive }) =>
-                            cn(
-                              'flex items-center px-3 py-1.5 text-sm transition-colors',
-                              isActive
-                                ? 'bg-primary/10 text-primary'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            )
-                          }
-                        >
-                          <child.icon className="mr-2 h-4 w-4 flex-shrink-0" />
-                          {child.title}
-                        </NavLink>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div key={item.title}>
-                  <button
-                    onClick={() => toggleGroup(item.title)}
-                    className="group flex items-center w-full px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                  >
-                    <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                    {item.title}
-                    <ChevronDown
-                      className={cn(
-                        'ml-auto h-4 w-4 transition-transform',
-                        expandedGroups[item.title] && 'rotate-180'
-                      )}
-                    />
-                  </button>
-                  {expandedGroups[item.title] && (
-                    <div className="ml-4 mt-1 space-y-1">
-                      {item.children.map((child) => (
-                        <NavLink
-                          key={child.href}
-                          to={child.href}
-                          end={child.href === '/inventory'}
-                          className={({ isActive }) =>
-                            cn(
-                              'group flex items-center px-3 py-1.5 text-sm rounded-md transition-colors',
-                              isActive
-                                ? 'bg-primary/10 text-primary'
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                            )
-                          }
-                        >
-                          <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
-                          {child.title}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            ) : collapsed ? (
-              <NavLink
-                key={item.href}
-                to={item.href}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center justify-center px-2 py-2 rounded-md transition-colors',
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  )
-                }
-                title={item.title}
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
-              </NavLink>
-            ) : (
-              <NavLink
-                key={item.href}
-                to={item.href}
-                className={({ isActive }) =>
-                  cn(
-                    'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  )
-                }
-              >
-                <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                {item.title}
-              </NavLink>
-            )
+        {/* Drawer panel */}
+        <aside
+          className={cn(
+            'relative flex flex-col w-72 max-w-[80vw] h-full bg-white border-r border-gray-200 shadow-xl transition-transform duration-300 ease-in-out',
+            mobileOpen ? 'translate-x-0' : '-translate-x-full'
           )}
-        </nav>
+        >
+          {/* Close button */}
+          <button
+            onClick={closeMobile}
+            className="absolute top-4 right-3 p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
 
-        {/* Collapse toggle */}
-        <div className="flex-shrink-0 border-t border-gray-200">
+          <SidebarContent collapsed={false} {...sharedProps} />
+        </aside>
+      </div>
+
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          'hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-[width] duration-200 ease-in-out z-30 border-r border-gray-200',
+          collapsed ? 'md:w-16' : 'md:w-64'
+        )}
+      >
+        <SidebarContent collapsed={collapsed} {...sharedProps} />
+
+        {/* Collapse toggle — desktop only */}
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white">
           <button
             onClick={toggle}
             className="flex items-center justify-center w-full px-3 py-2.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
@@ -339,39 +422,8 @@ function Sidebar() {
             )}
           </button>
         </div>
-
-        {/* User info at bottom */}
-        <div className="flex-shrink-0 flex border-t border-gray-200 p-3">
-          {collapsed ? (
-            <div className="mx-auto" title={user?.fullName || 'User'}>
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <span className="text-primary font-semibold">
-                  {user?.fullName?.charAt(0) || 'U'}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center w-full">
-              <div className="flex-shrink-0">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                  <span className="text-primary font-semibold">
-                    {user?.fullName?.charAt(0) || 'U'}
-                  </span>
-                </div>
-              </div>
-              <div className="ml-3 overflow-hidden">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {user?.fullName || 'User'}
-                </p>
-                <p className="text-xs text-gray-500 capitalize truncate">
-                  {user?.role || 'Role'}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   )
 }
 

@@ -6,6 +6,7 @@ export const versionHistory = [
     date: 'Mar 2026',
     title: 'Privacy, Branch Colors & Bank Receipts',
     highlights: [
+      'Mobile-friendly sidebar navigation',
       'Role-based phone number privacy',
       'UPI account selection in expenses',
       'Branch color coding across the app',
@@ -13,6 +14,15 @@ export const versionHistory = [
       'Bank Receipts page for cashiers',
     ],
     details: [
+      {
+        section: 'Mobile Experience',
+        items: [
+          'Slide-out navigation drawer on mobile — hamburger menu now opens a proper sidebar with smooth animation',
+          'Auto-close drawer on page navigation for seamless browsing',
+          'Tap-to-dismiss backdrop overlay when drawer is open',
+          'Correct z-index layering so drawer renders above header and content',
+        ],
+      },
       {
         section: 'Privacy & Security',
         items: [

@@ -1,25 +1,15 @@
-import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext'
 
 function DashboardContent() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { collapsed } = useSidebar()
+  const { collapsed, openMobile } = useSidebar()
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
+      {/* Sidebar (handles both desktop & mobile drawer internally) */}
       <Sidebar />
-
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-gray-600/75 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
 
       {/* Main content */}
       <div
@@ -27,7 +17,7 @@ function DashboardContent() {
           collapsed ? 'md:pl-16' : 'md:pl-64'
         }`}
       >
-        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <Header onMenuClick={openMobile} />
 
         <main className="py-6">
           <div className={`mx-auto px-4 sm:px-6 lg:px-8 ${collapsed ? '' : 'max-w-7xl'}`}>
