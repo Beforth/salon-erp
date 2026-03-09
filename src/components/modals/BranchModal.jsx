@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 const initialFormData = {
   name: '',
   code: '',
+  color_code: '',
   address: '',
   city: '',
   state: '',
@@ -37,6 +38,7 @@ function BranchModal({ open, onOpenChange, branch = null }) {
       setFormData({
         name: branch.name || '',
         code: branch.code || '',
+        color_code: branch.color_code || '',
         address: branch.address || '',
         city: branch.city || '',
         state: branch.state || '',
@@ -96,6 +98,7 @@ function BranchModal({ open, onOpenChange, branch = null }) {
     const data = {
       name: formData.name,
       code: formData.code.toUpperCase(),
+      color_code: formData.color_code || null,
       address: formData.address || null,
       city: formData.city || null,
       state: formData.state || null,
@@ -142,6 +145,37 @@ function BranchModal({ open, onOpenChange, branch = null }) {
                 placeholder="MAIN"
                 disabled={isEditing}
               />
+            </div>
+          </div>
+
+          {/* Branch Color */}
+          <div className="space-y-2">
+            <Label htmlFor="color_code">Branch Color</Label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                id="color_code"
+                value={formData.color_code || '#6366f1'}
+                onChange={(e) => handleChange('color_code', e.target.value)}
+                className="w-10 h-10 rounded border border-gray-300 cursor-pointer p-0.5"
+              />
+              <Input
+                value={formData.color_code}
+                onChange={(e) => handleChange('color_code', e.target.value)}
+                placeholder="#0000FF"
+                className="w-28 font-mono text-sm"
+              />
+              {formData.color_code && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleChange('color_code', '')}
+                  className="text-gray-400"
+                >
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
 

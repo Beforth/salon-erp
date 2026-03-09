@@ -513,6 +513,9 @@ function ExpensesPage() {
                           <Badge variant="secondary">
                             {PAYMENT_MODE_LABELS[expense.payment_mode] || expense.payment_mode}
                           </Badge>
+                          {expense.upi_account_name && (
+                            <span className="text-xs text-gray-500 ml-1">({expense.upi_account_name})</span>
+                          )}
                         </TableCell>
                         {isOwner && (
                           <TableCell>{expense.branch_name}</TableCell>

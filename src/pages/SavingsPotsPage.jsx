@@ -134,10 +134,15 @@ export default function SavingsPotsPage() {
               <Card key={pot.pot_id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg">{pot.name}</CardTitle>
+                    <div>
+                      <CardTitle className="text-lg">{pot.name}</CardTitle>
+                      {pot.account_number && (
+                        <p className="text-sm text-gray-500 font-mono mt-0.5">{pot.account_number}</p>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       {maturity && <Badge variant={maturity.variant}>{maturity.label}</Badge>}
-                      {!pot.is_active && <Badge variant="secondary">Inactive</Badge>}
+                      {pot.is_active ? <Badge variant="success">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
                     </div>
                   </div>
                 </CardHeader>

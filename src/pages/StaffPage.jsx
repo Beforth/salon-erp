@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { BranchColorDot } from '@/components/ui/branch-color-dot'
 import { formatDate } from '@/lib/utils'
 import {
   Users,
@@ -311,9 +312,12 @@ function StaffPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {staff.branch?.name || (
-                        <span className="text-gray-400">All Branches</span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        <BranchColorDot color={staff.branch?.color_code} />
+                        {staff.branch?.name || (
+                          <span className="text-gray-400">All Branches</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-gray-500">
                       {staff.employee_details?.joining_date

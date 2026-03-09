@@ -14,6 +14,7 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState({
     name: '',
+    account_number: '',
     target_amount: '',
     duration_months: '',
     start_date: '',
@@ -30,13 +31,14 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
     if (editPot) {
       setFormData({
         name: editPot.name || '',
+        account_number: editPot.account_number || '',
         target_amount: editPot.target_amount || '',
         duration_months: editPot.duration_months || '',
         start_date: editPot.start_date ? editPot.start_date.split('T')[0] : '',
         branch_id: editPot.branch_id || '',
       })
     } else {
-      setFormData({ name: '', target_amount: '', duration_months: '', start_date: '', branch_id: '' })
+      setFormData({ name: '', account_number: '', target_amount: '', duration_months: '', start_date: '', branch_id: '' })
     }
   }, [editPot, open])
 
@@ -60,6 +62,7 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
 
   const handleSubmit = () => {
     if (!formData.name.trim()) return toast.error('Name is required')
+    if (!editPot && !formData.account_number.trim()) return toast.error('Account number is required')
     mutation.mutate({
       ...formData,
       target_amount: formData.target_amount ? Number(formData.target_amount) : undefined,
@@ -75,11 +78,19 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <Label>Name</Label>
+            <Label>Name *</Label>
             <Input
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. FD Account 1"
+            />
+          </div>
+          <div>
+            <Label>Account Number {!editPot && '*'}</Label>
+            <Input
+              value={formData.account_number}
+              onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
+              placeholder="Enter account number"
             />
           </div>
           <div>

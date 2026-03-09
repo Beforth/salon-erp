@@ -1,6 +1,47 @@
-export const CURRENT_VERSION = 'v2.1.0'
+export const CURRENT_VERSION = 'v2.2.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.2.0',
+    date: 'Mar 2026',
+    title: 'Privacy, Branch Colors & Bank Receipts',
+    highlights: [
+      'Role-based phone number privacy',
+      'UPI account selection in expenses',
+      'Branch color coding across the app',
+      'Savings pot account numbers',
+      'Bank Receipts page for cashiers',
+    ],
+    details: [
+      {
+        section: 'Privacy & Security',
+        items: [
+          'Phone numbers masked for cashier and employee roles — password-style input on forms, masked display in lists',
+          'Admin and manager roles retain full phone number visibility',
+        ],
+      },
+      {
+        section: 'Finance',
+        items: [
+          'UPI account selection when recording UPI expenses — dropdown of active accounts with validation',
+          'UPI account name displayed alongside payment mode in expense list',
+          'Savings pots now require an account number — displayed prominently on pot cards',
+          'Active/Inactive status badge always shown on savings pot cards',
+          'Bank Receipts — new dedicated page for viewing and editing bank deposit records',
+          'Cashiers can view last 3 days of bank deposits with edit access controlled per record',
+          'Admin/Manager can view full deposit history with date and branch filters',
+        ],
+      },
+      {
+        section: 'Branch Management',
+        items: [
+          'Branch color picker — assign a hex color to each branch from branch settings',
+          'Color-coded branch dots displayed across Staff list, Staff Performance, Branches, Counter Withdrawals, and Owner Dashboard',
+          'Multi-branch employees show multiple color dots in performance reports',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.1.0',
     date: 'Mar 2026',

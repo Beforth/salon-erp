@@ -22,6 +22,7 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { TrendingUp, Calendar, Loader2, Star, Pencil, Check, X, Users, IndianRupee, Target, Clock, ChevronLeft, ChevronRight, ChevronDown, Download, ShoppingBag } from 'lucide-react'
 import { MultiBarChart } from '@/components/charts'
+import { BranchColorDot } from '@/components/ui/branch-color-dot'
 import { toast } from 'sonner'
 
 function getDefaultDateRange() {
@@ -435,7 +436,12 @@ function StaffPerformancePage() {
                           onClick={() => setActiveEmployeeId(emp.employee_id)}
                           title="Click to see this employee's services by time"
                         >
-                          <div className="font-medium">{emp.employee_name}</div>
+                          <div className="font-medium flex items-center justify-end gap-1">
+                            {emp.branches?.map((b) => (
+                              <BranchColorDot key={b.id} color={b.color_code} />
+                            )) || <BranchColorDot color={emp.branch?.color_code} />}
+                            {emp.employee_name}
+                          </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {emp.services_completed} {emp.services_completed === 1 ? 'service' : 'services'}
                           </div>
@@ -881,7 +887,14 @@ function StaffPerformancePage() {
                           className="cursor-pointer hover:bg-muted/50"
                           onClick={() => setActiveEmployeeId(e.employee_id)}
                         >
-                          <TableCell className="font-medium">{e.employee_name}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-1.5">
+                              {e.branches?.map((b) => (
+                                <BranchColorDot key={b.id} color={b.color_code} />
+                              )) || <BranchColorDot color={e.branch?.color_code} />}
+                              {e.employee_name}
+                            </div>
+                          </TableCell>
                           <TableCell>{e.services_completed}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">

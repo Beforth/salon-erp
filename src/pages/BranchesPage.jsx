@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import BranchModal from '@/components/modals/BranchModal'
+import { BranchColorDot } from '@/components/ui/branch-color-dot'
 import { Building2, Plus, Loader2, MapPin, Phone, Mail, Pencil } from 'lucide-react'
 
 function BranchesPage() {
@@ -95,7 +96,8 @@ function BranchesPage() {
                   <TableRow key={branch.branch_id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-gray-400" />
+                        <BranchColorDot color={branch.color_code} className="w-3 h-3" />
+                        {!branch.color_code && <Building2 className="h-4 w-4 text-gray-400" />}
                         {branch.name}
                       </div>
                     </TableCell>

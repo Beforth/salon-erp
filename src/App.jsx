@@ -32,6 +32,7 @@ import SuppliersPage from './pages/SuppliersPage'
 import PurchaseBatchesPage from './pages/PurchaseBatchesPage'
 import PurchaseBatchCreatePage from './pages/PurchaseBatchCreatePage'
 import PurchaseBatchDetailPage from './pages/PurchaseBatchDetailPage'
+import BankDepositsPage from './pages/BankDepositsPage'
 import VersionHistoryPage from './pages/VersionHistoryPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
@@ -111,6 +112,7 @@ function App() {
         <Route path="savings-pots" element={<SavingsPotsPage />} />
         <Route path="counter-withdrawals" element={<CounterWithdrawalsPage />} />
         <Route path="upi-accounts" element={<UpiAccountsPage />} />
+        <Route path="bank-deposits" element={<BankDepositsPage />} />
         <Route path="suppliers" element={<SuppliersPage />} />
         <Route path="purchase-batches" element={<PurchaseBatchesPage />} />
         <Route path="purchase-batches/new" element={<PurchaseBatchCreatePage />} />

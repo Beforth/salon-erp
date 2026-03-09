@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { expenseService } from '@/services/expense.service'
 import { branchService } from '@/services/branch.service'
+import { upiAccountService } from '@/services/upiAccount.service'
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,7 @@ const initialFormData = {
   amount: '',
   expense_date: today(),
   payment_mode: '',
+  upi_account_id: '',
   employee_id: '',
   vendor_name: '',
   description: '',
@@ -69,6 +71,15 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
   })
   const branches = branchesData?.data || []
 
+  // Fetch UPI accounts when payment mode is UPI
+  const isUpi = formData.payment_mode === 'upi'
+  const { data: upiAccountsData } = useQuery({
+    queryKey: ['upi-accounts-active'],
+    queryFn: () => upiAccountService.getAccounts({ is_active: true }),
+    enabled: open && isUpi,
+  })
+  const upiAccounts = upiAccountsData?.data || []
+
   // Detect Staff Advance category
   const selectedCategory = categories.find((c) => c.id === formData.category_id)
   const isStaffRelated = selectedCategory?.name === 'Staff Advance' || selectedCategory?.name === 'Staff Salary'
@@ -92,6 +103,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
           ? new Date(expense.expense_date).toISOString().split('T')[0]
           : today(),
         payment_mode: expense.payment_mode || '',
+        upi_account_id: expense.upi_account_id || '',
         employee_id: expense.employee_id || '',
         vendor_name: expense.vendor_name || '',
         description: expense.description || '',
@@ -105,6 +117,13 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       })
     }
   }, [expense, open, isOwner, user?.branchId])
+
+  // Clear UPI account when payment mode changes away from UPI
+  useEffect(() => {
+    if (!isUpi && formData.upi_account_id) {
+      setFormData((prev) => ({ ...prev, upi_account_id: '' }))
+    }
+  }, [isUpi])
 
   // Clear employee when category changes away from Staff Advance
   useEffect(() => {
@@ -169,6 +188,10 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       toast.error('Payment mode is required')
       return
     }
+    if (formData.payment_mode === 'upi' && !formData.upi_account_id) {
+      toast.error('UPI account is required for UPI payments')
+      return
+    }
 
     const data = {
       branch_id: branchId,
@@ -176,6 +199,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       amount: parseFloat(formData.amount),
       expense_date: formData.expense_date,
       payment_mode: formData.payment_mode,
+      upi_account_id: formData.upi_account_id || null,
       employee_id: formData.employee_id || null,
       vendor_name: formData.vendor_name.trim() || null,
       description: formData.description.trim() || null,
@@ -290,6 +314,28 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
               </Select>
             </div>
           </div>
+
+          {/* UPI Account (only when payment mode is UPI) */}
+          {isUpi && (
+            <div className="space-y-2">
+              <Label>UPI Account *</Label>
+              <Select
+                value={formData.upi_account_id}
+                onValueChange={(value) => handleChange('upi_account_id', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select UPI account..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {upiAccounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.account_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Employee (only for Staff Advance) */}
           {isStaffRelated && (

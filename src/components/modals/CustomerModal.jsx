@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { customerService } from '@/services/customer.service'
 import {
@@ -36,7 +37,9 @@ const initialFormData = {
 
 function CustomerModal({ open, onOpenChange, customer = null, minimal = false, prefill = null, onCreated = null }) {
   const queryClient = useQueryClient()
+  const { user } = useSelector((state) => state.auth)
   const isEditing = !!customer
+  const canSeePhone = ['owner', 'developer', 'manager'].includes(user?.role)
 
   const [formData, setFormData] = useState(initialFormData)
 
@@ -44,7 +47,7 @@ function CustomerModal({ open, onOpenChange, customer = null, minimal = false, p
     if (customer) {
       setFormData({
         customer_name: customer.customer_name || '',
-        phone: customer.phone || '',
+        phone: canSeePhone ? (customer.phone || '') : '',
         email: customer.email || '',
         gender: customer.gender || '',
         age_category: customer.age_category || '',
@@ -103,7 +106,7 @@ function CustomerModal({ open, onOpenChange, customer = null, minimal = false, p
       return
     }
 
-    if (!formData.phone.trim()) {
+    if (canSeePhone && !formData.phone.trim()) {
       toast.error('Phone number is required')
       return
     }
@@ -114,6 +117,11 @@ function CustomerModal({ open, onOpenChange, customer = null, minimal = false, p
         typeof value === 'string' && !value.trim() ? null : value,
       ])
     )
+
+    // For non-privileged roles editing: don't send phone if left empty
+    if (!canSeePhone && !data.phone) {
+      delete data.phone
+    }
 
     if (isEditing) {
       updateMutation.mutate({ id: customer.customer_id, data })
@@ -144,12 +152,13 @@ function CustomerModal({ open, onOpenChange, customer = null, minimal = false, p
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone *</Label>
+              <Label htmlFor="phone">Phone {canSeePhone ? '*' : ''}</Label>
               <Input
                 id="phone"
+                type={canSeePhone ? 'text' : 'password'}
                 value={formData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
-                placeholder="10 digit phone"
+                placeholder={canSeePhone ? '10 digit phone' : (isEditing ? 'Leave empty to keep unchanged' : '10 digit phone')}
               />
             </div>
           </div>

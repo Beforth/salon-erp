@@ -9,5 +9,9 @@ export const cashService = {
 
   recordBankDeposit: (data) => api.post('/cash/deposits', data),
 
+  getDeposits: (params) => api.get('/cash/deposits', { params }),
+
+  updateDeposit: (id, data) => api.put(`/cash/deposits/${id}`, data),
+
   getCashHistory: (params) => api.get('/cash/history', { params }),
 }

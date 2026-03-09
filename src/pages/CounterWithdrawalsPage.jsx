@@ -13,6 +13,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { counterWithdrawalService } from '@/services/savingsPot.service'
 import { branchService } from '@/services/branch.service'
 import CounterWithdrawalModal from '@/components/modals/CounterWithdrawalModal'
+import { BranchColorDot } from '@/components/ui/branch-color-dot'
 
 export default function CounterWithdrawalsPage() {
   const { user } = useSelector((state) => state.auth)
@@ -135,7 +136,12 @@ export default function CounterWithdrawalsPage() {
                       <TableCell>{formatDate(item.withdraw_date)}</TableCell>
                       <TableCell className="font-medium">{item.person_name}</TableCell>
                       <TableCell className="text-gray-500">{item.reason || '—'}</TableCell>
-                      <TableCell className="text-sm">{item.branch_name}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <BranchColorDot color={item.branch_color_code} />
+                          {item.branch_name}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right font-semibold">{formatCurrency(item.amount)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">

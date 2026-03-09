@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { reportsService } from '@/services/reports.service'
 import LowStockAlertsCard from '@/components/dashboard/LowStockAlertsCard'
+import { BranchColorDot } from '@/components/ui/branch-color-dot'
 
 function OwnerDashboard() {
   const { user } = useSelector((state) => state.auth)
@@ -229,7 +230,10 @@ function OwnerDashboard() {
                       <Building2 className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{branch.name}</p>
+                      <p className="font-medium text-gray-900 flex items-center gap-1.5">
+                        <BranchColorDot color={branch.color_code} />
+                        {branch.name}
+                      </p>
                       <p className="text-sm text-gray-500">
                         {formatNumber(branch.billCount)} bills this month
                       </p>

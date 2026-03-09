@@ -30,6 +30,7 @@ import {
   Truck,
   PackagePlus,
   Smartphone,
+  Building,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
@@ -127,6 +128,7 @@ const getNavItemsByRole = (role) => {
         { title: 'Cash Drawer', href: '/cash-reconciliation', icon: Calculator },
         { title: 'Expenses', href: '/expenses', icon: Wallet },
         { title: 'UPI Accounts', href: '/upi-accounts', icon: Smartphone },
+        { title: 'Bank Receipts', href: '/bank-deposits', icon: Building },
       ],
     },
     {
@@ -167,7 +169,7 @@ function Sidebar() {
   // Auto-expand groups if current path matches
   const isCatalogPath = location.pathname.startsWith('/services') || location.pathname.startsWith('/packages')
   const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products') || location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/purchase-batches')
-  const isFinancePath = location.pathname.startsWith('/savings-pots') || location.pathname.startsWith('/counter-withdrawals') || location.pathname.startsWith('/cash-reconciliation') || location.pathname.startsWith('/expenses') || location.pathname.startsWith('/upi-accounts')
+  const isFinancePath = location.pathname.startsWith('/savings-pots') || location.pathname.startsWith('/counter-withdrawals') || location.pathname.startsWith('/cash-reconciliation') || location.pathname.startsWith('/expenses') || location.pathname.startsWith('/upi-accounts') || location.pathname.startsWith('/bank-deposits')
   const [expandedGroups, setExpandedGroups] = useState({
     ...(isCatalogPath ? { Catalog: true } : {}),
     ...(isInventoryPath ? { Inventory: true } : {}),
