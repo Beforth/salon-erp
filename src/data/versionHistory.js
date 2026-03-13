@@ -1,6 +1,66 @@
-export const CURRENT_VERSION = 'v2.2.0'
+export const CURRENT_VERSION = 'v2.3.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.3.0',
+    date: 'Mar 2026',
+    title: 'Savings Pot Persons, Cash Drawer & Setup Guide',
+    highlights: [
+      'Savings Pot person management with grouped accordion view',
+      'Cash drawer overhaul with opening balance carry-forward',
+      '"Other" text fields for expense category & payment mode',
+      'Setup checklist in Settings for system prerequisites',
+      'Bill number column in Staff Performance services-by-time',
+      'Employee removal on billing page packages',
+    ],
+    details: [
+      {
+        section: 'Savings Pots',
+        items: [
+          'Person management — create, edit, delete persons who own savings pots (branch-scoped)',
+          'Grouped accordion view — persons as collapsible sections, each showing their pots with totals',
+          'Person-scoped deposits — select person in deposit modal, only their pots shown for allocation',
+          'Branch auto-inferred from person when creating a new pot — no separate branch dropdown needed',
+          'Payment mode on deposits — track cash, card, UPI, online, or other (only cash affects drawer)',
+        ],
+      },
+      {
+        section: 'Cash Drawer',
+        items: [
+          'Opening balance carry-forward — uses last reconciliation actual cash, or branch starting balance, or zero',
+          'Cash reconciliation records — upsert per branch per date, replaces old CashSource approach',
+          'Starting cash balance — owner sets once per branch as the initial seed value',
+          'Dashboard cash status — per-branch cash drawer overview on Owner Dashboard',
+          'Savings pot cash deposits now subtracted from expected cash in daily summary',
+        ],
+      },
+      {
+        section: 'Expenses',
+        items: [
+          '"Other" category text box — specify custom category name when expense category is "Others"',
+          '"Other" payment mode text box — specify custom payment method when mode is "other"',
+          'Both fields displayed inline in the expenses list and included in expense records',
+        ],
+      },
+      {
+        section: 'Settings & Setup',
+        items: [
+          'Setup Guide tab in Settings — checklist of prerequisites to make the system work correctly',
+          'Progress bar showing completion status across 9 setup items',
+          'Three tiers: Essential (branches, employees, services), Recommended (chairs, business info, cash balance), Optional (UPI, categories, savings persons)',
+          'Direct links to relevant pages for each incomplete setup item',
+          'Counter Withdrawals and Bank Receipts hidden from sidebar navigation (data preserved)',
+        ],
+      },
+      {
+        section: 'Billing & Staff',
+        items: [
+          'Bill number column in Staff Performance services-by-time table and CSV export',
+          'Employee removal buttons on package service slots in billing page (add and remove employees)',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.2.0',
     date: 'Mar 2026',

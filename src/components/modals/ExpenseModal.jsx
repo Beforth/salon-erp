@@ -45,6 +45,8 @@ const initialFormData = {
   vendor_name: '',
   description: '',
   notes: '',
+  other_category_text: '',
+  other_payment_mode_text: '',
 }
 
 function ExpenseModal({ open, onOpenChange, expense = null }) {
@@ -83,6 +85,8 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
   // Detect Staff Advance category
   const selectedCategory = categories.find((c) => c.id === formData.category_id)
   const isStaffRelated = selectedCategory?.name === 'Staff Advance' || selectedCategory?.name === 'Staff Salary'
+  const isOtherCategory = ['other', 'others'].includes(selectedCategory?.name?.toLowerCase())
+  const isOtherPaymentMode = formData.payment_mode === 'other'
 
   // Fetch employees when Staff Advance selected
   const branchIdForEmployees = formData.branch_id || user?.branchId
@@ -108,6 +112,8 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
         vendor_name: expense.vendor_name || '',
         description: expense.description || '',
         notes: expense.notes || '',
+        other_category_text: expense.other_category_text || '',
+        other_payment_mode_text: expense.other_payment_mode_text || '',
       })
     } else {
       setFormData({
@@ -131,6 +137,20 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       setFormData((prev) => ({ ...prev, employee_id: '' }))
     }
   }, [isStaffRelated])
+
+  // Clear other category text when category changes away from "Other"
+  useEffect(() => {
+    if (!isOtherCategory && formData.other_category_text) {
+      setFormData((prev) => ({ ...prev, other_category_text: '' }))
+    }
+  }, [isOtherCategory])
+
+  // Clear other payment mode text when mode changes away from "other"
+  useEffect(() => {
+    if (!isOtherPaymentMode && formData.other_payment_mode_text) {
+      setFormData((prev) => ({ ...prev, other_payment_mode_text: '' }))
+    }
+  }, [isOtherPaymentMode])
 
   const createMutation = useMutation({
     mutationFn: expenseService.createExpense,
@@ -204,6 +224,8 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       vendor_name: formData.vendor_name.trim() || null,
       description: formData.description.trim() || null,
       notes: formData.notes.trim() || null,
+      other_category_text: formData.other_category_text.trim() || null,
+      other_payment_mode_text: formData.other_payment_mode_text.trim() || null,
     }
 
     if (isEditing) {
@@ -284,6 +306,20 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
             </div>
           </div>
 
+          {/* Other Category Text */}
+          {isOtherCategory && (
+            <div className="space-y-2">
+              <Label htmlFor="exp-other-cat">Specify Category *</Label>
+              <Input
+                id="exp-other-cat"
+                value={formData.other_category_text}
+                onChange={(e) => handleChange('other_category_text', e.target.value)}
+                placeholder="Enter the category name"
+                maxLength={200}
+              />
+            </div>
+          )}
+
           {/* Date + Payment Mode */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -314,6 +350,20 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
               </Select>
             </div>
           </div>
+
+          {/* Other Payment Mode Text */}
+          {isOtherPaymentMode && (
+            <div className="space-y-2">
+              <Label htmlFor="exp-other-mode">Specify Payment Mode *</Label>
+              <Input
+                id="exp-other-mode"
+                value={formData.other_payment_mode_text}
+                onChange={(e) => handleChange('other_payment_mode_text', e.target.value)}
+                placeholder="Enter the payment mode"
+                maxLength={200}
+              />
+            </div>
+          )}
 
           {/* UPI Account (only when payment mode is UPI) */}
           {isUpi && (

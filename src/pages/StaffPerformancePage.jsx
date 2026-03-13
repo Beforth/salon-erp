@@ -192,7 +192,7 @@ function StaffPerformancePage() {
         if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
         return s
       }
-      const header = ['Service', 'Type', 'Time', ...empList.map((e) => e.employee_name)]
+      const header = ['Service', 'Type', 'Time', 'Bill #', ...empList.map((e) => e.employee_name)]
       const csvRows = [header.map(escapeCsv).join(',')]
       for (const row of rows) {
         const amounts = row.amounts || {}
@@ -200,6 +200,7 @@ function StaffPerformancePage() {
           escapeCsv(row.service_name),
           escapeCsv(row.item_type || 'service'),
           escapeCsv(row.time),
+          escapeCsv(row.bill_number || row.book_number || ''),
           ...empList.map((emp) => escapeCsv(amounts[emp.employee_id] ?? '')),
         ].join(','))
       }
@@ -429,6 +430,9 @@ function StaffPerformancePage() {
                         <TableHead className="w-24 min-w-[6rem] font-mono whitespace-nowrap sticky left-[160px] z-10 bg-white border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                           Time
                         </TableHead>
+                        <TableHead className="min-w-[80px] whitespace-nowrap">
+                          Bill #
+                        </TableHead>
                       {employees.map((emp) => (
                         <TableHead
                           key={emp.employee_id}
@@ -473,6 +477,9 @@ function StaffPerformancePage() {
                         </TableCell>
                         <TableCell className={`font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
                           {row.time}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {row.bill_number || row.book_number || '—'}
                         </TableCell>
                         {employees.map((emp) => (
                           <TableCell key={emp.employee_id} className="text-right">

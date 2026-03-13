@@ -1,32 +1,65 @@
-import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency } from '@/lib/utils'
 import { savingsPotService } from '@/services/savingsPot.service'
 
-export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
+export default function SavingsPotDepositModal({ open, onOpenChange, allPots, persons, personId: initialPersonId, personName: initialPersonName }) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState({
     total_amount: '',
     person_name: '',
+    person_id: '',
     date: new Date().toISOString().split('T')[0],
     divide_equally: true,
+    payment_mode: 'cash',
   })
   const [allocations, setAllocations] = useState([])
 
+  // When modal opens, set person from props if provided
   useEffect(() => {
-    if (open && pots.length > 0) {
-      setAllocations(pots.map((p) => ({ savings_pot_id: p.pot_id, name: p.name, amount: '' })))
+    if (open) {
+      setFormData(prev => ({
+        ...prev,
+        total_amount: '',
+        person_id: initialPersonId || '',
+        person_name: initialPersonName || '',
+        date: new Date().toISOString().split('T')[0],
+        divide_equally: true,
+        payment_mode: 'cash',
+      }))
     }
-  }, [open, pots])
+  }, [open, initialPersonId, initialPersonName])
 
-  const equalShare = formData.total_amount && pots.length > 0
-    ? Math.round((Number(formData.total_amount) / pots.length) * 100) / 100
+  // Filter pots by selected person
+  const filteredPots = useMemo(() => {
+    if (!formData.person_id) return []
+    return (allPots || []).filter((p) => p.person_id === formData.person_id && p.is_active)
+  }, [allPots, formData.person_id])
+
+  // Update allocations when filtered pots change
+  useEffect(() => {
+    setAllocations(filteredPots.map((p) => ({ savings_pot_id: p.pot_id, name: p.name, amount: '' })))
+  }, [filteredPots])
+
+  // When person changes via dropdown, auto-fill person_name
+  const handlePersonChange = (personIdVal) => {
+    const person = (persons || []).find((p) => p.id === personIdVal)
+    setFormData(prev => ({
+      ...prev,
+      person_id: personIdVal,
+      person_name: person?.name || '',
+    }))
+  }
+
+  const equalShare = formData.total_amount && filteredPots.length > 0
+    ? Math.round((Number(formData.total_amount) / filteredPots.length) * 100) / 100
     : 0
 
   const allocationsTotal = allocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0)
@@ -36,6 +69,7 @@ export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
     onSuccess: () => {
       toast.success('Deposit recorded')
       queryClient.invalidateQueries({ queryKey: ['savings-pots'] })
+      queryClient.invalidateQueries({ queryKey: ['savings-pot-persons'] })
       onOpenChange(false)
     },
     onError: (err) => toast.error(err.response?.data?.error?.message || 'Failed'),
@@ -44,7 +78,9 @@ export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
   const handleSubmit = () => {
     const amount = Number(formData.total_amount)
     if (!amount || amount <= 0) return toast.error('Enter a valid amount')
+    if (!formData.person_id) return toast.error('Please select a person')
     if (!formData.person_name.trim()) return toast.error('Person name is required')
+    if (filteredPots.length === 0) return toast.error('No active pots for this person')
 
     if (!formData.divide_equally) {
       if (Math.abs(allocationsTotal - amount) > 0.01) {
@@ -57,6 +93,8 @@ export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
       person_name: formData.person_name,
       date: formData.date,
       divide_equally: formData.divide_equally,
+      payment_mode: formData.payment_mode,
+      person_id: formData.person_id,
     }
     if (!formData.divide_equally) {
       payload.allocations = allocations
@@ -73,9 +111,28 @@ export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
           <DialogTitle>Deposit to Savings Pots</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          {/* Person Selection */}
+          <div>
+            <Label>Person *</Label>
+            <Select
+              value={formData.person_id}
+              onValueChange={handlePersonChange}
+              disabled={!!initialPersonId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select person" />
+              </SelectTrigger>
+              <SelectContent>
+                {(persons || []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Total Amount</Label>
+              <Label>Total Amount *</Label>
               <Input
                 type="number"
                 value={formData.total_amount}
@@ -84,22 +141,30 @@ export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
               />
             </div>
             <div>
-              <Label>Person Name</Label>
+              <Label>Date</Label>
               <Input
-                value={formData.person_name}
-                onChange={(e) => setFormData({ ...formData, person_name: e.target.value })}
-                placeholder="Ramesh"
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               />
             </div>
           </div>
+
           <div>
-            <Label>Date</Label>
-            <Input
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-            />
+            <Label>Payment Mode</Label>
+            <select
+              className="w-full h-10 px-3 border rounded-md text-sm"
+              value={formData.payment_mode}
+              onChange={(e) => setFormData({ ...formData, payment_mode: e.target.value })}
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="upi">UPI</option>
+              <option value="online">Online</option>
+              <option value="other">Other</option>
+            </select>
           </div>
+
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -112,7 +177,7 @@ export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
           </div>
 
           {/* Allocation Preview */}
-          {pots.length > 0 && (
+          {formData.person_id && filteredPots.length > 0 && (
             <div className="border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
@@ -153,10 +218,14 @@ export default function SavingsPotDepositModal({ open, onOpenChange, pots }) {
               )}
             </div>
           )}
+
+          {formData.person_id && filteredPots.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-2">No active pots for this person.</p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={mutation.isPending}>
+          <Button onClick={handleSubmit} disabled={mutation.isPending || filteredPots.length === 0}>
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Deposit
           </Button>

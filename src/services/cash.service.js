@@ -14,4 +14,8 @@ export const cashService = {
   updateDeposit: (id, data) => api.put(`/cash/deposits/${id}`, data),
 
   getCashHistory: (params) => api.get('/cash/history', { params }),
+
+  setStartingBalance: (data) => api.post('/cash/starting-balance', data),
+
+  getDashboardStatus: () => api.get('/cash/dashboard-status'),
 }

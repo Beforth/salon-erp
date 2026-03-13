@@ -125,11 +125,9 @@ const getNavItemsByRole = (role) => {
       roles: ['owner', 'developer', 'manager', 'cashier'],
       children: [
         { title: 'Savings Pots', href: '/savings-pots', icon: PiggyBank },
-        { title: 'Counter Withdrawals', href: '/counter-withdrawals', icon: ArrowUpFromLine },
         { title: 'Cash Drawer', href: '/cash-reconciliation', icon: Calculator },
         { title: 'Expenses', href: '/expenses', icon: Wallet },
         { title: 'UPI Accounts', href: '/upi-accounts', icon: Smartphone },
-        { title: 'Bank Receipts', href: '/bank-deposits', icon: Building },
       ],
     },
     {

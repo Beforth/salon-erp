@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { savingsPotService } from '@/services/savingsPot.service'
-import { branchService } from '@/services/branch.service'
 
 export default function SavingsPotModal({ open, onOpenChange, editPot }) {
   const queryClient = useQueryClient()
@@ -18,14 +17,16 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
     target_amount: '',
     duration_months: '',
     start_date: '',
-    branch_id: '',
+    person_id: '',
   })
 
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => branchService.getBranches(),
+  const { data: personsData } = useQuery({
+    queryKey: ['savings-pot-persons'],
+    queryFn: () => savingsPotService.getPersons(),
   })
-  const branches = branchesData?.data || []
+  const persons = personsData?.data || []
+
+  const selectedPerson = persons.find((p) => p.id === formData.person_id)
 
   useEffect(() => {
     if (editPot) {
@@ -35,10 +36,10 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
         target_amount: editPot.target_amount || '',
         duration_months: editPot.duration_months || '',
         start_date: editPot.start_date ? editPot.start_date.split('T')[0] : '',
-        branch_id: editPot.branch_id || '',
+        person_id: editPot.person_id || '',
       })
     } else {
-      setFormData({ name: '', account_number: '', target_amount: '', duration_months: '', start_date: '', branch_id: '' })
+      setFormData({ name: '', account_number: '', target_amount: '', duration_months: '', start_date: '', person_id: '' })
     }
   }, [editPot, open])
 
@@ -63,11 +64,16 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
   const handleSubmit = () => {
     if (!formData.name.trim()) return toast.error('Name is required')
     if (!editPot && !formData.account_number.trim()) return toast.error('Account number is required')
-    mutation.mutate({
-      ...formData,
+    if (!editPot && !formData.person_id) return toast.error('Person is required')
+    const payload = {
+      name: formData.name,
+      account_number: formData.account_number,
       target_amount: formData.target_amount ? Number(formData.target_amount) : undefined,
       duration_months: formData.duration_months ? Number(formData.duration_months) : undefined,
-    })
+      start_date: formData.start_date,
+      person_id: formData.person_id || null,
+    }
+    mutation.mutate(payload)
   }
 
   return (
@@ -125,17 +131,20 @@ export default function SavingsPotModal({ open, onOpenChange, editPot }) {
             <p className="text-sm text-gray-500">Maturity Date: <span className="font-medium">{getMaturityDate()}</span></p>
           )}
           <div>
-            <Label>Branch</Label>
-            <Select value={formData.branch_id} onValueChange={(val) => setFormData({ ...formData, branch_id: val })}>
+            <Label>Person {!editPot && '*'}</Label>
+            <Select value={formData.person_id} onValueChange={(val) => setFormData({ ...formData, person_id: val })}>
               <SelectTrigger>
-                <SelectValue placeholder="Select branch" />
+                <SelectValue placeholder="Select person" />
               </SelectTrigger>
               <SelectContent>
-                {branches.map((b) => (
-                  <SelectItem key={b.branch_id} value={b.branch_id}>{b.name}</SelectItem>
+                {persons.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}{p.branch_name ? ` (${p.branch_name})` : ''}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {selectedPerson?.branch_name && (
+              <p className="text-xs text-gray-500 mt-1">Branch: {selectedPerson.branch_name}</p>
+            )}
           </div>
         </div>
         <DialogFooter>

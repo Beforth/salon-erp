@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import { settingsService } from '@/services/settings.service'
 import { incentiveService } from '@/services/incentive.service'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -31,18 +32,219 @@ import {
   Plus,
   Pencil,
   Trash2,
+  ListChecks,
+  CheckCircle2,
+  Circle,
+  Info,
+  ArrowRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import IncentiveConfigModal from '@/components/modals/IncentiveConfigModal'
 
+function SetupChecklist({ status, navigate, setActiveTab }) {
+  const items = [
+    // Essential
+    {
+      section: 'Essential',
+      key: 'branches',
+      label: 'Branches',
+      done: (status.branches?.count || 0) > 0,
+      doneText: `${status.branches?.count || 0} branch${(status.branches?.count || 0) !== 1 ? 'es' : ''} configured`,
+      pendingText: 'No branches configured',
+      link: () => navigate('/branches'),
+    },
+    {
+      section: 'Essential',
+      key: 'employees',
+      label: 'Employees',
+      done: (status.employees?.count || 0) > 0,
+      doneText: `${status.employees?.count || 0} employee${(status.employees?.count || 0) !== 1 ? 's' : ''} active`,
+      pendingText: 'No employees added',
+      link: () => navigate('/staff'),
+    },
+    {
+      section: 'Essential',
+      key: 'services',
+      label: 'Services',
+      done: ((status.services?.count || 0) + (status.packages?.count || 0)) > 0,
+      doneText: `${status.services?.count || 0} service${(status.services?.count || 0) !== 1 ? 's' : ''}, ${status.packages?.count || 0} package${(status.packages?.count || 0) !== 1 ? 's' : ''}`,
+      pendingText: 'No services or packages added',
+      link: () => navigate('/services'),
+    },
+    // Recommended
+    {
+      section: 'Recommended',
+      key: 'chairs',
+      label: 'Chairs',
+      done: (status.chairs?.count || 0) > 0,
+      doneText: `${status.chairs?.count || 0} chair${(status.chairs?.count || 0) !== 1 ? 's' : ''} set up`,
+      pendingText: 'No chairs configured',
+      link: () => navigate('/chairs'),
+    },
+    {
+      section: 'Recommended',
+      key: 'business_info',
+      label: 'Business Info',
+      done: !!status.business_info_complete,
+      doneText: 'Name & address configured',
+      pendingText: 'Not configured',
+      link: () => setActiveTab('business'),
+    },
+    {
+      section: 'Recommended',
+      key: 'starting_cash',
+      label: 'Starting Cash Balance',
+      done: (() => {
+        const details = status.branches?.details || []
+        return details.length > 0 && details.every(b => b.has_starting_cash_balance)
+      })(),
+      doneText: 'Set for all branches',
+      pendingText: (() => {
+        const details = status.branches?.details || []
+        const missing = details.filter(b => !b.has_starting_cash_balance).length
+        if (missing > 0) return `Not set for ${missing} branch${missing !== 1 ? 'es' : ''}`
+        return 'Not configured'
+      })(),
+      link: () => navigate('/cash-reconciliation'),
+    },
+    // Optional
+    {
+      section: 'Optional',
+      key: 'upi_accounts',
+      label: 'UPI Accounts',
+      done: (status.upi_accounts?.count || 0) > 0,
+      doneText: `${status.upi_accounts?.count || 0} UPI account${(status.upi_accounts?.count || 0) !== 1 ? 's' : ''} configured`,
+      pendingText: 'Not configured',
+      warningText: 'All payments will default to cash until UPI accounts are configured',
+      link: () => navigate('/upi-accounts'),
+    },
+    {
+      section: 'Optional',
+      key: 'expense_categories',
+      label: 'Expense Categories',
+      done: (status.expense_categories?.count || 0) > 0,
+      doneText: `${status.expense_categories?.count || 0} categor${(status.expense_categories?.count || 0) !== 1 ? 'ies' : 'y'} configured`,
+      pendingText: 'Needed to categorize expenses',
+      link: () => navigate('/expenses'),
+    },
+    {
+      section: 'Optional',
+      key: 'savings_pot_persons',
+      label: 'Savings Pot Persons',
+      done: (status.savings_pot_persons?.count || 0) > 0,
+      doneText: `${status.savings_pot_persons?.count || 0} person${(status.savings_pot_persons?.count || 0) !== 1 ? 's' : ''} added`,
+      pendingText: 'Only needed if using savings pots',
+      link: () => navigate('/savings-pots'),
+    },
+  ]
+
+  const completedCount = items.filter(i => i.done).length
+  const totalCount = items.length
+  const progressPercent = Math.round((completedCount / totalCount) * 100)
+  const progressColor = completedCount < 3 ? 'bg-red-500' : completedCount < 6 ? 'bg-amber-500' : 'bg-green-500'
+
+  const sections = [
+    { name: 'Essential', pendingColor: 'text-red-500', pendingBg: 'bg-red-50' },
+    { name: 'Recommended', pendingColor: 'text-amber-500', pendingBg: 'bg-amber-50' },
+    { name: 'Optional', pendingColor: 'text-blue-500', pendingBg: 'bg-blue-50' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Progress bar */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">
+              {completedCount} of {totalCount} steps complete
+            </span>
+            <span className="text-sm text-gray-500">{progressPercent}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div
+              className={`h-3 rounded-full transition-all duration-500 ${progressColor}`}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sections */}
+      {sections.map(section => {
+        const sectionItems = items.filter(i => i.section === section.name)
+        return (
+          <Card key={section.name}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">{section.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {sectionItems.map(item => {
+                const iconClass = item.done
+                  ? 'text-green-500'
+                  : section.name === 'Essential'
+                    ? 'text-red-500'
+                    : section.name === 'Recommended'
+                      ? 'text-amber-500'
+                      : 'text-blue-500'
+
+                const StatusIcon = item.done
+                  ? CheckCircle2
+                  : section.name === 'Optional'
+                    ? Info
+                    : Circle
+
+                return (
+                  <div
+                    key={item.key}
+                    className={`flex items-center justify-between p-3 rounded-lg ${
+                      item.done ? 'bg-green-50/50' : section.pendingBg
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <StatusIcon className={`h-5 w-5 flex-shrink-0 ${iconClass}`} />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900">{item.label}</p>
+                        <p className="text-sm text-gray-500">
+                          {item.done ? item.doneText : item.pendingText}
+                        </p>
+                        {!item.done && item.warningText && (
+                          <p className="text-sm text-amber-600 mt-0.5">{item.warningText}</p>
+                        )}
+                      </div>
+                    </div>
+                    {!item.done && (
+                      <div className="flex-shrink-0 ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={item.link}
+                          className="whitespace-nowrap"
+                        >
+                          Set up
+                          <ArrowRight className="h-3 w-3 ml-1" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
 function SettingsPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
 
   const [formData, setFormData] = useState({})
   const [hasChanges, setHasChanges] = useState(false)
-  const [activeTab, setActiveTab] = useState('business')
+  const [activeTab, setActiveTab] = useState('setup')
 
   // Incentive state
   const [incentiveModalOpen, setIncentiveModalOpen] = useState(false)
@@ -53,6 +255,14 @@ function SettingsPage() {
     queryKey: ['settings'],
     queryFn: () => settingsService.getSettings(),
   })
+
+  // Fetch setup status
+  const { data: setupStatusData, isLoading: setupLoading } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: () => settingsService.getSetupStatus(),
+    enabled: activeTab === 'setup',
+  })
+  const setupStatus = setupStatusData?.data || null
 
   const settings = data?.data || {}
 
@@ -190,7 +400,11 @@ function SettingsPage() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
+          <TabsTrigger value="setup" className="flex items-center gap-2">
+            <ListChecks className="h-4 w-4" />
+            <span className="hidden sm:inline">Setup</span>
+          </TabsTrigger>
           <TabsTrigger value="business" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Business</span>
@@ -216,6 +430,27 @@ function SettingsPage() {
             <span className="hidden sm:inline">Incentives</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* Setup Checklist */}
+        <TabsContent value="setup">
+          {setupLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : setupStatus ? (
+            <SetupChecklist
+              status={setupStatus}
+              navigate={navigate}
+              setActiveTab={setActiveTab}
+            />
+          ) : (
+            <Card>
+              <CardContent className="py-10 text-center text-gray-500">
+                Unable to load setup status. Please try again.
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         {/* Business Settings */}
         <TabsContent value="business">

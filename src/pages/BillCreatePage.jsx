@@ -1254,33 +1254,41 @@ function BillCreatePage() {
                             <span className="text-[10px] text-gray-400 shrink-0">x{ps.quantity} {formatCurrency(ps.service_price)}</span>
                             <div className="flex items-center gap-1 ml-auto flex-wrap">
                               {slots.map((_, slotIdx) => (
-                                <select
-                                  key={slotIdx}
-                                  className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
-                                  value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                  onChange={(e) => {
-                                    const current = [...(componentEmployees[idx] || [])]
-                                    while (current.length <= slotIdx) current.push('')
-                                    current[slotIdx] = e.target.value || ''
-                                    // Remove empty trailing slots
-                                    if (!e.target.value && current.length > 1) {
-                                      const next = current.filter((_, i) => i !== slotIdx)
-                                      setComponentEmployees((prev) => ({ ...prev, [idx]: next }))
-                                    } else {
+                                <div key={slotIdx} className="flex items-center gap-0.5">
+                                  <select
+                                    className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
+                                    value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                    onChange={(e) => {
+                                      const current = [...(componentEmployees[idx] || [])]
+                                      while (current.length <= slotIdx) current.push('')
+                                      current[slotIdx] = e.target.value || ''
                                       setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                    }
-                                  }}
-                                >
-                                  <option value="">Staff...</option>
-                                  {employees.filter((emp) => {
-                                    const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
-                                    return !others.includes(String(emp.employee_id))
-                                  }).map((emp) => (
-                                    <option key={emp.employee_id} value={emp.employee_id}>
-                                      {emp.full_name}
-                                    </option>
-                                  ))}
-                                </select>
+                                    }}
+                                  >
+                                    <option value="">Staff...</option>
+                                    {employees.filter((emp) => {
+                                      const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                      return !others.includes(String(emp.employee_id))
+                                    }).map((emp) => (
+                                      <option key={emp.employee_id} value={emp.employee_id}>
+                                        {emp.full_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {slots.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="h-5 w-5 flex items-center justify-center rounded text-red-400 hover:text-red-600 shrink-0"
+                                      title="Remove employee"
+                                      onClick={() => {
+                                        const current = (componentEmployees[idx] || []).filter((_, i) => i !== slotIdx)
+                                        setComponentEmployees((prev) => ({ ...prev, [idx]: current.length ? current : [''] }))
+                                      }}
+                                    >
+                                      <Trash2 className="h-2.5 w-2.5" />
+                                    </button>
+                                  )}
+                                </div>
                               ))}
                               <button
                                 type="button"
@@ -1343,32 +1351,41 @@ function BillCreatePage() {
                                   {chosen && (
                                     <>
                                       {slots.map((_, slotIdx) => (
-                                        <select
-                                          key={slotIdx}
-                                          className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
-                                          value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                          onChange={(e) => {
-                                            const current = [...(componentEmployees[idx] || [])]
-                                            while (current.length <= slotIdx) current.push('')
-                                            current[slotIdx] = e.target.value || ''
-                                            if (!e.target.value && current.length > 1) {
-                                              const next = current.filter((_, i) => i !== slotIdx)
-                                              setComponentEmployees((prev) => ({ ...prev, [idx]: next }))
-                                            } else {
+                                        <div key={slotIdx} className="flex items-center gap-0.5">
+                                          <select
+                                            className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
+                                            value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                            onChange={(e) => {
+                                              const current = [...(componentEmployees[idx] || [])]
+                                              while (current.length <= slotIdx) current.push('')
+                                              current[slotIdx] = e.target.value || ''
                                               setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                            }
-                                          }}
-                                        >
-                                          <option value="">Staff...</option>
-                                          {employees.filter((emp) => {
-                                            const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
-                                            return !others.includes(String(emp.employee_id))
-                                          }).map((emp) => (
-                                            <option key={emp.employee_id} value={emp.employee_id}>
-                                              {emp.full_name}
-                                            </option>
-                                          ))}
-                                        </select>
+                                            }}
+                                          >
+                                            <option value="">Staff...</option>
+                                            {employees.filter((emp) => {
+                                              const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                              return !others.includes(String(emp.employee_id))
+                                            }).map((emp) => (
+                                              <option key={emp.employee_id} value={emp.employee_id}>
+                                                {emp.full_name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          {slots.length > 1 && (
+                                            <button
+                                              type="button"
+                                              className="h-5 w-5 flex items-center justify-center rounded text-red-400 hover:text-red-600 shrink-0"
+                                              title="Remove employee"
+                                              onClick={() => {
+                                                const current = (componentEmployees[idx] || []).filter((_, i) => i !== slotIdx)
+                                                setComponentEmployees((prev) => ({ ...prev, [idx]: current.length ? current : [''] }))
+                                              }}
+                                            >
+                                              <Trash2 className="h-2.5 w-2.5" />
+                                            </button>
+                                          )}
+                                        </div>
                                       ))}
                                       <button
                                         type="button"
@@ -1407,34 +1424,46 @@ function BillCreatePage() {
                     !(selectedItem.service_groups?.length > 0) && (
                       <div className="flex items-center gap-2 flex-wrap text-sm">
                         <span className="text-xs text-gray-500 shrink-0">Staff:</span>
-                        {((componentEmployees[0] || []).length ? componentEmployees[0] : ['']).map((_, slotIdx) => (
-                          <select
-                            key={slotIdx}
-                            className="h-7 px-1 text-xs border rounded min-w-[90px]"
-                            value={(componentEmployees[0] || [])[slotIdx] || ''}
-                            onChange={(e) => {
-                              const current = [...(componentEmployees[0] || [])]
-                              while (current.length <= slotIdx) current.push('')
-                              current[slotIdx] = e.target.value || ''
-                              if (!e.target.value && current.length > 1) {
-                                const next = current.filter((_, i) => i !== slotIdx)
-                                setComponentEmployees((prev) => ({ ...prev, [0]: next }))
-                              } else {
-                                setComponentEmployees((prev) => ({ ...prev, [0]: current }))
-                              }
-                            }}
-                          >
-                            <option value="">Staff...</option>
-                            {employees.filter((emp) => {
-                              const others = (componentEmployees[0] || []).filter((id, i) => i !== slotIdx && id).map(String)
-                              return !others.includes(String(emp.employee_id))
-                            }).map((emp) => (
-                              <option key={emp.employee_id} value={emp.employee_id}>
-                                {emp.full_name}
-                              </option>
-                            ))}
-                          </select>
-                        ))}
+                        {((componentEmployees[0] || []).length ? componentEmployees[0] : ['']).map((_, slotIdx) => {
+                          const allSlots = (componentEmployees[0] || []).length ? componentEmployees[0] : ['']
+                          return (
+                            <div key={slotIdx} className="flex items-center gap-0.5">
+                              <select
+                                className="h-7 px-1 text-xs border rounded min-w-[90px]"
+                                value={(componentEmployees[0] || [])[slotIdx] || ''}
+                                onChange={(e) => {
+                                  const current = [...(componentEmployees[0] || [])]
+                                  while (current.length <= slotIdx) current.push('')
+                                  current[slotIdx] = e.target.value || ''
+                                  setComponentEmployees((prev) => ({ ...prev, [0]: current }))
+                                }}
+                              >
+                                <option value="">Staff...</option>
+                                {employees.filter((emp) => {
+                                  const others = (componentEmployees[0] || []).filter((id, i) => i !== slotIdx && id).map(String)
+                                  return !others.includes(String(emp.employee_id))
+                                }).map((emp) => (
+                                  <option key={emp.employee_id} value={emp.employee_id}>
+                                    {emp.full_name}
+                                  </option>
+                                ))}
+                              </select>
+                              {allSlots.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="h-5 w-5 flex items-center justify-center rounded text-red-400 hover:text-red-600 shrink-0"
+                                  title="Remove employee"
+                                  onClick={() => {
+                                    const current = (componentEmployees[0] || []).filter((_, i) => i !== slotIdx)
+                                    setComponentEmployees((prev) => ({ ...prev, [0]: current.length ? current : [''] }))
+                                  }}
+                                >
+                                  <Trash2 className="h-2.5 w-2.5" />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
                         <button
                           type="button"
                           className="h-7 w-7 flex items-center justify-center rounded border border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 shrink-0"

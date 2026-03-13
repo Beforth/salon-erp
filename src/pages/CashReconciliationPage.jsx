@@ -244,7 +244,25 @@ function CashReconciliationPage() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className={`grid grid-cols-1 gap-4 ${canSeeRevenue ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
+          <div className={`grid grid-cols-1 gap-4 ${canSeeRevenue ? 'md:grid-cols-5' : 'md:grid-cols-2'}`}>
+            {canSeeRevenue && (
+              <Card className="bg-gray-50 border-gray-200">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-gray-100 rounded-lg">
+                      <Wallet className="h-6 w-6 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Opening Balance</p>
+                      <p className="text-2xl font-bold text-gray-700">
+                        {formatCurrency(summary.opening_balance || 0)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {canSeeRevenue && (
               <Card className="bg-green-50 border-green-200">
                 <CardContent className="pt-6">
@@ -432,6 +450,42 @@ function CashReconciliationPage() {
                       </div>
                       <span className="font-bold text-red-600">
                         -{formatCurrency(summary.cash_expenses)}
+                      </span>
+                    </div>
+                  )}
+
+                  {summary.savings_pot_deposits > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-pink-50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <MinusCircle className="h-5 w-5 text-pink-600" />
+                        <span>Savings Pot Deposits (Cash)</span>
+                      </div>
+                      <span className="font-bold text-pink-600">
+                        -{formatCurrency(summary.savings_pot_deposits)}
+                      </span>
+                    </div>
+                  )}
+
+                  {summary.counter_withdrawals > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <MinusCircle className="h-5 w-5 text-amber-600" />
+                        <span>Counter Withdrawals</span>
+                      </div>
+                      <span className="font-bold text-amber-600">
+                        -{formatCurrency(summary.counter_withdrawals)}
+                      </span>
+                    </div>
+                  )}
+
+                  {summary.opening_balance > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <PlusCircle className="h-5 w-5 text-gray-600" />
+                        <span>Opening Balance</span>
+                      </div>
+                      <span className="font-bold text-gray-600">
+                        +{formatCurrency(summary.opening_balance)}
                       </span>
                     </div>
                   )}

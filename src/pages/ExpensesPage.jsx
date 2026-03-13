@@ -502,6 +502,9 @@ function ExpensesPage() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{expense.category_name}</Badge>
+                          {expense.other_category_text && (
+                            <span className="text-xs text-gray-500 ml-1">({expense.other_category_text})</span>
+                          )}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate">
                           {expense.description || expense.vendor_name || '—'}
@@ -515,6 +518,9 @@ function ExpensesPage() {
                           </Badge>
                           {expense.upi_account_name && (
                             <span className="text-xs text-gray-500 ml-1">({expense.upi_account_name})</span>
+                          )}
+                          {expense.other_payment_mode_text && (
+                            <span className="text-xs text-gray-500 ml-1">({expense.other_payment_mode_text})</span>
                           )}
                         </TableCell>
                         {isOwner && (

@@ -15,4 +15,6 @@ export const settingsService = {
 
   updateBranchFeature: (branchId, featureId, isEnabled) =>
     api.put(`/settings/branch/${branchId}/features/${featureId}`, { is_enabled: isEnabled }),
+
+  getSetupStatus: () => api.get('/settings/setup-status'),
 }

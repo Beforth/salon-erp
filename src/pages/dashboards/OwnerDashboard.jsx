@@ -17,6 +17,7 @@ import {
 import { reportsService } from '@/services/reports.service'
 import LowStockAlertsCard from '@/components/dashboard/LowStockAlertsCard'
 import { BranchColorDot } from '@/components/ui/branch-color-dot'
+import { cashService } from '@/services/cash.service'
 
 function OwnerDashboard() {
   const { user } = useSelector((state) => state.auth)
@@ -24,6 +25,7 @@ function OwnerDashboard() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState(null)
   const [error, setError] = useState(null)
+  const [cashStatus, setCashStatus] = useState(null)
 
   useEffect(() => {
     const fetchDashboardStats = async () => {
@@ -31,6 +33,13 @@ function OwnerDashboard() {
         setLoading(true)
         const response = await reportsService.getDashboardStats()
         setStats(response.data)
+        // Fetch cash status
+        try {
+          const cashResponse = await cashService.getDashboardStatus()
+          setCashStatus(cashResponse.data)
+        } catch (cashErr) {
+          console.error('Failed to fetch cash status:', cashErr)
+        }
       } catch (err) {
         console.error('Failed to fetch dashboard stats:', err)
         setError(err.message)
@@ -298,6 +307,96 @@ function OwnerDashboard() {
                 </p>
                 <p className="text-sm text-gray-600">Services</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cash Drawer Status */}
+      {cashStatus && cashStatus.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Cash Drawer Status</CardTitle>
+                <CardDescription>Today's cash position across all branches</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {cashStatus.map((branch) => {
+                if (branch.error) {
+                  return (
+                    <div key={branch.branch_id} className="p-4 bg-gray-50 rounded-lg">
+                      <p className="font-medium text-gray-900 flex items-center gap-1.5">
+                        <BranchColorDot color={branch.color_code} />
+                        {branch.branch_name}
+                      </p>
+                      <p className="text-sm text-red-500 mt-1">{branch.error}</p>
+                    </div>
+                  )
+                }
+                const isHealthy = branch.expected_cash >= 0
+                return (
+                  <div
+                    key={branch.branch_id}
+                    className={`p-4 rounded-lg border ${
+                      branch.is_reconciled
+                        ? Math.abs(branch.difference) < 1
+                          ? 'bg-green-50 border-green-200'
+                          : branch.difference > 0
+                            ? 'bg-blue-50 border-blue-200'
+                            : 'bg-red-50 border-red-200'
+                        : isHealthy
+                          ? 'bg-gray-50 border-gray-200'
+                          : 'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-medium text-gray-900 flex items-center gap-1.5">
+                        <BranchColorDot color={branch.color_code} />
+                        {branch.branch_name}
+                      </p>
+                      {branch.is_reconciled && (
+                        <Badge variant="success" className="text-xs">Reconciled</Badge>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Opening</p>
+                        <p className="font-semibold">{formatCurrency(branch.opening_balance)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Cash In</p>
+                        <p className="font-semibold text-green-600">{formatCurrency(branch.cash_income)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Cash Out</p>
+                        <p className="font-semibold text-red-600">
+                          {formatCurrency(branch.cash_expenses + branch.bank_deposits + branch.counter_withdrawals + branch.savings_pot_deposits)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Expected</p>
+                        <p className={`font-bold ${isHealthy ? 'text-gray-900' : 'text-red-600'}`}>
+                          {formatCurrency(branch.expected_cash)}
+                        </p>
+                      </div>
+                    </div>
+                    {branch.is_reconciled && (
+                      <div className="mt-2 pt-2 border-t text-sm flex justify-between">
+                        <span className="text-gray-500">Actual / Diff</span>
+                        <span className={`font-semibold ${
+                          Math.abs(branch.difference) < 1 ? 'text-green-600' : branch.difference > 0 ? 'text-blue-600' : 'text-red-600'
+                        }`}>
+                          {formatCurrency(branch.actual_cash)} ({branch.difference >= 0 ? '+' : ''}{formatCurrency(branch.difference)})
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>
