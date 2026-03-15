@@ -9,18 +9,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { formatCurrency } from '@/lib/utils'
 import { savingsPotService } from '@/services/savingsPot.service'
 
+function nowLocal() {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+
 export default function SavingsPotWithdrawModal({ open, onOpenChange, pot }) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState({
     amount: '',
     person_name: '',
     reason: '',
-    date: new Date().toISOString().split('T')[0],
+    date: nowLocal(),
   })
 
   useEffect(() => {
     if (open) {
-      setFormData({ amount: '', person_name: '', reason: '', date: new Date().toISOString().split('T')[0] })
+      setFormData({ amount: '', person_name: '', reason: '', date: nowLocal() })
     }
   }, [open])
 
@@ -99,9 +105,9 @@ export default function SavingsPotWithdrawModal({ open, onOpenChange, pot }) {
             />
           </div>
           <div>
-            <Label>Date</Label>
+            <Label>Date & Time</Label>
             <Input
-              type="date"
+              type="datetime-local"
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
             />

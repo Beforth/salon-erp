@@ -13,6 +13,7 @@ import SavingsPotDepositModal from '@/components/modals/SavingsPotDepositModal'
 import SavingsPotWithdrawModal from '@/components/modals/SavingsPotWithdrawModal'
 import SavingsPotHistoryModal from '@/components/modals/SavingsPotHistoryModal'
 import SavingsPotPersonModal from '@/components/modals/SavingsPotPersonModal'
+import ConfirmDialog from '@/components/modals/ConfirmDialog'
 
 function PotCard({ pot, onWithdraw, onHistory, onEdit, onDelete }) {
   const getProgressPercent = (balance, target) => {
@@ -106,6 +107,8 @@ export default function SavingsPotsPage() {
   const [expandedPersons, setExpandedPersons] = useState({})
   const [depositPersonId, setDepositPersonId] = useState(null)
   const [depositPersonName, setDepositPersonName] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { data: potsData, isLoading: potsLoading } = useQuery({
     queryKey: ['savings-pots', user?.branchId],
@@ -133,6 +136,7 @@ export default function SavingsPotsPage() {
       queryClient.invalidateQueries({ queryKey: ['savings-pot-persons'] })
     },
     onError: (err) => toast.error(err.response?.data?.error?.message || 'Failed to delete'),
+    onSettled: () => { setDeleteConfirmOpen(false); setDeleteTarget(null) },
   })
 
   const deletePersonMutation = useMutation({
@@ -142,17 +146,25 @@ export default function SavingsPotsPage() {
       queryClient.invalidateQueries({ queryKey: ['savings-pot-persons'] })
     },
     onError: (err) => toast.error(err.response?.data?.error?.message || 'Failed to delete'),
+    onSettled: () => { setDeleteConfirmOpen(false); setDeleteTarget(null) },
   })
 
   const handleDeletePot = (pot) => {
-    if (window.confirm(`Delete "${pot.name}"? This cannot be undone.`)) {
-      deletePotMutation.mutate(pot.pot_id)
-    }
+    setDeleteTarget({ type: 'pot', item: pot })
+    setDeleteConfirmOpen(true)
   }
 
   const handleDeletePerson = (person) => {
-    if (window.confirm(`Delete person "${person.name}"?`)) {
-      deletePersonMutation.mutate(person.id)
+    setDeleteTarget({ type: 'person', item: person })
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return
+    if (deleteTarget.type === 'pot') {
+      deletePotMutation.mutate(deleteTarget.item.pot_id)
+    } else {
+      deletePersonMutation.mutate(deleteTarget.item.id)
     }
   }
 
@@ -400,6 +412,26 @@ export default function SavingsPotsPage() {
         open={personModalOpen}
         onOpenChange={(open) => { setPersonModalOpen(open); if (!open) setEditPerson(null) }}
         editPerson={editPerson}
+      />
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={(open) => { setDeleteConfirmOpen(open); if (!open) setDeleteTarget(null) }}
+        title={
+          deleteTarget?.type === 'pot'
+            ? `Delete "${deleteTarget.item.name}"?`
+            : deleteTarget?.type === 'person'
+              ? `Delete person "${deleteTarget?.item.name}"?`
+              : 'Delete?'
+        }
+        description={
+          deleteTarget?.type === 'pot'
+            ? 'This will permanently delete the savings pot along with all its deposit and withdrawal records. This action cannot be undone.'
+            : 'This action cannot be undone.'
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deletePotMutation.isPending || deletePersonMutation.isPending}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   )

@@ -10,13 +10,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCurrency } from '@/lib/utils'
 import { savingsPotService } from '@/services/savingsPot.service'
 
+function nowLocal() {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+
 export default function SavingsPotDepositModal({ open, onOpenChange, allPots, persons, personId: initialPersonId, personName: initialPersonName }) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState({
     total_amount: '',
     person_name: '',
     person_id: '',
-    date: new Date().toISOString().split('T')[0],
+    date: nowLocal(),
     divide_equally: true,
     payment_mode: 'cash',
   })
@@ -30,7 +36,7 @@ export default function SavingsPotDepositModal({ open, onOpenChange, allPots, pe
         total_amount: '',
         person_id: initialPersonId || '',
         person_name: initialPersonName || '',
-        date: new Date().toISOString().split('T')[0],
+        date: nowLocal(),
         divide_equally: true,
         payment_mode: 'cash',
       }))
@@ -141,9 +147,9 @@ export default function SavingsPotDepositModal({ open, onOpenChange, allPots, pe
               />
             </div>
             <div>
-              <Label>Date</Label>
+              <Label>Date & Time</Label>
               <Input
-                type="date"
+                type="datetime-local"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               />

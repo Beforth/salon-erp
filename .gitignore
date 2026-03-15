@@ -39,3 +39,4 @@ coverage/
 # Misc
 *.tsbuildinfo
 .cache/
+vite.config.js

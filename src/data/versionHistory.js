@@ -1,6 +1,36 @@
-export const CURRENT_VERSION = 'v2.3.0'
+export const CURRENT_VERSION = 'v2.4.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.4.0',
+    date: 'Mar 2026',
+    title: 'Savings Pot Validation, Hard Delete & Timestamps',
+    highlights: [
+      'Duplicate account number validation on savings pots',
+      'Hard delete for savings pots with confirmation dialog',
+      'Full timestamps on deposits and withdrawals',
+      'Styled confirmation dialog replaces browser popups',
+    ],
+    details: [
+      {
+        section: 'Savings Pots',
+        items: [
+          'Duplicate account number check — friendly error when creating or editing a pot with an account number already in use',
+          'Hard delete — deleting a pot now permanently removes it along with all deposit and withdrawal records (previously soft-deleted)',
+          'Full timestamps — deposit and withdrawal dates now store the exact date and time instead of date only',
+          'Inactive pot cleanup — all previously soft-deleted pots have been permanently removed from the database',
+        ],
+      },
+      {
+        section: 'UI Improvements',
+        items: [
+          'Confirmation dialog — styled modal with warning icon replaces browser confirm() popups for delete actions',
+          'Loading state shown on confirm button while delete is in progress',
+          'Reusable ConfirmDialog component with destructive and default variants',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.3.0',
     date: 'Mar 2026',
