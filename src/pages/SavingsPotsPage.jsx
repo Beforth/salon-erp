@@ -15,7 +15,7 @@ import SavingsPotHistoryModal from '@/components/modals/SavingsPotHistoryModal'
 import SavingsPotPersonModal from '@/components/modals/SavingsPotPersonModal'
 import ConfirmDialog from '@/components/modals/ConfirmDialog'
 
-function PotCard({ pot, onWithdraw, onHistory, onEdit, onDelete }) {
+function PotCard({ pot, onWithdraw, onHistory, onEdit, onDelete, canEdit, canDelete }) {
   const getProgressPercent = (balance, target) => {
     if (!target || target === 0) return 0
     return Math.min(100, Math.round((balance / target) * 100))
@@ -78,12 +78,16 @@ function PotCard({ pot, onWithdraw, onHistory, onEdit, onDelete }) {
           <Button size="sm" variant="outline" onClick={() => onHistory(pot)}>
             <History className="h-3 w-3 mr-1" /> History
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onEdit(pot)}>
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => onDelete(pot)}>
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          {canEdit && (
+            <Button size="sm" variant="ghost" onClick={() => onEdit(pot)}>
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => onDelete(pot)}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -93,6 +97,7 @@ function PotCard({ pot, onWithdraw, onHistory, onEdit, onDelete }) {
 export default function SavingsPotsPage() {
   const { user } = useSelector((state) => state.auth)
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
+  const canManagePots = isOwner || user?.role === 'manager' || user?.role === 'cashier'
   const queryClient = useQueryClient()
 
   const [potModalOpen, setPotModalOpen] = useState(false)
@@ -212,20 +217,24 @@ export default function SavingsPotsPage() {
           <p className="text-sm text-gray-500 mt-1">Manage fixed deposits and savings accounts</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleGlobalDeposit} disabled={pots.filter(p => p.is_active).length === 0}>
-            <ArrowDownToLine className="h-4 w-4 mr-2" />
-            Deposit
-          </Button>
+          {canManagePots && (
+            <Button variant="outline" onClick={handleGlobalDeposit} disabled={pots.filter(p => p.is_active).length === 0}>
+              <ArrowDownToLine className="h-4 w-4 mr-2" />
+              Deposit
+            </Button>
+          )}
           {isOwner && (
             <Button variant="outline" onClick={() => { setEditPerson(null); setPersonModalOpen(true) }}>
               <User className="h-4 w-4 mr-2" />
               Add Person
             </Button>
           )}
-          <Button onClick={() => { setEditPot(null); setPotModalOpen(true) }}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Pot
-          </Button>
+          {canManagePots && (
+            <Button onClick={() => { setEditPot(null); setPotModalOpen(true) }}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Pot
+            </Button>
+          )}
         </div>
       </div>
 
@@ -300,9 +309,11 @@ export default function SavingsPotsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Button size="sm" variant="outline" onClick={() => handlePersonDeposit(person)} disabled={personPots.filter(p => p.is_active).length === 0}>
-                      <ArrowDownToLine className="h-3 w-3 mr-1" /> Deposit
-                    </Button>
+                    {canManagePots && (
+                      <Button size="sm" variant="outline" onClick={() => handlePersonDeposit(person)} disabled={personPots.filter(p => p.is_active).length === 0}>
+                        <ArrowDownToLine className="h-3 w-3 mr-1" /> Deposit
+                      </Button>
+                    )}
                     {isOwner && (
                       <>
                         <Button size="sm" variant="ghost" onClick={() => { setEditPerson(person); setPersonModalOpen(true) }}>
@@ -329,6 +340,8 @@ export default function SavingsPotsPage() {
                             onHistory={(pot) => { setSelectedPot(pot); setHistoryModalOpen(true) }}
                             onEdit={(pot) => { setEditPot(pot); setPotModalOpen(true) }}
                             onDelete={handleDeletePot}
+                            canEdit={canManagePots}
+                            canDelete={isOwner}
                           />
                         ))}
                       </div>
@@ -374,6 +387,8 @@ export default function SavingsPotsPage() {
                         onHistory={(pot) => { setSelectedPot(pot); setHistoryModalOpen(true) }}
                         onEdit={(pot) => { setEditPot(pot); setPotModalOpen(true) }}
                         onDelete={handleDeletePot}
+                        canEdit={canManagePots}
+                        canDelete={isOwner}
                       />
                     ))}
                   </div>

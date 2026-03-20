@@ -378,8 +378,8 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
                 </SelectTrigger>
                 <SelectContent>
                   {upiAccounts.map((acc) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.account_name}
+                    <SelectItem key={acc.account_id} value={acc.account_id}>
+                      {acc.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
