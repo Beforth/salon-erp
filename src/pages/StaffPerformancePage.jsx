@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -53,6 +53,7 @@ function StaffPerformancePage() {
   const [matrixPage, setMatrixPage] = useState(1)
   const [matrixPageSize, setMatrixPageSize] = useState(10)
   const [expandedIncentiveEmp, setExpandedIncentiveEmp] = useState(null)
+  const [expandedBills, setExpandedBills] = useState(new Set())
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
@@ -171,8 +172,60 @@ function StaffPerformancePage() {
   const matrixTotalPages = Math.max(1, Math.ceil(matrixTotal / matrixPageSize))
   const matrixPageSafe = Math.min(matrixPage, matrixTotalPages)
 
+  const toggleBill = (billNumber) => {
+    setExpandedBills((prev) => {
+      const next = new Set(prev)
+      if (next.has(billNumber)) next.delete(billNumber)
+      else next.add(billNumber)
+      return next
+    })
+  }
+
+  // Group matrix rows by bill_number for collapsed display
+  const groupedMatrix = useMemo(() => {
+    if (!singleDayMatrix.length) return []
+    const groups = []
+    const groupMap = new Map()
+    for (const row of singleDayMatrix) {
+      const key = row.bill_number || row.book_number || `_single_${groups.length}`
+      if (!groupMap.has(key)) {
+        const group = { billNumber: key, rows: [], time: row.time, bill_id: row.bill_id }
+        groupMap.set(key, group)
+        groups.push(group)
+      }
+      groupMap.get(key).rows.push(row)
+    }
+    // Compute summed amounts per employee per group
+    for (const group of groups) {
+      const summedAmounts = {}
+      for (const row of group.rows) {
+        if (row.amounts) {
+          for (const [empId, amt] of Object.entries(row.amounts)) {
+            if (amt != null) summedAmounts[empId] = (summedAmounts[empId] || 0) + amt
+          }
+        }
+      }
+      group.summedAmounts = summedAmounts
+    }
+    return groups
+  }, [singleDayMatrix])
+
+  // Compute column totals for the current page
+  const matrixColumnTotals = useMemo(() => {
+    const totals = {}
+    for (const row of singleDayMatrix) {
+      if (row.amounts) {
+        for (const [empId, amt] of Object.entries(row.amounts)) {
+          if (amt != null) totals[empId] = (totals[empId] || 0) + amt
+        }
+      }
+    }
+    return totals
+  }, [singleDayMatrix])
+
   useEffect(() => {
     setMatrixPage(1)
+    setExpandedBills(new Set())
   }, [effectiveStart, matrixPageSize])
 
   const handleDownloadServicesByTimeCsv = async () => {
@@ -389,6 +442,9 @@ function StaffPerformancePage() {
                     <Star className="h-3 w-3 fill-current" />
                     {emp.star_points}
                   </span>
+                  <span className="text-xs opacity-80">
+                    {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
+                  </span>
                 </button>
               ))}
             </div>
@@ -446,8 +502,8 @@ function StaffPerformancePage() {
                             )) || <BranchColorDot color={emp.branch?.color_code} />}
                             {emp.employee_name}
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {emp.services_completed} {emp.services_completed === 1 ? 'service' : 'services'}
+                          <div className="text-xs text-muted-foreground mt-0.5 flex items-center justify-end gap-0.5">
+                            <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" /> {emp.star_points}
                           </div>
                           <div className="text-xs font-semibold text-green-600 mt-0.5">
                             {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
@@ -457,41 +513,126 @@ function StaffPerformancePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {singleDayMatrix.map((row, idx) => {
-                      const isProductRow = row.item_type === 'product'
+                    {groupedMatrix.map((group) => {
+                      const isSingleRow = group.rows.length === 1
+                      const isExpanded = expandedBills.has(group.billNumber)
+
+                      if (isSingleRow) {
+                        const row = group.rows[0]
+                        const isProductRow = row.item_type === 'product'
+                        return (
+                          <TableRow
+                            key={group.billNumber}
+                            className={`cursor-pointer hover:bg-primary/5 ${isProductRow ? 'bg-green-50/50' : ''}`}
+                            onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}`)}
+                            title={[row.bill_number && `Bill: ${row.bill_number}`, row.book_number && `Book: ${row.book_number}`].filter(Boolean).join(' · ') || undefined}
+                          >
+                            <TableCell className={`font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
+                              <div className="flex items-center gap-1.5">
+                                {isProductRow && <ShoppingBag className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                                <span>{row.service_name}</span>
+                              </div>
+                              {isProductRow && row.sale_amount != null && (
+                                <div className="text-xs text-green-600 mt-0.5">Sale: {formatCurrency(row.sale_amount)}</div>
+                              )}
+                            </TableCell>
+                            <TableCell className={`font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
+                              {row.time}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {row.bill_number || row.book_number || '—'}
+                            </TableCell>
+                            {employees.map((emp) => (
+                              <TableCell key={emp.employee_id} className="text-right">
+                                {row.amounts && row.amounts[emp.employee_id] != null
+                                  ? formatCurrency(row.amounts[emp.employee_id])
+                                  : '—'}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        )
+                      }
+
+                      // Multi-service group: parent + collapsible children
                       return (
-                      <TableRow
-                        key={row.bill_id ? `${row.bill_id}-${idx}` : idx}
-                        className={`cursor-pointer hover:bg-primary/5 ${isProductRow ? 'bg-green-50/50' : ''}`}
-                        onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}`)}
-                        title={[row.bill_number && `Bill: ${row.bill_number}`, row.book_number && `Book: ${row.book_number}`].filter(Boolean).join(' · ') || undefined}
-                      >
-                        <TableCell className={`font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
-                          <div className="flex items-center gap-1.5">
-                            {isProductRow && <ShoppingBag className="h-3.5 w-3.5 text-green-600 shrink-0" />}
-                            <span>{row.service_name}</span>
-                          </div>
-                          {isProductRow && row.sale_amount != null && (
-                            <div className="text-xs text-green-600 mt-0.5">Sale: {formatCurrency(row.sale_amount)}</div>
-                          )}
-                        </TableCell>
-                        <TableCell className={`font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
-                          {row.time}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {row.bill_number || row.book_number || '—'}
-                        </TableCell>
-                        {employees.map((emp) => (
-                          <TableCell key={emp.employee_id} className="text-right">
-                            {row.amounts && row.amounts[emp.employee_id] != null
-                              ? formatCurrency(row.amounts[emp.employee_id])
-                              : '—'}
-                          </TableCell>
-                        ))}
-                      </TableRow>
+                        <React.Fragment key={group.billNumber}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-primary/5 bg-gray-50/50"
+                            onClick={(e) => { e.stopPropagation(); toggleBill(group.billNumber) }}
+                          >
+                            <TableCell className="font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] bg-gray-50/50">
+                              <div className="flex items-center gap-1.5">
+                                {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-gray-500 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-500 shrink-0" />}
+                                <span>{group.rows.length} services</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] bg-gray-50/50">
+                              {group.time}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {group.billNumber}
+                            </TableCell>
+                            {employees.map((emp) => (
+                              <TableCell key={emp.employee_id} className="text-right font-medium">
+                                {group.summedAmounts[emp.employee_id] != null
+                                  ? formatCurrency(group.summedAmounts[emp.employee_id])
+                                  : '—'}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                          {isExpanded && group.rows.map((row, idx) => {
+                            const isProductRow = row.item_type === 'product'
+                            return (
+                              <TableRow
+                                key={`${group.billNumber}-${idx}`}
+                                className={`cursor-pointer hover:bg-primary/5 ${isProductRow ? 'bg-green-50/50' : ''}`}
+                                onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}`)}
+                              >
+                                <TableCell className={`font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] pl-10 ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
+                                  <div className="flex items-center gap-1.5">
+                                    {isProductRow && <ShoppingBag className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                                    <span>{row.service_name}</span>
+                                  </div>
+                                  {isProductRow && row.sale_amount != null && (
+                                    <div className="text-xs text-green-600 mt-0.5">Sale: {formatCurrency(row.sale_amount)}</div>
+                                  )}
+                                </TableCell>
+                                <TableCell className={`font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
+                                  {row.time}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                  {row.bill_number || row.book_number || '—'}
+                                </TableCell>
+                                {employees.map((emp) => (
+                                  <TableCell key={emp.employee_id} className="text-right">
+                                    {row.amounts && row.amounts[emp.employee_id] != null
+                                      ? formatCurrency(row.amounts[emp.employee_id])
+                                      : '—'}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            )
+                          })}
+                        </React.Fragment>
                       )
                     })}
                   </TableBody>
+                  <tfoot>
+                    <tr className="border-t-2 font-bold">
+                      <td className="p-2 sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] bg-white">
+                        Page Total
+                      </td>
+                      <td className="sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] bg-white" />
+                      <td />
+                      {employees.map((emp) => (
+                        <td key={emp.employee_id} className="p-2 text-right">
+                          {matrixColumnTotals[emp.employee_id] != null
+                            ? formatCurrency(matrixColumnTotals[emp.employee_id])
+                            : '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  </tfoot>
                 </Table>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t">

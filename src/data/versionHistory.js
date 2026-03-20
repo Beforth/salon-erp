@@ -1,6 +1,54 @@
-export const CURRENT_VERSION = 'v2.4.0'
+export const CURRENT_VERSION = 'v2.5.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.5.0',
+    date: 'Mar 2026',
+    title: 'Expenses, Savings Pot Access & Staff Performance',
+    highlights: [
+      'Savings pot deposits auto-create expense records',
+      'Manager & cashier roles can create, edit, and deposit into savings pots',
+      'Staff performance matrix rows grouped by bill number',
+      'Employee pills show earnings alongside star points',
+      'Page totals in staff performance matrix',
+      'Expenses page layout improvements',
+      'UPI account dropdown fix in expense modal',
+    ],
+    details: [
+      {
+        section: 'Expenses',
+        items: [
+          'Auto-expense on savings pot deposit — each deposit batch creates an expense under "Savings Pot Deposit" category so it appears in expense reports',
+          'Cascade delete — deleting a savings pot also removes its linked expense records',
+          'Layout reorder — search and filters moved above stat cards for faster access',
+          'Stat cards simplified — Total Expenses and Expense Count in a clean two-column row',
+          'UPI dropdown fix — expense modal now correctly shows UPI account names when payment mode is UPI',
+        ],
+      },
+      {
+        section: 'Savings Pots — Role Access',
+        items: [
+          'Manager and cashier roles can now create new savings pots',
+          'Manager and cashier roles can edit existing savings pots',
+          'Cashier role can now make deposits (previously manager and above only)',
+          'Edit button visibility based on manager/cashier/owner role',
+          'Delete button restricted to owner role only',
+          'Person management (add/edit/delete) remains owner-only',
+        ],
+      },
+      {
+        section: 'Staff Performance',
+        items: [
+          'Employee pills show service earnings next to star points for quick comparison',
+          'Matrix column headers show star points instead of service count',
+          'Matrix rows grouped by bill number — collapsed by default, click to expand individual bills',
+          'Single-service bills render as simple rows without expand/collapse',
+          'Multi-service bills show a summary parent row with summed amounts per employee',
+          'Page total footer row — shows per-employee totals for the current page',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.4.0',
     date: 'Mar 2026',

@@ -17,7 +17,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatDate, formatCurrency } from '@/lib/utils'
-import { DonutChart } from '@/components/charts'
 import {
   Plus,
   Search,
@@ -29,7 +28,6 @@ import {
   X,
   IndianRupee,
   Hash,
-  Star,
   Tag,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -226,15 +224,6 @@ function ExpensesPage() {
     setCategoryModalOpen(true)
   }
 
-  // Prepare donut chart data from summary
-  const chartData = summary?.categories?.map((c) => ({
-    name: c.category_name,
-    value: c.total_amount,
-  })) || []
-
-  // Top category
-  const topCategory = summary?.categories?.[0]?.category_name || '—'
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -278,67 +267,7 @@ function ExpensesPage() {
 
       {activeTab === 'expenses' ? (
         <>
-          {/* Summary Section (Owner only) */}
-          {isOwner && summary && (
-            <>
-              {/* Stat Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-red-100 rounded-lg">
-                        <IndianRupee className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Total Expenses</p>
-                        <p className="text-xl font-bold">{formatCurrency(summary.total_amount || 0)}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Hash className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Expense Count</p>
-                        <p className="text-xl font-bold">{summary.total_count || 0}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-amber-100 rounded-lg">
-                        <Star className="h-5 w-5 text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Top Category</p>
-                        <p className="text-xl font-bold truncate">{topCategory}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Donut Chart */}
-              {chartData.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Expense Breakdown</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <DonutChart data={chartData} dataKey="value" nameKey="name" height={280} />
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
-
-          {/* Filters */}
+          {/* Search + Filters */}
           <Card>
             <CardContent className="p-4 space-y-3">
               <div className="flex gap-4">
@@ -455,6 +384,38 @@ function ExpensesPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Summary Section (Owner only) */}
+          {isOwner && summary && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-100 rounded-lg">
+                      <IndianRupee className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Total Expenses</p>
+                      <p className="text-xl font-bold">{formatCurrency(summary.total_amount || 0)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Hash className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Expense Count</p>
+                      <p className="text-xl font-bold">{summary.total_count || 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Expenses Table */}
           <Card>
