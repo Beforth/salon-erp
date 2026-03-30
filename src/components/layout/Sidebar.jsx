@@ -140,7 +140,7 @@ const getNavItemsByRole = (role) => {
       title: 'Staff Performance',
       href: '/staff-performance',
       icon: TrendingUp,
-      roles: ['owner', 'developer'],
+      roles: ['owner', 'developer', 'manager', 'cashier'],
     },
     {
       title: 'Branches',

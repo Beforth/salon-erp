@@ -23,6 +23,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatCurrency, fuzzyMatch, fuzzyScore } from '@/lib/utils'
 import {
   Search,
@@ -124,6 +125,8 @@ function BillCreatePage() {
   const [itemPrice, setItemPrice] = useState('')
   const [itemQuantity, setItemQuantity] = useState(1)
   const [componentEmployees, setComponentEmployees] = useState({}) // { componentIndex: [employeeIds] }
+  const [sameEmployeeForAll, setSameEmployeeForAll] = useState(false)
+  const [globalEmployee, setGlobalEmployee] = useState('')
 
   // Cart
   const [cartItems, setCartItems] = useState([])
@@ -320,6 +323,8 @@ function BillCreatePage() {
   const handleItemSelect = (id) => {
     setSelectedItemId(id || null)
     setComponentEmployees({})
+    setSameEmployeeForAll(false)
+    setGlobalEmployee('')
     if (!id) {
       setItemPrice('')
       return
@@ -506,6 +511,8 @@ function BillCreatePage() {
     setAddDiscountPercent(0)
     setAddDiscountAmount('')
     setComponentEmployees({})
+    setSameEmployeeForAll(false)
+    setGlobalEmployee('')
   }
 
   const updateCartItem = (index, field, value) => {
@@ -677,6 +684,7 @@ function BillCreatePage() {
               : empIds.length === 1
                 ? { employee_id: empIds[0] }
                 : {}),
+            status: svc.item_status === 'pending' ? 'pending' : 'completed',
           }
         })
         return {
@@ -1235,6 +1243,47 @@ function BillCreatePage() {
                   </div>
 
 
+                  {/* Same employee for all services (packages only) */}
+                  {selectedCategory === 'packages' && (selectedItem.services?.length > 0 || selectedItem.service_groups?.length > 0) && (
+                    <div className="flex items-center gap-3 p-2 bg-blue-50 rounded border border-blue-200">
+                      <label className="flex items-center gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={sameEmployeeForAll}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setSameEmployeeForAll(checked)
+                            if (!checked) {
+                              setGlobalEmployee('')
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-blue-700 font-medium">Same employee for all services</span>
+                      </label>
+                      {sameEmployeeForAll && (
+                        <SearchableSelect
+                          className="flex-1 min-w-[150px]"
+                          options={employees.map((emp) => ({ value: emp.employee_id, label: emp.full_name }))}
+                          value={globalEmployee}
+                          onChange={(val) => {
+                            setGlobalEmployee(val)
+                            if (val) {
+                              // Apply to all component indices
+                              const totalComponents = (selectedItem.services?.length || 0) + (selectedItem.service_groups?.length || 0)
+                              const updated = {}
+                              for (let i = 0; i < totalComponents; i++) {
+                                updated[i] = [val]
+                              }
+                              setComponentEmployees(updated)
+                            }
+                          }}
+                          placeholder="Select employee..."
+                        />
+                      )}
+                    </div>
+                  )}
+
                   {/* Package services — inline single-row: name, stars, qty, price, employee dropdowns */}
                   {selectedCategory === 'packages' && selectedItem.services?.length > 0 && (
                     <div className="text-sm space-y-1">
@@ -1255,26 +1304,23 @@ function BillCreatePage() {
                             <div className="flex items-center gap-1 ml-auto flex-wrap">
                               {slots.map((_, slotIdx) => (
                                 <div key={slotIdx} className="flex items-center gap-0.5">
-                                  <select
-                                    className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
-                                    value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                    onChange={(e) => {
-                                      const current = [...(componentEmployees[idx] || [])]
-                                      while (current.length <= slotIdx) current.push('')
-                                      current[slotIdx] = e.target.value || ''
-                                      setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                    }}
-                                  >
-                                    <option value="">Staff...</option>
-                                    {employees.filter((emp) => {
+                                  <SearchableSelect
+                                    compact
+                                    className="min-w-[100px]"
+                                    options={employees.filter((emp) => {
                                       const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
                                       return !others.includes(String(emp.employee_id))
-                                    }).map((emp) => (
-                                      <option key={emp.employee_id} value={emp.employee_id}>
-                                        {emp.full_name}
-                                      </option>
-                                    ))}
-                                  </select>
+                                    }).map((emp) => ({ value: emp.employee_id, label: emp.full_name }))}
+                                    value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                    onChange={(val) => {
+                                      const current = [...(componentEmployees[idx] || [])]
+                                      while (current.length <= slotIdx) current.push('')
+                                      current[slotIdx] = val || ''
+                                      setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                    }}
+                                    placeholder="Staff..."
+                                    disabled={sameEmployeeForAll}
+                                  />
                                   {slots.length > 1 && (
                                     <button
                                       type="button"
@@ -1352,26 +1398,23 @@ function BillCreatePage() {
                                     <>
                                       {slots.map((_, slotIdx) => (
                                         <div key={slotIdx} className="flex items-center gap-0.5">
-                                          <select
-                                            className="h-6 px-1 text-[11px] border rounded min-w-[80px]"
-                                            value={(componentEmployees[idx] || [])[slotIdx] || ''}
-                                            onChange={(e) => {
-                                              const current = [...(componentEmployees[idx] || [])]
-                                              while (current.length <= slotIdx) current.push('')
-                                              current[slotIdx] = e.target.value || ''
-                                              setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
-                                            }}
-                                          >
-                                            <option value="">Staff...</option>
-                                            {employees.filter((emp) => {
+                                          <SearchableSelect
+                                            compact
+                                            className="min-w-[100px]"
+                                            options={employees.filter((emp) => {
                                               const others = (componentEmployees[idx] || []).filter((id, i) => i !== slotIdx && id).map(String)
                                               return !others.includes(String(emp.employee_id))
-                                            }).map((emp) => (
-                                              <option key={emp.employee_id} value={emp.employee_id}>
-                                                {emp.full_name}
-                                              </option>
-                                            ))}
-                                          </select>
+                                            }).map((emp) => ({ value: emp.employee_id, label: emp.full_name }))}
+                                            value={(componentEmployees[idx] || [])[slotIdx] || ''}
+                                            onChange={(val) => {
+                                              const current = [...(componentEmployees[idx] || [])]
+                                              while (current.length <= slotIdx) current.push('')
+                                              current[slotIdx] = val || ''
+                                              setComponentEmployees((prev) => ({ ...prev, [idx]: current }))
+                                            }}
+                                            placeholder="Staff..."
+                                            disabled={sameEmployeeForAll}
+                                          />
                                           {slots.length > 1 && (
                                             <button
                                               type="button"
@@ -1496,26 +1539,21 @@ function BillCreatePage() {
                             <span className="text-xs text-gray-500 w-20 shrink-0">
                               Employee {slotIdx + 1}
                             </span>
-                            <select
-                              className="flex-1 h-9 px-3 text-sm border rounded-md min-w-0"
-                              value={((componentEmployees[0] || [])[slotIdx] || '').toString()}
-                              onChange={(e) => {
-                                const current = [...(componentEmployees[0] || [])]
-                                while (current.length <= slotIdx) current.push('')
-                                current[slotIdx] = e.target.value || ''
-                                setComponentEmployees({ 0: current })
-                              }}
-                            >
-                              <option value="">-- None --</option>
-                              {employees.filter((emp) => {
+                            <SearchableSelect
+                              className="flex-1 min-w-0"
+                              options={employees.filter((emp) => {
                                 const others = (componentEmployees[0] || []).filter((id, i) => i !== slotIdx && id).map(String)
                                 return !others.includes(String(emp.employee_id))
-                              }).map((emp) => (
-                                <option key={emp.employee_id} value={emp.employee_id}>
-                                  {emp.full_name}
-                                </option>
-                              ))}
-                            </select>
+                              }).map((emp) => ({ value: emp.employee_id, label: emp.full_name }))}
+                              value={((componentEmployees[0] || [])[slotIdx] || '').toString()}
+                              onChange={(val) => {
+                                const current = [...(componentEmployees[0] || [])]
+                                while (current.length <= slotIdx) current.push('')
+                                current[slotIdx] = val || ''
+                                setComponentEmployees({ 0: current })
+                              }}
+                              placeholder="-- None --"
+                            />
                             <Button
                               type="button"
                               variant="ghost"

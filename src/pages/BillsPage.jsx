@@ -46,6 +46,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
+import CompletePendingServiceModal from '@/components/modals/CompletePendingServiceModal'
 
 const statusColors = {
   completed: 'success',
@@ -58,7 +59,6 @@ const statusColors = {
 const STATUS_TABS = [
   { value: '', label: 'All' },
   { value: 'pending', label: 'Pending' },
-  { value: 'partial', label: 'Partial' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
@@ -114,6 +114,10 @@ function BillsPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [completeBillModalOpen, setCompleteBillModalOpen] = useState(false)
   const [selectedBillForComplete, setSelectedBillForComplete] = useState(null)
+  const [viewMode, setViewMode] = useState('bills') // 'bills' | 'pending-services'
+  const [pendingServicePage, setPendingServicePage] = useState(1)
+  const [completePendingModalOpen, setCompletePendingModalOpen] = useState(false)
+  const [selectedPendingItem, setSelectedPendingItem] = useState(null)
 
   // Fetch branches for owner filter
   const { data: branchesData } = useQuery({
@@ -152,6 +156,20 @@ function BillsPage() {
 
   const bills = data?.data || []
   const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0 }
+
+  // Pending services query
+  const { data: pendingData, isLoading: pendingLoading } = useQuery({
+    queryKey: ['pending-services', { page: pendingServicePage, search, branch_id: branchFilter }],
+    queryFn: () => billService.getPendingServices({
+      page: pendingServicePage,
+      limit: 20,
+      search: search || undefined,
+      branch_id: branchFilter || undefined,
+    }),
+    enabled: viewMode === 'pending-services',
+  })
+  const pendingItems = pendingData?.data || []
+  const pendingPagination = pendingData?.pagination || { page: 1, total_pages: 1, total: 0 }
 
   const hasActiveFilters = startDate || endDate || paymentMode || branchFilter
 
@@ -273,6 +291,108 @@ function BillsPage() {
         </div>
       </div>
 
+      {/* View Mode Tabs */}
+      <div className="flex gap-2 border-b pb-2">
+        <Button
+          variant={viewMode === 'bills' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setViewMode('bills')}
+        >
+          <Receipt className="h-4 w-4 mr-2" />
+          Bills
+        </Button>
+        <Button
+          variant={viewMode === 'pending-services' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setViewMode('pending-services')}
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          Pending Services
+        </Button>
+      </div>
+
+      {viewMode === 'pending-services' ? (
+        /* Pending Services View */
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Pending Services</CardTitle>
+            <p className="text-sm text-muted-foreground">Services from completed bills that haven't been performed yet</p>
+          </CardHeader>
+          <CardContent>
+            {pendingLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : pendingItems.length === 0 ? (
+              <p className="text-center text-gray-500 py-10">No pending services found</p>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bill #</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Service</TableHead>
+                      <TableHead>Bill Date</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      {isOwner && <TableHead>Branch</TableHead>}
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingItems.map((item) => (
+                      <TableRow key={item.item_id}>
+                        <TableCell
+                          className="font-medium cursor-pointer text-primary hover:underline"
+                          onClick={() => navigate(`/bills/${item.bill_id}`)}
+                        >
+                          {item.bill_number}
+                        </TableCell>
+                        <TableCell>{item.customer_name || '—'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {item.item_name}
+                            <Badge variant="warning" className="text-[10px]">Pending</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {item.bill_date ? new Date(item.bill_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.total_price)}</TableCell>
+                        {isOwner && <TableCell>{item.branch_name}</TableCell>}
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedPendingItem(item)
+                              setCompletePendingModalOpen(true)
+                            }}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" />
+                            Complete
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {pendingPagination.total > 20 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-gray-500">
+                      Page {pendingPagination.page} of {pendingPagination.total_pages} ({pendingPagination.total} total)
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setPendingServicePage((p) => Math.max(1, p - 1))} disabled={pendingServicePage <= 1}>Previous</Button>
+                      <Button variant="outline" size="sm" onClick={() => setPendingServicePage((p) => p + 1)} disabled={pendingServicePage >= pendingPagination.total_pages}>Next</Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+      <>
       {/* Search, Status Tabs & Filters */}
       <Card>
         <CardContent className="p-4 space-y-3">
@@ -584,6 +704,15 @@ function BillsPage() {
         open={completeBillModalOpen}
         onOpenChange={setCompleteBillModalOpen}
         bill={selectedBillForComplete}
+      />
+      </>
+      )}
+
+      {/* Complete Pending Service Modal */}
+      <CompletePendingServiceModal
+        open={completePendingModalOpen}
+        onOpenChange={setCompletePendingModalOpen}
+        item={selectedPendingItem}
       />
     </div>
   )

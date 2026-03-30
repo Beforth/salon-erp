@@ -39,6 +39,7 @@ const initialFormData = {
   category_id: '',
   amount: '',
   expense_date: today(),
+  expense_time: '',
   payment_mode: '',
   upi_account_id: '',
   employee_id: '',
@@ -106,6 +107,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
         expense_date: expense.expense_date
           ? new Date(expense.expense_date).toISOString().split('T')[0]
           : today(),
+        expense_time: expense.expense_time || '',
         payment_mode: expense.payment_mode || '',
         upi_account_id: expense.upi_account_id || '',
         employee_id: expense.employee_id || '',
@@ -218,6 +220,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       category_id: formData.category_id,
       amount: parseFloat(formData.amount),
       expense_date: formData.expense_date,
+      expense_time: formData.expense_time || null,
       payment_mode: formData.payment_mode,
       upi_account_id: formData.upi_account_id || null,
       employee_id: formData.employee_id || null,
@@ -320,8 +323,8 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
             </div>
           )}
 
-          {/* Date + Payment Mode */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Date + Time + Payment Mode */}
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="exp-date">Expense Date *</Label>
               <Input
@@ -329,6 +332,15 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
                 type="date"
                 value={formData.expense_date}
                 onChange={(e) => handleChange('expense_date', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="exp-time">Time</Label>
+              <Input
+                id="exp-time"
+                type="time"
+                value={formData.expense_time}
+                onChange={(e) => handleChange('expense_time', e.target.value)}
               />
             </div>
             <div className="space-y-2">

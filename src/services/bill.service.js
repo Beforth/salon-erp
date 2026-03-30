@@ -12,4 +12,8 @@ export const billService = {
   completeBill: (id, data) => api.post(`/bills/${id}/complete`, data),
 
   cancelBill: (id) => api.delete(`/bills/${id}`),
+
+  getPendingServices: (params) => api.get('/bills/pending-services', { params }),
+
+  completeBillItem: (billId, itemId, data) => api.post(`/bills/${billId}/items/${itemId}/complete`, data),
 }

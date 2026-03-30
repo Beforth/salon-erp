@@ -37,6 +37,8 @@ function getDefaultDateRange() {
 function StaffPerformancePage() {
   const { user } = useSelector((state) => state.auth)
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
+  const canAccessPage = isOwner || user?.role === 'manager' || user?.role === 'cashier'
+  const canSeeFinancials = isOwner
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -63,10 +65,13 @@ function StaffPerformancePage() {
 
   const branches = branchesData?.data || []
 
+  // For non-owners, lock branch to their own
+  const effectiveBranch = isOwner ? selectedBranch : (user?.branchId || '')
+
   const { data: branchEmployeesData } = useQuery({
-    queryKey: ['branch-employees', selectedBranch],
-    queryFn: () => branchService.getBranchEmployees(selectedBranch),
-    enabled: isOwner && !!selectedBranch,
+    queryKey: ['branch-employees', effectiveBranch],
+    queryFn: () => branchService.getBranchEmployees(effectiveBranch),
+    enabled: canAccessPage && !!effectiveBranch,
   })
 
   const branchEmployees = branchEmployeesData?.data || []
@@ -75,17 +80,17 @@ function StaffPerformancePage() {
   const effectiveEnd = filterMode === 'single' ? singleDate : endDate
 
   const { data: performanceData, isLoading } = useQuery({
-    queryKey: ['staff-performance', effectiveStart, effectiveEnd, selectedBranch, selectedEmployee, matrixPage, matrixPageSize],
+    queryKey: ['staff-performance', effectiveStart, effectiveEnd, effectiveBranch, selectedEmployee, matrixPage, matrixPageSize],
     queryFn: () =>
       reportsService.getEmployeePerformance({
         start_date: effectiveStart,
         end_date: effectiveEnd,
-        branch_id: selectedBranch || undefined,
+        branch_id: effectiveBranch || undefined,
         employee_id: selectedEmployee || undefined,
         page: matrixPage,
         page_size: matrixPageSize,
       }),
-    enabled: isOwner && !!effectiveStart && !!effectiveEnd,
+    enabled: canAccessPage && !!effectiveStart && !!effectiveEnd,
   })
 
   const starGoalMutation = useMutation({
@@ -109,7 +114,7 @@ function StaffPerformancePage() {
       employee_id: selectedEmployee || undefined,
       branch_id: selectedBranch || undefined,
     }),
-    enabled: isOwner && !!effectiveStart && !!effectiveEnd,
+    enabled: canSeeFinancials && !!effectiveStart && !!effectiveEnd,
   })
   const incentiveReport = incentiveReportData?.data || incentiveReportData || {}
   const incentiveByEmployeeAll = incentiveReport.by_employee || []
@@ -271,7 +276,7 @@ function StaffPerformancePage() {
     }
   }
 
-  if (!isOwner) {
+  if (!canAccessPage) {
     return <Navigate to="/" replace />
   }
 
@@ -369,21 +374,23 @@ function StaffPerformancePage() {
                 />
               </div>
             )}
-            <div>
-              <Label className="mb-2 block text-xs">Branch</Label>
-              <select
-                className="h-9 px-3 border rounded-md border-gray-300 min-w-[180px] text-sm"
-                value={selectedBranch}
-                onChange={(e) => handleBranchChange(e.target.value)}
-              >
-                <option value="">All Branches</option>
-                {branches.map((branch) => (
-                  <option key={branch.branch_id} value={branch.branch_id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isOwner && (
+              <div>
+                <Label className="mb-2 block text-xs">Branch</Label>
+                <select
+                  className="h-9 px-3 border rounded-md border-gray-300 min-w-[180px] text-sm"
+                  value={selectedBranch}
+                  onChange={(e) => handleBranchChange(e.target.value)}
+                >
+                  <option value="">All Branches</option>
+                  {branches.map((branch) => (
+                    <option key={branch.branch_id} value={branch.branch_id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <Label className="mb-2 block text-xs">Employee</Label>
               <select
@@ -393,7 +400,7 @@ function StaffPerformancePage() {
                   setSelectedEmployee(e.target.value)
                   setActiveEmployeeId(e.target.value || null)
                 }}
-                disabled={!selectedBranch}
+                disabled={isOwner && !selectedBranch}
               >
                 <option value="">All Employees</option>
                 {branchEmployees.map((emp) => (
@@ -442,9 +449,11 @@ function StaffPerformancePage() {
                     <Star className="h-3 w-3 fill-current" />
                     {emp.star_points}
                   </span>
-                  <span className="text-xs opacity-80">
-                    {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
-                  </span>
+                  {canSeeFinancials && (
+                    <span className="text-xs opacity-80">
+                      {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -464,15 +473,17 @@ function StaffPerformancePage() {
                       Employee columns show day total. Each row is a service; cells show amount earned. Click row to open bill.
                     </CardDescription>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDownloadServicesByTimeCsv}
-                    className="shrink-0"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download full CSV
-                  </Button>
+                  {canSeeFinancials && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadServicesByTimeCsv}
+                      className="shrink-0"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download full CSV
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -505,9 +516,11 @@ function StaffPerformancePage() {
                           <div className="text-xs text-muted-foreground mt-0.5 flex items-center justify-end gap-0.5">
                             <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" /> {emp.star_points}
                           </div>
-                          <div className="text-xs font-semibold text-green-600 mt-0.5">
-                            {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
-                          </div>
+                          {canSeeFinancials && (
+                            <div className="text-xs font-semibold text-green-600 mt-0.5">
+                              {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
+                            </div>
+                          )}
                         </TableHead>
                       ))}
                     </TableRow>
@@ -544,9 +557,11 @@ function StaffPerformancePage() {
                             </TableCell>
                             {employees.map((emp) => (
                               <TableCell key={emp.employee_id} className="text-right">
-                                {row.amounts && row.amounts[emp.employee_id] != null
-                                  ? formatCurrency(row.amounts[emp.employee_id])
-                                  : '—'}
+                                {canSeeFinancials
+                                  ? (row.amounts && row.amounts[emp.employee_id] != null
+                                    ? formatCurrency(row.amounts[emp.employee_id])
+                                    : '—')
+                                  : (row.amounts && row.amounts[emp.employee_id] != null ? '✓' : '—')}
                               </TableCell>
                             ))}
                           </TableRow>
@@ -574,9 +589,11 @@ function StaffPerformancePage() {
                             </TableCell>
                             {employees.map((emp) => (
                               <TableCell key={emp.employee_id} className="text-right font-medium">
-                                {group.summedAmounts[emp.employee_id] != null
-                                  ? formatCurrency(group.summedAmounts[emp.employee_id])
-                                  : '—'}
+                                {canSeeFinancials
+                                  ? (group.summedAmounts[emp.employee_id] != null
+                                    ? formatCurrency(group.summedAmounts[emp.employee_id])
+                                    : '—')
+                                  : (group.summedAmounts[emp.employee_id] != null ? '✓' : '—')}
                               </TableCell>
                             ))}
                           </TableRow>
@@ -605,9 +622,11 @@ function StaffPerformancePage() {
                                 </TableCell>
                                 {employees.map((emp) => (
                                   <TableCell key={emp.employee_id} className="text-right">
-                                    {row.amounts && row.amounts[emp.employee_id] != null
-                                      ? formatCurrency(row.amounts[emp.employee_id])
-                                      : '—'}
+                                    {canSeeFinancials
+                                      ? (row.amounts && row.amounts[emp.employee_id] != null
+                                        ? formatCurrency(row.amounts[emp.employee_id])
+                                        : '—')
+                                      : (row.amounts && row.amounts[emp.employee_id] != null ? '✓' : '—')}
                                   </TableCell>
                                 ))}
                               </TableRow>
@@ -626,9 +645,11 @@ function StaffPerformancePage() {
                       <td />
                       {employees.map((emp) => (
                         <td key={emp.employee_id} className="p-2 text-right">
-                          {matrixColumnTotals[emp.employee_id] != null
-                            ? formatCurrency(matrixColumnTotals[emp.employee_id])
-                            : '—'}
+                          {canSeeFinancials
+                            ? (matrixColumnTotals[emp.employee_id] != null
+                              ? formatCurrency(matrixColumnTotals[emp.employee_id])
+                              : '—')
+                            : ''}
                         </td>
                       ))}
                     </tr>
@@ -684,7 +705,7 @@ function StaffPerformancePage() {
           {activeEmployee && (
             <>
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className={`grid grid-cols-2 md:grid-cols-3 ${canSeeFinancials ? 'lg:grid-cols-6' : 'lg:grid-cols-3'} gap-4`}>
                 <Card>
                   <CardContent className="pt-5 pb-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -751,47 +772,49 @@ function StaffPerformancePage() {
                 <Card>
                   <CardContent className="pt-5 pb-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                      <IndianRupee className="h-4 w-4" />
-                      <span className="text-xs font-medium">Service Earnings</span>
-                    </div>
-                    <div className="text-2xl font-bold">{formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-5 pb-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                      <ShoppingBag className="h-4 w-4 text-emerald-600" />
-                      <span className="text-xs font-medium">Product Sales</span>
-                    </div>
-                    <div className="text-2xl font-bold">{formatCurrency(activeEmployee.product_sales || 0)}</div>
-                  </CardContent>
-                </Card>
-                <Card
-                  className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
-                  onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
-                >
-                  <CardContent className="pt-5 pb-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                      <span className="text-xs font-medium">Incentives</span>
-                    </div>
-                    <div className="text-2xl font-bold text-green-600">
-                      {formatCurrency(activeEmployee.product_incentives || (incentiveByEmployee.find(e => e.employee_id === activeEmployee.employee_id))?.total_incentive || 0)}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-5 pb-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
                       <Target className="h-4 w-4" />
-                      <span className="text-xs font-medium">Daily Avg</span>
+                      <span className="text-xs font-medium">Daily Avg Stars</span>
                     </div>
-                    <div className="text-2xl font-bold">{formatCurrency(activeEmployee.daily_avg_earnings)}</div>
-                    <span className="text-xs text-muted-foreground">
-                      {activeEmployee.daily_avg_stars} stars/day
-                    </span>
+                    <div className="text-2xl font-bold">{activeEmployee.daily_avg_stars}</div>
+                    <span className="text-xs text-muted-foreground">stars/day</span>
                   </CardContent>
                 </Card>
+                {canSeeFinancials && (
+                  <>
+                    <Card>
+                      <CardContent className="pt-5 pb-4">
+                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                          <IndianRupee className="h-4 w-4" />
+                          <span className="text-xs font-medium">Service Earnings</span>
+                        </div>
+                        <div className="text-2xl font-bold">{formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-5 pb-4">
+                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                          <ShoppingBag className="h-4 w-4 text-emerald-600" />
+                          <span className="text-xs font-medium">Product Sales</span>
+                        </div>
+                        <div className="text-2xl font-bold">{formatCurrency(activeEmployee.product_sales || 0)}</div>
+                      </CardContent>
+                    </Card>
+                    <Card
+                      className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
+                      onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
+                    >
+                      <CardContent className="pt-5 pb-4">
+                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          <span className="text-xs font-medium">Incentives</span>
+                        </div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {formatCurrency(activeEmployee.product_incentives || (incentiveByEmployee.find(e => e.employee_id === activeEmployee.employee_id))?.total_incentive || 0)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </div>
 
               {/* Daily Breakdown: time-ordered when single day, else by date */}
@@ -812,7 +835,7 @@ function StaffPerformancePage() {
                           <TableHead className="w-[35%]">Item</TableHead>
                           <TableHead className="w-20">Time</TableHead>
                           <TableHead>Split</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
+                          {canSeeFinancials && <TableHead className="text-right">Amount</TableHead>}
                           <TableHead className="text-right">Stars</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -842,16 +865,18 @@ function StaffPerformancePage() {
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-right">
-                              {isProduct ? (
-                                <div>
-                                  <div className="font-medium">{formatCurrency(s.sale_amount)}</div>
-                                  <div className="text-xs text-green-600">→ {formatCurrency(s.earnings)} incentive</div>
-                                </div>
-                              ) : (
-                                <span className="font-medium">{formatCurrency(s.earnings)}</span>
-                              )}
-                            </TableCell>
+                            {canSeeFinancials && (
+                              <TableCell className="text-right">
+                                {isProduct ? (
+                                  <div>
+                                    <div className="font-medium">{formatCurrency(s.sale_amount)}</div>
+                                    <div className="text-xs text-green-600">→ {formatCurrency(s.earnings)} incentive</div>
+                                  </div>
+                                ) : (
+                                  <span className="font-medium">{formatCurrency(s.earnings)}</span>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell className="text-right">
                               <span className="flex items-center justify-end gap-1">
                                 <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
@@ -865,9 +890,11 @@ function StaffPerformancePage() {
                           <TableCell>Total</TableCell>
                           <TableCell></TableCell>
                           <TableCell></TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}
-                          </TableCell>
+                          {canSeeFinancials && (
+                            <TableCell className="text-right">
+                              {formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}
+                            </TableCell>
+                          )}
                           <TableCell className="text-right">
                             <span className="flex items-center justify-end gap-1">
                               <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
@@ -885,7 +912,7 @@ function StaffPerformancePage() {
                           <TableHead>Services</TableHead>
                           <TableHead>Contribution</TableHead>
                           <TableHead>Stars</TableHead>
-                          <TableHead className="text-right">Earnings</TableHead>
+                          {canSeeFinancials && <TableHead className="text-right">Earnings</TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -929,9 +956,11 @@ function StaffPerformancePage() {
                                 {day.stars}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {formatCurrency(day.earnings)}
-                            </TableCell>
+                            {canSeeFinancials && (
+                              <TableCell className="text-right font-semibold">
+                                {formatCurrency(day.earnings)}
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))}
                         <TableRow className="font-bold border-t-2 bg-muted/50">
@@ -944,9 +973,11 @@ function StaffPerformancePage() {
                               {activeEmployee.star_points}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}
-                          </TableCell>
+                          {canSeeFinancials && (
+                            <TableCell className="text-right">
+                              {formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}
+                            </TableCell>
+                          )}
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -965,7 +996,7 @@ function StaffPerformancePage() {
             <>
               {/* Summary Row */}
               {totals && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className={`grid grid-cols-2 ${canSeeFinancials ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-2'} gap-4`}>
                   <Card>
                     <CardContent className="pt-5 pb-4 text-center">
                       <div className="text-xs text-muted-foreground mb-1">Total Services</div>
@@ -981,27 +1012,31 @@ function StaffPerformancePage() {
                       </div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-5 pb-4 text-center">
-                      <div className="text-xs text-muted-foreground mb-1">Service Earnings</div>
-                      <div className="text-2xl font-bold">{formatCurrency(totals.earnings)}</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-5 pb-4 text-center">
-                      <div className="text-xs text-muted-foreground mb-1">Product Sales</div>
-                      <div className="text-2xl font-bold">{formatCurrency(totals.productSales)}</div>
-                    </CardContent>
-                  </Card>
-                  <Card
-                    className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
-                    onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
-                  >
-                    <CardContent className="pt-5 pb-4 text-center">
-                      <div className="text-xs text-muted-foreground mb-1">Incentives</div>
-                      <div className="text-2xl font-bold text-green-600">{formatCurrency(totals.productIncentives || incentiveSummary.total_incentive || 0)}</div>
-                    </CardContent>
-                  </Card>
+                  {canSeeFinancials && (
+                    <>
+                      <Card>
+                        <CardContent className="pt-5 pb-4 text-center">
+                          <div className="text-xs text-muted-foreground mb-1">Service Earnings</div>
+                          <div className="text-2xl font-bold">{formatCurrency(totals.earnings)}</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-5 pb-4 text-center">
+                          <div className="text-xs text-muted-foreground mb-1">Product Sales</div>
+                          <div className="text-2xl font-bold">{formatCurrency(totals.productSales)}</div>
+                        </CardContent>
+                      </Card>
+                      <Card
+                        className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
+                        onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
+                      >
+                        <CardContent className="pt-5 pb-4 text-center">
+                          <div className="text-xs text-muted-foreground mb-1">Incentives</div>
+                          <div className="text-2xl font-bold text-green-600">{formatCurrency(totals.productIncentives || incentiveSummary.total_incentive || 0)}</div>
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -1023,9 +1058,13 @@ function StaffPerformancePage() {
                         <TableHead>Employee</TableHead>
                         <TableHead>Services</TableHead>
                         <TableHead>Stars</TableHead>
-                        <TableHead className="text-right">Service Earnings</TableHead>
-                        <TableHead className="text-right">Product Sales</TableHead>
-                        <TableHead className="text-right">Incentives</TableHead>
+                        {canSeeFinancials && (
+                          <>
+                            <TableHead className="text-right">Service Earnings</TableHead>
+                            <TableHead className="text-right">Product Sales</TableHead>
+                            <TableHead className="text-right">Incentives</TableHead>
+                          </>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1051,15 +1090,19 @@ function StaffPerformancePage() {
                               <span className="text-xs text-muted-foreground">/ {e.monthly_star_goal}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-bold">
-                            {formatCurrency(e.revenue_generated - (e.product_incentives || 0))}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {e.product_sales ? formatCurrency(e.product_sales) : '—'}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-green-600">
-                            {e.product_incentives ? formatCurrency(e.product_incentives) : '—'}
-                          </TableCell>
+                          {canSeeFinancials && (
+                            <>
+                              <TableCell className="text-right font-bold">
+                                {formatCurrency(e.revenue_generated - (e.product_incentives || 0))}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {e.product_sales ? formatCurrency(e.product_sales) : '—'}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-green-600">
+                                {e.product_incentives ? formatCurrency(e.product_incentives) : '—'}
+                              </TableCell>
+                            </>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1067,29 +1110,31 @@ function StaffPerformancePage() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Revenue by Employee</CardTitle>
-                  <CardDescription>
-                    Service earnings vs product sales per employee
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <MultiBarChart
-                    data={employees.slice(0, 15).map((e) => ({
-                      employee_name: e.employee_name,
-                      service_earnings: e.revenue_generated - (e.product_incentives || 0),
-                      product_sales: e.product_sales || 0,
-                    }))}
-                    bars={[
-                      { dataKey: 'service_earnings', name: 'Service Earnings', color: '#6366f1' },
-                      { dataKey: 'product_sales', name: 'Product Sales', color: '#10b981' },
-                    ]}
-                    xKey="employee_name"
-                    height={Math.max(250, Math.min(employees.length, 15) * 30)}
-                  />
-                </CardContent>
-              </Card>
+              {canSeeFinancials && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Revenue by Employee</CardTitle>
+                    <CardDescription>
+                      Service earnings vs product sales per employee
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <MultiBarChart
+                      data={employees.slice(0, 15).map((e) => ({
+                        employee_name: e.employee_name,
+                        service_earnings: e.revenue_generated - (e.product_incentives || 0),
+                        product_sales: e.product_sales || 0,
+                      }))}
+                      bars={[
+                        { dataKey: 'service_earnings', name: 'Service Earnings', color: '#6366f1' },
+                        { dataKey: 'product_sales', name: 'Product Sales', color: '#10b981' },
+                      ]}
+                      xKey="employee_name"
+                      height={Math.max(250, Math.min(employees.length, 15) * 30)}
+                    />
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
 
@@ -1103,8 +1148,8 @@ function StaffPerformancePage() {
             </Card>
           )}
 
-          {/* Product Incentive Report */}
-          <Card id="product-incentives">
+          {/* Product Incentive Report (owners only) */}
+          {canSeeFinancials && <Card id="product-incentives">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <IndianRupee className="h-4 w-4" />
@@ -1190,7 +1235,7 @@ function StaffPerformancePage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>}
         </div>
       )}
     </div>

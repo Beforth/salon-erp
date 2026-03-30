@@ -1,6 +1,67 @@
-export const CURRENT_VERSION = 'v2.5.0'
+export const CURRENT_VERSION = 'v2.6.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.6.0',
+    date: 'Mar 2026',
+    title: 'Pending Services, Searchable Employees & Staff Access',
+    highlights: [
+      'Pending services overhaul — removed partial billing',
+      'Same employee for all services in package billing',
+      'Searchable employee dropdown in billing forms',
+      'Staff performance visible to cashier and manager',
+      'Optional time field on expenses',
+      'Employee credit based on actual service date',
+    ],
+    details: [
+      {
+        section: 'Billing — Pending Services',
+        items: [
+          'Removed partial billing — bills are always fully completed with full payment upfront',
+          'Individual services can be marked as "pending" during bill completion (to be performed later)',
+          'Employee assignment is cleared for pending services — assigned when service is actually completed',
+          'New "Pending Services" tab on Bills page showing all pending items with "Complete" action',
+          '"Complete" button on pending items in bill detail page',
+          'Revenue recognized at bill date regardless of pending services',
+          'Employee credit attributed to the actual service date, not the bill date',
+        ],
+      },
+      {
+        section: 'Billing — Employee Selection',
+        items: [
+          '"Same employee for all services" checkbox for package billing — pick one employee for all services',
+          'Searchable employee dropdown replaces native select in all billing forms',
+          'Type to filter employees by name instead of scrolling through long lists',
+          'Available in compact size for inline package service rows',
+        ],
+      },
+      {
+        section: 'Staff Performance',
+        items: [
+          'Staff performance page now accessible to cashier and manager roles',
+          'Manager/cashier view shows service counts, star points, and daily averages only',
+          'Financial data (earnings, sales, incentives, revenue chart) hidden for non-owner roles',
+          'Branch auto-filtered for non-owner roles (no branch selector)',
+          'CSV export restricted to owner/developer roles',
+        ],
+      },
+      {
+        section: 'Expenses',
+        items: [
+          'Optional time field added to expense creation and editing',
+          'Time displayed alongside date in expenses list when present',
+        ],
+      },
+      {
+        section: 'Reporting',
+        items: [
+          'Employee performance reports use actual service date for credit attribution',
+          'Pending items (no employee assigned) excluded from performance reports',
+          'Services completed later appear in reports on their actual service date',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.5.0',
     date: 'Mar 2026',

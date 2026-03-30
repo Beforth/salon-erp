@@ -52,6 +52,7 @@ import {
 import { toast } from 'sonner'
 import { printThermalReceipt } from '@/components/ThermalReceipt'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
+import CompletePendingServiceModal from '@/components/modals/CompletePendingServiceModal'
 
 const statusColors = {
   completed: 'success',
@@ -75,7 +76,8 @@ function BillDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editItemStatuses, setEditItemStatuses] = useState({})
   const [completeBillModalOpen, setCompleteBillModalOpen] = useState(false)
-  const [partialBillMode, setPartialBillMode] = useState(false)
+  const [completePendingItemModalOpen, setCompletePendingItemModalOpen] = useState(false)
+  const [selectedPendingItemForComplete, setSelectedPendingItemForComplete] = useState(null)
   const [removedPackageInstanceIds, setRemovedPackageInstanceIds] = useState([])
   const [reconfigModalOpen, setReconfigModalOpen] = useState(false)
   const [reconfigPackage, setReconfigPackage] = useState(null) // { package_instance_id, package_id, package_name }
@@ -413,22 +415,12 @@ function BillDetailPage() {
             <>
               <Button
                 onClick={() => {
-                  setPartialBillMode(false)
                   setCompleteBillModalOpen(true)
                 }}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <Check className="h-4 w-4 mr-2" />
                 Complete Bill
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setPartialBillMode(true)
-                  setCompleteBillModalOpen(true)
-                }}
-              >
-                Partial Bill
               </Button>
               <Button
                 variant="outline"
@@ -677,12 +669,37 @@ function BillDetailPage() {
                                 {formatCurrency(item.total_price)}
                               </TableCell>
                               <TableCell className="text-center">
-                                <Badge
-                                  variant={item.status === 'pending' ? 'warning' : 'success'}
-                                  className="text-xs capitalize"
-                                >
-                                  {item.status || 'completed'}
-                                </Badge>
+                                <div className="flex items-center justify-center gap-1">
+                                  <Badge
+                                    variant={item.status === 'pending' ? 'warning' : 'success'}
+                                    className="text-xs capitalize"
+                                  >
+                                    {item.status || 'completed'}
+                                  </Badge>
+                                  {item.status === 'pending' && bill.status === 'completed' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedPendingItemForComplete({
+                                          item_id: item.item_id,
+                                          item_name: item.item_name || item.service?.service_name || 'Service',
+                                          total_price: item.total_price,
+                                          bill_id: bill.bill_id,
+                                          bill_number: bill.bill_number,
+                                          bill_date: bill.bill_date,
+                                          customer_name: bill.customer?.customer_name,
+                                          branch_id: bill.branch?.branch_id,
+                                        })
+                                        setCompletePendingItemModalOpen(true)
+                                      }}
+                                    >
+                                      Complete
+                                    </Button>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -730,12 +747,37 @@ function BillDetailPage() {
                           {formatCurrency(item.total_price)}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge
-                            variant={item.status === 'pending' ? 'warning' : 'success'}
-                            className="text-xs capitalize"
-                          >
-                            {item.status || 'completed'}
-                          </Badge>
+                          <div className="flex items-center justify-center gap-1">
+                            <Badge
+                              variant={item.status === 'pending' ? 'warning' : 'success'}
+                              className="text-xs capitalize"
+                            >
+                              {item.status || 'completed'}
+                            </Badge>
+                            {item.status === 'pending' && bill.status === 'completed' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedPendingItemForComplete({
+                                    item_id: item.item_id,
+                                    item_name: item.item_name || item.service?.service_name || 'Service',
+                                    total_price: item.total_price,
+                                    bill_id: bill.bill_id,
+                                    bill_number: bill.bill_number,
+                                    bill_date: bill.bill_date,
+                                    customer_name: bill.customer?.customer_name,
+                                    branch_id: bill.branch?.branch_id,
+                                  })
+                                  setCompletePendingItemModalOpen(true)
+                                }}
+                              >
+                                Complete
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -1344,7 +1386,11 @@ function BillDetailPage() {
         open={completeBillModalOpen}
         onOpenChange={setCompleteBillModalOpen}
         bill={bill}
-        partial={partialBillMode}
+      />
+      <CompletePendingServiceModal
+        open={completePendingItemModalOpen}
+        onOpenChange={setCompletePendingItemModalOpen}
+        item={selectedPendingItemForComplete}
       />
     </div>
   )

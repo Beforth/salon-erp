@@ -460,6 +460,9 @@ function ExpensesPage() {
                       <TableRow key={expense.id}>
                         <TableCell className="whitespace-nowrap">
                           {formatDate(expense.expense_date)}
+                          {expense.expense_time && (
+                            <span className="text-xs text-muted-foreground ml-1">{expense.expense_time}</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{expense.category_name}</Badge>
