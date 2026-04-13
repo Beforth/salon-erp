@@ -30,6 +30,7 @@ import {
   Truck,
   PackagePlus,
   Smartphone,
+  Wrench,
   Building,
   PanelLeftClose,
   PanelLeftOpen,
@@ -112,6 +113,12 @@ const getNavItemsByRole = (role) => {
         { title: 'Suppliers', href: '/suppliers', icon: Truck },
         { title: 'Purchase Batches', href: '/purchase-batches', icon: PackagePlus },
       ],
+    },
+    {
+      title: 'Maintenance',
+      href: '/maintenance',
+      icon: Wrench,
+      roles: ['owner', 'developer', 'manager', 'cashier', 'employee'],
     },
     {
       title: 'Reports',

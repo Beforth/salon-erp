@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { billService } from '@/services/bill.service'
 import { branchService } from '@/services/branch.service'
@@ -71,7 +71,10 @@ const paymentIcons = {
 function BillDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
+  const returnTo = searchParams.get('returnTo')
+  const goBack = () => navigate(returnTo || '/bills')
   const printRef = useRef(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editItemStatuses, setEditItemStatuses] = useState({})
@@ -91,7 +94,7 @@ function BillDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['chairs'] })
-      navigate('/bills')
+      goBack()
     },
   })
 
@@ -371,7 +374,7 @@ function BillDetailPage() {
   if (error || !bill) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={() => navigate('/bills')}>
+        <Button variant="ghost" onClick={() => goBack()}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Bills
         </Button>
@@ -391,7 +394,7 @@ function BillDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate('/bills')}>
+          <Button variant="ghost" onClick={() => goBack()}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>

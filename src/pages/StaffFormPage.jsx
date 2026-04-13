@@ -351,7 +351,7 @@ function StaffFormPage() {
         <Card>
           <CardContent className="p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className={`grid w-full ${isEditing ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="basic" className="flex items-center gap-1.5">
                   <User className="h-4 w-4" />
                   Basic
@@ -364,12 +364,10 @@ function StaffFormPage() {
                   <CreditCard className="h-4 w-4" />
                   Bank
                 </TabsTrigger>
-                {isEditing && (
-                  <TabsTrigger value="assets" className="flex items-center gap-1.5">
-                    <Package className="h-4 w-4" />
-                    Assets
-                  </TabsTrigger>
-                )}
+                <TabsTrigger value="assets" className="flex items-center gap-1.5">
+                  <Package className="h-4 w-4" />
+                  Assets
+                </TabsTrigger>
               </TabsList>
 
               {/* ==================== Basic Info Tab ==================== */}
@@ -657,8 +655,17 @@ function StaffFormPage() {
               </TabsContent>
 
               {/* ==================== Assets Tab ==================== */}
-              {isEditing && (
-                <TabsContent value="assets" className="space-y-4 mt-6">
+              <TabsContent value="assets" className="space-y-4 mt-6">
+                {!isEditing ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <Package className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                    <h3 className="text-lg font-semibold text-muted-foreground">Assets</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Save the staff member first to manage their assets.
+                    </p>
+                  </div>
+                ) : (
+                  <>
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold">Assigned Assets</h3>
@@ -819,8 +826,9 @@ function StaffFormPage() {
                       </Table>
                     </div>
                   )}
-                </TabsContent>
-              )}
+                  </>
+                )}
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>

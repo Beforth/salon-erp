@@ -28,6 +28,7 @@ import ChairManagementPage from './pages/ChairManagementPage'
 import SavingsPotsPage from './pages/SavingsPotsPage'
 import CounterWithdrawalsPage from './pages/CounterWithdrawalsPage'
 import UpiAccountsPage from './pages/UpiAccountsPage'
+import MaintenancePage from './pages/MaintenancePage'
 import SuppliersPage from './pages/SuppliersPage'
 import PurchaseBatchesPage from './pages/PurchaseBatchesPage'
 import PurchaseBatchCreatePage from './pages/PurchaseBatchCreatePage'
@@ -112,6 +113,7 @@ function App() {
         <Route path="savings-pots" element={<SavingsPotsPage />} />
         <Route path="counter-withdrawals" element={<CounterWithdrawalsPage />} />
         <Route path="upi-accounts" element={<UpiAccountsPage />} />
+        <Route path="maintenance" element={<MaintenancePage />} />
         <Route path="bank-deposits" element={<BankDepositsPage />} />
         <Route path="suppliers" element={<SuppliersPage />} />
         <Route path="purchase-batches" element={<PurchaseBatchesPage />} />

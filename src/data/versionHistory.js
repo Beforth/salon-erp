@@ -1,6 +1,55 @@
-export const CURRENT_VERSION = 'v2.6.0'
+export const CURRENT_VERSION = 'v2.7.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.7.0',
+    date: 'Apr 2026',
+    title: 'Maintenance Tracker, Filter Persistence & Cashier Permissions',
+    highlights: [
+      'New Maintenance Tracker module for repair/servicing tracking',
+      'Filter persistence via URL parameters — filters survive navigation',
+      'Cashier can now create/edit UPI accounts and packages',
+      'Employee ID search across staff list',
+      'Assets tab visible on new staff form with save-first prompt',
+    ],
+    details: [
+      {
+        section: 'Maintenance Tracker',
+        items: [
+          'New standalone module to track items sent for repair or servicing',
+          'Record item details, vendor info (name, phone, address), costs, and dates',
+          'Status workflow: Sent → In Progress → Ready → Returned (or Cancelled)',
+          'Filter by branch, status, and date range with pagination',
+          'Accessible to all user roles — create/edit for owner, manager, cashier; delete for owner only',
+          'Sidebar navigation item visible to all roles',
+        ],
+      },
+      {
+        section: 'Filter Persistence',
+        items: [
+          'Staff Performance filters now sync to URL search parameters',
+          'Clicking a bill from Staff Performance and pressing back restores all filters',
+          'New reusable useFilterParams hook for any page with filters',
+          'Bill detail page back button respects returnTo parameter from referring pages',
+        ],
+      },
+      {
+        section: 'Cashier Permissions',
+        items: [
+          'Cashier role can now create and edit UPI/API accounts',
+          'Cashier role can now create and edit service packages',
+          'Delete access remains restricted to owner/developer roles',
+        ],
+      },
+      {
+        section: 'Staff Management',
+        items: [
+          'Employee ID (employee code) now searchable in the staff list',
+          'Assets tab always visible on staff form — shows "Save staff member first" prompt for new staff',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.6.0',
     date: 'Mar 2026',

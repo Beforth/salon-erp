@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
+import { useFilterParams, buildReturnTo } from '@/hooks/useFilterParams'
 import { branchService } from '@/services/branch.service'
 import { userService } from '@/services/user.service'
 import { incentiveService } from '@/services/incentive.service'
@@ -41,14 +42,29 @@ function StaffPerformancePage() {
   const canSeeFinancials = isOwner
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const defaultRange = useMemo(getDefaultDateRange, [])
-  const [filterMode, setFilterMode] = useState('range') // 'range' | 'single'
-  const [startDate, setStartDate] = useState(defaultRange.start_date)
-  const [endDate, setEndDate] = useState(defaultRange.end_date)
-  const [singleDate, setSingleDate] = useState(defaultRange.end_date)
-  const [selectedBranch, setSelectedBranch] = useState('')
-  const [selectedEmployee, setSelectedEmployee] = useState('')
+  const [filters, setFilters] = useFilterParams({
+    mode: 'range',
+    startDate: defaultRange.start_date,
+    endDate: defaultRange.end_date,
+    singleDate: defaultRange.end_date,
+    branch: '',
+    employee: '',
+  })
+  const filterMode = filters.mode
+  const startDate = filters.startDate
+  const endDate = filters.endDate
+  const singleDate = filters.singleDate
+  const selectedBranch = filters.branch
+  const selectedEmployee = filters.employee
+  const setFilterMode = (v) => setFilters({ mode: v })
+  const setStartDate = (v) => setFilters({ startDate: v })
+  const setEndDate = (v) => setFilters({ endDate: v })
+  const setSingleDate = (v) => setFilters({ singleDate: v })
+  const setSelectedBranch = (v) => setFilters({ branch: v })
+  const setSelectedEmployee = (v) => setFilters({ employee: v })
   const [activeEmployeeId, setActiveEmployeeId] = useState(null)
   const [editingGoal, setEditingGoal] = useState(false)
   const [goalValue, setGoalValue] = useState('')
@@ -120,8 +136,7 @@ function StaffPerformancePage() {
   const incentiveByEmployeeAll = incentiveReport.by_employee || []
 
   const handleBranchChange = (branchId) => {
-    setSelectedBranch(branchId)
-    setSelectedEmployee('')
+    setFilters({ branch: branchId, employee: '' })
     setActiveEmployeeId(null)
   }
 
@@ -537,7 +552,7 @@ function StaffPerformancePage() {
                           <TableRow
                             key={group.billNumber}
                             className={`cursor-pointer hover:bg-primary/5 ${isProductRow ? 'bg-green-50/50' : ''}`}
-                            onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}`)}
+                            onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}?returnTo=${encodeURIComponent(buildReturnTo(location))}`)}
                             title={[row.bill_number && `Bill: ${row.bill_number}`, row.book_number && `Book: ${row.book_number}`].filter(Boolean).join(' · ') || undefined}
                           >
                             <TableCell className={`font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
@@ -603,7 +618,7 @@ function StaffPerformancePage() {
                               <TableRow
                                 key={`${group.billNumber}-${idx}`}
                                 className={`cursor-pointer hover:bg-primary/5 ${isProductRow ? 'bg-green-50/50' : ''}`}
-                                onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}`)}
+                                onClick={() => row.bill_id && navigate(`/bills/${row.bill_id}?returnTo=${encodeURIComponent(buildReturnTo(location))}`)}
                               >
                                 <TableCell className={`font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] pl-10 ${isProductRow ? 'bg-green-50/50' : 'bg-white'}`}>
                                   <div className="flex items-center gap-1.5">
@@ -846,7 +861,7 @@ function StaffPerformancePage() {
                           <TableRow
                             key={i}
                             className={`cursor-pointer hover:bg-primary/5 ${isProduct ? 'bg-green-50/50' : ''}`}
-                            onClick={() => s.bill_id && navigate(`/bills/${s.bill_id}`)}
+                            onClick={() => s.bill_id && navigate(`/bills/${s.bill_id}?returnTo=${encodeURIComponent(buildReturnTo(location))}`)}
                             title={[s.bill_number && `Bill: ${s.bill_number}`, s.book_number && `Book: ${s.book_number}`].filter(Boolean).join(' · ') || undefined}
                           >
                             <TableCell className="font-medium">
@@ -938,7 +953,7 @@ function StaffPerformancePage() {
                                     title={[s.bill_number && `Bill: ${s.bill_number}`, s.book_number && `Book: ${s.book_number}`].filter(Boolean).join(' · ') || undefined}
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      if (s.bill_id) navigate(`/bills/${s.bill_id}`)
+                                      if (s.bill_id) navigate(`/bills/${s.bill_id}?returnTo=${encodeURIComponent(buildReturnTo(location))}`)
                                     }}
                                   >
                                     {isProduct
