@@ -39,7 +39,7 @@ function StaffPerformancePage() {
   const { user } = useSelector((state) => state.auth)
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
   const canAccessPage = isOwner || user?.role === 'manager' || user?.role === 'cashier'
-  const canSeeFinancials = isOwner
+  const canSeeFinancials = user?.role !== 'employee'
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
