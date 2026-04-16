@@ -40,6 +40,7 @@ function StaffPerformancePage() {
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
   const canAccessPage = isOwner || user?.role === 'manager' || user?.role === 'cashier'
   const canSeeFinancials = user?.role !== 'employee'
+  const showServiceEarningsCard = user?.role !== 'manager' && user?.role !== 'cashier'
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
@@ -720,7 +721,11 @@ function StaffPerformancePage() {
           {activeEmployee && (
             <>
               {/* Summary Cards */}
-              <div className={`grid grid-cols-2 md:grid-cols-3 ${canSeeFinancials ? 'lg:grid-cols-6' : 'lg:grid-cols-3'} gap-4`}>
+              <div
+                className={`grid grid-cols-2 md:grid-cols-3 gap-4 ${
+                  !canSeeFinancials ? 'lg:grid-cols-3' : showServiceEarningsCard ? 'lg:grid-cols-6' : 'lg:grid-cols-5'
+                }`}
+              >
                 <Card>
                   <CardContent className="pt-5 pb-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -794,17 +799,19 @@ function StaffPerformancePage() {
                     <span className="text-xs text-muted-foreground">stars/day</span>
                   </CardContent>
                 </Card>
+                {canSeeFinancials && showServiceEarningsCard && (
+                  <Card>
+                    <CardContent className="pt-5 pb-4">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                        <IndianRupee className="h-4 w-4" />
+                        <span className="text-xs font-medium">Service Earnings</span>
+                      </div>
+                      <div className="text-2xl font-bold">{formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}</div>
+                    </CardContent>
+                  </Card>
+                )}
                 {canSeeFinancials && (
                   <>
-                    <Card>
-                      <CardContent className="pt-5 pb-4">
-                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                          <IndianRupee className="h-4 w-4" />
-                          <span className="text-xs font-medium">Service Earnings</span>
-                        </div>
-                        <div className="text-2xl font-bold">{formatCurrency(activeEmployee.revenue_generated - (activeEmployee.product_incentives || 0))}</div>
-                      </CardContent>
-                    </Card>
                     <Card>
                       <CardContent className="pt-5 pb-4">
                         <div className="flex items-center gap-2 text-muted-foreground mb-1">
@@ -1011,7 +1018,15 @@ function StaffPerformancePage() {
             <>
               {/* Summary Row */}
               {totals && (
-                <div className={`grid grid-cols-2 ${canSeeFinancials ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-2'} gap-4`}>
+                <div
+                  className={`grid grid-cols-2 gap-4 ${
+                    !canSeeFinancials
+                      ? 'md:grid-cols-2'
+                      : showServiceEarningsCard
+                        ? 'md:grid-cols-3 lg:grid-cols-5'
+                        : 'md:grid-cols-2 lg:grid-cols-4'
+                  }`}
+                >
                   <Card>
                     <CardContent className="pt-5 pb-4 text-center">
                       <div className="text-xs text-muted-foreground mb-1">Total Services</div>
@@ -1027,14 +1042,16 @@ function StaffPerformancePage() {
                       </div>
                     </CardContent>
                   </Card>
+                  {canSeeFinancials && showServiceEarningsCard && (
+                    <Card>
+                      <CardContent className="pt-5 pb-4 text-center">
+                        <div className="text-xs text-muted-foreground mb-1">Service Earnings</div>
+                        <div className="text-2xl font-bold">{formatCurrency(totals.earnings)}</div>
+                      </CardContent>
+                    </Card>
+                  )}
                   {canSeeFinancials && (
                     <>
-                      <Card>
-                        <CardContent className="pt-5 pb-4 text-center">
-                          <div className="text-xs text-muted-foreground mb-1">Service Earnings</div>
-                          <div className="text-2xl font-bold">{formatCurrency(totals.earnings)}</div>
-                        </CardContent>
-                      </Card>
                       <Card>
                         <CardContent className="pt-5 pb-4 text-center">
                           <div className="text-xs text-muted-foreground mb-1">Product Sales</div>
