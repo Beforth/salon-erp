@@ -1,4 +1,4 @@
-# Salon ERP - Help Book
+# Salon ERP - Help Book. 
 
 A comprehensive guide to using the Salon ERP system for salon and beauty parlor management.
 
