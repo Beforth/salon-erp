@@ -1,6 +1,87 @@
-export const CURRENT_VERSION = 'v2.7.0'
+export const CURRENT_VERSION = 'v2.8.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.8.0',
+    date: 'Apr 2026',
+    title: 'Attendance System, Job Monitoring & Staff Averages',
+    highlights: [
+      'Full attendance system with punch-machine ingestion and break tracking',
+      'Per-branch shop hours (with cross-midnight support) and per-employee shifts',
+      'Auto-close scheduler: auto-checkout from last bill, auto-leave for no-shows',
+      'Flexible-timing privilege per employee (no late penalty)',
+      'New Jobs page (owner/developer) with scheduler execution history',
+      'Three new staff averages on Employee Performance: services/day, work/day, revenue/service',
+    ],
+    details: [
+      {
+        section: 'Attendance & Shift Tracking',
+        items: [
+          'New Attendance page showing today\'s roster per branch with live status: On floor / On break / Checked out / Not arrived / On leave',
+          'Cashier/manager actions on the roster: Start break, End break, Mark leave',
+          'Punch ingest API (POST /api/attendance/punches) — idempotent on (employee_code, punch_time)',
+          'Break tracking via punch types (break_start / break_end); working hours subtract break durations',
+          'Late penalty per locked rule: 15-min grace, past that max(actual_late_hours, 2)',
+          'Outside-shift hours computed on checkout (eligible for incentive)',
+          'Cross-midnight shop-day semantics — early-morning punches attribute to the prior shop-day',
+          'Orphan punches preserved as audit trail when machine or employee can\'t be resolved',
+          'Per-employee shift start/end and "Flexible timing" toggle on the staff form',
+          'All times in IST',
+        ],
+      },
+      {
+        section: 'Branch & Machine Settings',
+        items: [
+          'Branch edit form: Open time and Close time fields (HH:MM IST); cross-midnight support (e.g., 09:30 → 02:00)',
+          'New Machines page (owner/developer) for registering punch machines per branch',
+          'Machine → Branch resolution is authoritative: punches from a machine attribute to that branch',
+          'Machine registration, edit, activate/deactivate, and delete',
+        ],
+      },
+      {
+        section: 'Auto-close Scheduler',
+        items: [
+          'In-process node-cron, one job per branch, fires at (close time + 10 min) IST',
+          'Auto-checkout: employees with a check-in but no check-out are closed using their last completed bill timestamp',
+          'Auto-leave: employees with no punch recorded for the day are marked on_leave',
+          'Recomputes working hours, late penalty, and outside-shift hours after each auto-close',
+          'Scheduler re-arms automatically when branch hours or active state change',
+          'Manual recovery: POST /api/attendance/run-auto-close (owner/developer) for missed windows',
+        ],
+      },
+      {
+        section: 'Billing & Staff Picker',
+        items: [
+          'Bill create page excludes employees marked on_leave for the current shop-day from all staff pickers',
+          'Roster data auto-refreshes every 60 seconds to reflect late-day changes',
+        ],
+      },
+      {
+        section: 'Reports & Staff Averages (Feature 1)',
+        items: [
+          'Employee Performance now returns three new per-staff metrics:',
+          '  • avg_services_per_day = total services ÷ attendance days',
+          '  • avg_work_per_day = total revenue ÷ attendance days',
+          '  • avg_revenue_per_service = total revenue ÷ total services',
+          'Denominator uses attendance days (present + half_day) within the range',
+          'Revenue queries now honor shop-day windows when branch-scoped (cross-midnight bills included in the right day)',
+          'New response flag using_shop_day indicates when shop-day semantics are applied',
+          'Backfill script (scripts/recompute-performance-shopday.js) to re-aggregate historical EmployeePerformance by shop-day — manually triggered, never auto-run',
+        ],
+      },
+      {
+        section: 'Job Monitoring',
+        items: [
+          'New Jobs page (owner/developer) — scheduler execution history with filters, status badges, and detail modal',
+          'Shows currently-scheduled cron jobs per branch with the actual cron expression',
+          'Every scheduled and manually-triggered job records a JobRun audit row (status, duration, summary, error stack)',
+          'Records retained for 30 days; daily retention prune runs at 03:00 IST and logs itself',
+          'REST endpoints: GET /api/jobs, /api/jobs/:id, /api/jobs/names, /api/jobs/scheduled',
+          '30-second auto-refresh on the Jobs table',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.7.0',
     date: 'Apr 2026',

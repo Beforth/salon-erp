@@ -62,6 +62,9 @@ const initialFormData = {
   bank_ifsc: '',
   emergency_contact_name: '',
   emergency_contact_phone: '',
+  shift_start: '',
+  shift_end: '',
+  has_flexible_timing: false,
 }
 
 const initialAssetForm = {
@@ -143,6 +146,9 @@ function StaffFormPage() {
         bank_ifsc: staff.employee_details?.bank_ifsc || '',
         emergency_contact_name: staff.employee_details?.emergency_contact_name || '',
         emergency_contact_phone: staff.employee_details?.emergency_contact_phone || '',
+        shift_start: staff.employee_details?.shift_start || '',
+        shift_end: staff.employee_details?.shift_end || '',
+        has_flexible_timing: staff.employee_details?.has_flexible_timing ?? false,
       })
     } else if (!isEditing) {
       setFormData({
@@ -556,6 +562,41 @@ function StaffFormPage() {
                       onChange={(e) => handleChange('base_salary', e.target.value)}
                       placeholder="25000"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="shift_start">Shift Start (IST)</Label>
+                    <Input
+                      id="shift_start"
+                      type="time"
+                      value={formData.shift_start}
+                      onChange={(e) => handleChange('shift_start', e.target.value)}
+                      disabled={formData.has_flexible_timing}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="shift_end">Shift End (IST)</Label>
+                    <Input
+                      id="shift_end"
+                      type="time"
+                      value={formData.shift_end}
+                      onChange={(e) => handleChange('shift_end', e.target.value)}
+                      disabled={formData.has_flexible_timing}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pb-2">
+                    <input
+                      type="checkbox"
+                      id="has_flexible_timing"
+                      checked={formData.has_flexible_timing}
+                      onChange={(e) => handleChange('has_flexible_timing', e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="has_flexible_timing" className="font-normal">
+                      Flexible timing (no late penalty)
+                    </Label>
                   </div>
                 </div>
 

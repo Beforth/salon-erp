@@ -25,7 +25,11 @@ const initialFormData = {
   phone: '',
   email: '',
   is_active: true,
+  open_time: '',
+  close_time: '',
 }
+
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 function BranchModal({ open, onOpenChange, branch = null }) {
   const queryClient = useQueryClient()
@@ -46,6 +50,8 @@ function BranchModal({ open, onOpenChange, branch = null }) {
         phone: branch.phone || '',
         email: branch.email || '',
         is_active: branch.is_active ?? true,
+        open_time: branch.open_time || '',
+        close_time: branch.close_time || '',
       })
     } else {
       setFormData(initialFormData)
@@ -95,6 +101,15 @@ function BranchModal({ open, onOpenChange, branch = null }) {
       return
     }
 
+    if (formData.open_time && !HHMM_RE.test(formData.open_time)) {
+      toast.error('Open time must be HH:MM (24h)')
+      return
+    }
+    if (formData.close_time && !HHMM_RE.test(formData.close_time)) {
+      toast.error('Close time must be HH:MM (24h)')
+      return
+    }
+
     const data = {
       name: formData.name,
       code: formData.code.toUpperCase(),
@@ -106,6 +121,8 @@ function BranchModal({ open, onOpenChange, branch = null }) {
       phone: formData.phone || null,
       email: formData.email || null,
       is_active: formData.is_active,
+      open_time: formData.open_time || null,
+      close_time: formData.close_time || null,
     }
 
     if (isEditing) {
@@ -243,6 +260,34 @@ function BranchModal({ open, onOpenChange, branch = null }) {
               />
             </div>
           </div>
+
+          {/* Shop Hours */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="open_time">Open Time (HH:MM, IST)</Label>
+              <Input
+                id="open_time"
+                type="time"
+                value={formData.open_time}
+                onChange={(e) => handleChange('open_time', e.target.value)}
+                placeholder="09:30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="close_time">Close Time (HH:MM, IST)</Label>
+              <Input
+                id="close_time"
+                type="time"
+                value={formData.close_time}
+                onChange={(e) => handleChange('close_time', e.target.value)}
+                placeholder="02:00"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Close time can be earlier than open time to indicate a shop-day that crosses midnight
+            (e.g. 09:30 → 02:00). Auto-checkout runs 10 minutes after close.
+          </p>
 
           {/* Active Status */}
           <div className="flex items-center gap-2">

@@ -35,6 +35,9 @@ import PurchaseBatchCreatePage from './pages/PurchaseBatchCreatePage'
 import PurchaseBatchDetailPage from './pages/PurchaseBatchDetailPage'
 import BankDepositsPage from './pages/BankDepositsPage'
 import VersionHistoryPage from './pages/VersionHistoryPage'
+import JobsPage from './pages/JobsPage'
+import MachinesPage from './pages/MachinesPage'
+import AttendancePage from './pages/AttendancePage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
@@ -119,6 +122,9 @@ function App() {
         <Route path="purchase-batches" element={<PurchaseBatchesPage />} />
         <Route path="purchase-batches/new" element={<PurchaseBatchCreatePage />} />
         <Route path="purchase-batches/:id" element={<PurchaseBatchDetailPage />} />
+        <Route path="jobs" element={<JobsPage />} />
+        <Route path="machines" element={<MachinesPage />} />
+        <Route path="attendance" element={<AttendancePage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

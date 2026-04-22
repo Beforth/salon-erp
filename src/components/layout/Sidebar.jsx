@@ -31,6 +31,9 @@ import {
   PackagePlus,
   Smartphone,
   Wrench,
+  Activity,
+  Cpu,
+  CalendarCheck,
   Building,
   PanelLeftClose,
   PanelLeftOpen,
@@ -144,6 +147,12 @@ const getNavItemsByRole = (role) => {
       roles: ['owner', 'developer', 'manager', 'cashier'],
     },
     {
+      title: 'Attendance',
+      href: '/attendance',
+      icon: CalendarCheck,
+      roles: ['owner', 'developer', 'manager', 'cashier'],
+    },
+    {
       title: 'Staff Performance',
       href: '/staff-performance',
       icon: TrendingUp,
@@ -159,6 +168,18 @@ const getNavItemsByRole = (role) => {
       title: 'Settings',
       href: '/settings',
       icon: Settings,
+      roles: ['owner', 'developer'],
+    },
+    {
+      title: 'Jobs',
+      href: '/jobs',
+      icon: Activity,
+      roles: ['owner', 'developer'],
+    },
+    {
+      title: 'Machines',
+      href: '/machines',
+      icon: Cpu,
       roles: ['owner', 'developer'],
     },
   ]

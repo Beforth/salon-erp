@@ -9,6 +9,7 @@ import { branchService } from '@/services/branch.service'
 import { billService } from '@/services/bill.service'
 import { chairService } from '@/services/chair.service'
 import { upiAccountService } from '@/services/upiAccount.service'
+import { attendanceService } from '@/services/attendance.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -182,6 +183,14 @@ function BillCreatePage() {
     enabled: !!selectedBranch,
   })
 
+  // Today's attendance roster — used to exclude on-leave staff from the picker.
+  const { data: rosterData } = useQuery({
+    queryKey: ['attendance-today', selectedBranch],
+    queryFn: () => attendanceService.getTodayRoster({ branch_id: selectedBranch }),
+    enabled: !!selectedBranch,
+    staleTime: 60_000,
+  })
+
   const { data: chairsData } = useQuery({
     queryKey: ['chairs', { branch_id: selectedBranch, status: 'available' }],
     queryFn: () => chairService.getChairs({ branch_id: selectedBranch, status: 'available' }),
@@ -198,7 +207,17 @@ function BillCreatePage() {
   const packages = packagesData?.data || []
   const products = productsData?.data || []
   const branches = branchesData?.data || []
-  const employees = employeesData?.data || []
+  // Exclude staff marked on leave today — they can't be assigned to new bills.
+  // Everyone else (not-yet-arrived, on-floor, on-break, checked-out) stays selectable
+  // so manual punch gaps don't block billing.
+  const onLeaveIds = useMemo(() => {
+    const rows = rosterData?.data?.employees || []
+    return new Set(rows.filter((e) => e.current_status === 'on_leave').map((e) => e.id))
+  }, [rosterData])
+  const employees = useMemo(() => {
+    const all = employeesData?.data || []
+    return all.filter((emp) => !onLeaveIds.has(emp.employee_id))
+  }, [employeesData, onLeaveIds])
   const availableChairs = chairsData?.data || []
   const upiAccounts = upiAccountsData?.data || []
 
