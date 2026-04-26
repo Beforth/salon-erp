@@ -96,6 +96,14 @@ export default function AttendancePage() {
     },
     onError: (e) => toast.error(e.response?.data?.error?.message || 'Failed'),
   })
+  const punchMutation = useMutation({
+    mutationFn: (data) => attendanceService.ingestPunch(data),
+    onSuccess: (_d, vars) => {
+      toast.success(vars.punch_type === 'in' ? 'Checked in' : 'Checked out')
+      queryClient.invalidateQueries({ queryKey: ['attendance-today'] })
+    },
+    onError: (e) => toast.error(e.response?.data?.error?.message || 'Failed'),
+  })
 
   const handleBreak = (emp, type) => {
     if (!defaultMachineNo) {
@@ -109,6 +117,21 @@ export default function AttendancePage() {
     }
     if (type === 'start') breakStartMutation.mutate(payload)
     else breakEndMutation.mutate(payload)
+  }
+
+  const handlePunch = (emp, punchType) => {
+    if (!defaultMachineNo) {
+      toast.error('Register a machine for this branch before punching manually')
+      return
+    }
+    punchMutation.mutate({
+      employee_code: emp.employee_code,
+      machine_no: defaultMachineNo,
+      punch_time: new Date().toISOString(),
+      punch_type: punchType,
+      source: 'manual',
+      reason: punchType === 'in' ? 'Manual check-in (cashier)' : 'Manual check-out (cashier)',
+    })
   }
 
   const openLeaveModal = (emp) => {
@@ -223,15 +246,41 @@ export default function AttendancePage() {
                           : '—'}
                       </TableCell>
                       {canAct && (
-                        <TableCell className="text-right whitespace-nowrap">
+                        <TableCell className="text-right whitespace-nowrap space-x-2">
+                          {emp.current_status === 'not_arrived' && (
+                            <>
+                              <Button
+                                variant="outline" size="sm"
+                                onClick={() => handlePunch(emp, 'in')}
+                                disabled={punchMutation.isPending}
+                              >
+                                Check in
+                              </Button>
+                              <Button
+                                variant="ghost" size="sm"
+                                onClick={() => openLeaveModal(emp)}
+                              >
+                                Mark leave
+                              </Button>
+                            </>
+                          )}
                           {emp.current_status === 'on_floor' && (
-                            <Button
-                              variant="outline" size="sm"
-                              onClick={() => handleBreak(emp, 'start')}
-                              disabled={breakStartMutation.isPending}
-                            >
-                              Start break
-                            </Button>
+                            <>
+                              <Button
+                                variant="outline" size="sm"
+                                onClick={() => handleBreak(emp, 'start')}
+                                disabled={breakStartMutation.isPending}
+                              >
+                                Start break
+                              </Button>
+                              <Button
+                                variant="outline" size="sm"
+                                onClick={() => handlePunch(emp, 'out')}
+                                disabled={punchMutation.isPending}
+                              >
+                                Check out
+                              </Button>
+                            </>
                           )}
                           {emp.current_status === 'on_break' && (
                             <Button
@@ -240,14 +289,6 @@ export default function AttendancePage() {
                               disabled={breakEndMutation.isPending}
                             >
                               End break
-                            </Button>
-                          )}
-                          {emp.current_status === 'not_arrived' && (
-                            <Button
-                              variant="ghost" size="sm"
-                              onClick={() => openLeaveModal(emp)}
-                            >
-                              Mark leave
                             </Button>
                           )}
                         </TableCell>
