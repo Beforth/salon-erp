@@ -1,6 +1,75 @@
-export const CURRENT_VERSION = 'v2.9.0'
+export const CURRENT_VERSION = 'v2.10.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.10.0',
+    date: 'May 2026',
+    title: 'Employee Incentive System',
+    highlights: [
+      'Configurable per-branch incentive engine driving monthly payouts',
+      'Strict-priority ladder (P1 sales-based → P2 service tiers → P3 daily fallback) plus additive daily punctuality bonuses',
+      'New Reports → Staff Incentives view with live numbers, lock for payroll, and disburse-as-Expense in one click',
+      'Per-branch configuration in Settings — punctuality tiers, P1/P2/P3 numbers, and master enable toggle',
+      'Replaces the v2.8.0 outside-shift-hours incentive concept',
+    ],
+    details: [
+      {
+        section: 'Compute engine',
+        items: [
+          'Sales attribution: BillItem.totalPrice (post line-discount) where employee is the primary assignee, type=service, bill not cancelled',
+          'Month-bucket date: BillItem.serviceDate when set (matches v2.6.0 pending-services credit rule), else Bill.billDate',
+          'Free services count toward P2 service count, ₹0 toward P1/P3 revenue',
+          'P1 (sales): if monthly revenue ≥ baseSalary × revenueMultiplier (default 4.75), payout = revenue × payoutRate (default 10%)',
+          'P2 (service tiers): default 600/525/450 services → 15/12/10% of base salary; descending tiers, highest match wins',
+          'P3 (daily fallback): only when P1 and P2 both produce ₹0 — for each day with revenue ≥ baseSalary × ratio (default 10%), accrue dailyBonus (default ₹50)',
+          'Strict priority: P1 wins outright, even if P2 would pay more',
+          'Punctuality: per attendance day, ₹80 if ≥45 min early, ₹40 if ≥15 min early (defaults). Reference is shift_start, falling back to branch openTime; flexible-timing staff excluded',
+          'Always live by default; locked snapshots take over for the month once owner clicks Lock for payroll',
+        ],
+      },
+      {
+        section: 'Configuration (per branch)',
+        items: [
+          'New Settings → Staff Incentives tab (owner-only)',
+          'Punctuality tiers, P1 multiplier and rate, P2 service-count tiers and rates, P3 daily threshold and bonus all editable per branch',
+          'Add/remove tier rows directly in the form; on save tiers are normalised in descending order',
+          'Master enable toggle per branch — when off, all employees there get ₹0 incentive',
+          'Reset to defaults button restores the seeded values for that branch',
+          'Defaults: ≥45min/₹80, ≥15min/₹40 punctuality; P1 4.75×/10%; P2 600/525/450 → 15/12/10%; P3 10%/₹50',
+        ],
+      },
+      {
+        section: 'Reports → Staff Incentives',
+        items: [
+          'Per-employee row showing base salary, services, revenue, applied priority, monthly bonus, punctuality, and total payout',
+          'Expandable details: priority math (which of P1/P2/P3 fired and why) plus per-tier punctuality day counts',
+          'Month and branch picker; live indicator when any row is unlocked, locked badge once frozen, disbursed badge after payout',
+          'Lock month for payroll — writes EmployeeIncentiveMonth snapshots for every active employee with base_salary set',
+          'Recompute snapshot — re-runs the engine for already-locked rows (skipped once disbursed)',
+          'Disburse all — one Expense per employee under category "Incentive Payout", linked to the snapshot via disbursedExpenseId',
+          'Visible to owner, manager, cashier; hidden from the employee role',
+        ],
+      },
+      {
+        section: 'Schema & Migrations',
+        items: [
+          'New tables: branch_incentive_configs, employee_incentive_months',
+          'Reuses EmployeeDetail.base_salary, .shift_start, .has_flexible_timing — no duplicate columns',
+          'Seed: "Incentive Payout" expense category; default config row backfilled for every existing branch',
+          'Branch creation auto-creates the default config row for the new branch',
+        ],
+      },
+      {
+        section: 'Notes',
+        items: [
+          'Outside-shift hours field is still computed (working-hours pay) but no longer surfaced as an incentive',
+          'No proration for partial-month staff — joiners/leavers naturally fall back to P3 daily accruals',
+          'Salary mid-month change: live view uses current value, snapshot stores the value at lock time',
+          'No auto-lock cron — locking is owner-driven, any time after month-end',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.9.0',
     date: 'May 2026',

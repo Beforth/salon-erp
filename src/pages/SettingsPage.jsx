@@ -40,6 +40,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import IncentiveConfigModal from '@/components/modals/IncentiveConfigModal'
+import StaffIncentiveConfig from '@/components/StaffIncentiveConfig'
 
 function SetupChecklist({ status, navigate, setActiveTab }) {
   const items = [
@@ -400,7 +401,7 @@ function SettingsPage() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-grid">
           <TabsTrigger value="setup" className="flex items-center gap-2">
             <ListChecks className="h-4 w-4" />
             <span className="hidden sm:inline">Setup</span>
@@ -428,6 +429,10 @@ function SettingsPage() {
           <TabsTrigger value="incentives" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             <span className="hidden sm:inline">Incentives</span>
+          </TabsTrigger>
+          <TabsTrigger value="staff-incentives" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            <span className="hidden sm:inline">Staff Incentives</span>
           </TabsTrigger>
         </TabsList>
 
@@ -924,6 +929,10 @@ function SettingsPage() {
               editConfig={editConfig}
             />
           </div>
+        </TabsContent>
+
+        <TabsContent value="staff-incentives">
+          <StaffIncentiveConfig />
         </TabsContent>
       </Tabs>
 
