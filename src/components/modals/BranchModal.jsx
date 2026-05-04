@@ -25,13 +25,15 @@ const initialFormData = {
   phone: '',
   email: '',
   is_active: true,
+  is_salon: true,
+  is_warehouse: false,
   open_time: '',
   close_time: '',
 }
 
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
-function BranchModal({ open, onOpenChange, branch = null }) {
+function BranchModal({ open, onOpenChange, branch = null, presetType }) {
   const queryClient = useQueryClient()
   const isEditing = !!branch
 
@@ -50,13 +52,18 @@ function BranchModal({ open, onOpenChange, branch = null }) {
         phone: branch.phone || '',
         email: branch.email || '',
         is_active: branch.is_active ?? true,
+        is_salon: branch.is_salon ?? true,
+        is_warehouse: branch.is_warehouse ?? false,
         open_time: branch.open_time || '',
         close_time: branch.close_time || '',
       })
+    } else if (presetType === 'warehouse') {
+      // Standalone warehouse preset: salon off, warehouse on, no shop hours.
+      setFormData({ ...initialFormData, is_salon: false, is_warehouse: true })
     } else {
       setFormData(initialFormData)
     }
-  }, [branch, open])
+  }, [branch, presetType, open])
 
   const createMutation = useMutation({
     mutationFn: branchService.createBranch,
@@ -101,6 +108,10 @@ function BranchModal({ open, onOpenChange, branch = null }) {
       return
     }
 
+    if (!formData.is_salon && !formData.is_warehouse) {
+      toast.error('Branch must be at least one of: salon or warehouse')
+      return
+    }
     if (formData.open_time && !HHMM_RE.test(formData.open_time)) {
       toast.error('Open time must be HH:MM (24h)')
       return
@@ -121,6 +132,8 @@ function BranchModal({ open, onOpenChange, branch = null }) {
       phone: formData.phone || null,
       email: formData.email || null,
       is_active: formData.is_active,
+      is_salon: formData.is_salon,
+      is_warehouse: formData.is_warehouse,
       open_time: formData.open_time || null,
       close_time: formData.close_time || null,
     }
@@ -288,6 +301,34 @@ function BranchModal({ open, onOpenChange, branch = null }) {
             Close time can be earlier than open time to indicate a shop-day that crosses midnight
             (e.g. 09:30 → 02:00). Auto-checkout runs 10 minutes after close.
           </p>
+
+          {/* Branch type */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="text-xs text-gray-500 uppercase tracking-wide">Branch Type</Label>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.is_salon}
+                  onChange={(e) => handleChange('is_salon', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span>Salon (takes bills, has chairs &amp; staff)</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.is_warehouse}
+                  onChange={(e) => handleChange('is_warehouse', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span>Warehouse (receives purchases, transfers stock to salons)</span>
+              </label>
+            </div>
+            <p className="text-xs text-gray-500">
+              A branch can be one or both. Pure-warehouse branches don't need open/close hours or chairs.
+            </p>
+          </div>
 
           {/* Active Status */}
           <div className="flex items-center gap-2">

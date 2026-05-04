@@ -1,6 +1,99 @@
-export const CURRENT_VERSION = 'v2.8.0'
+export const CURRENT_VERSION = 'v2.9.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.9.0',
+    date: 'May 2026',
+    title: 'Skills, Tokens, SKU & Warehouse',
+    highlights: [
+      'Skill-based employee allocation — auto-assigns the next available staff with the right skill',
+      'Customer Token system — branch-scoped daily tokens with bill-page lookup',
+      'SKU layer with auto-generated barcodes and bulk label printing',
+      'Warehouse management — purchases land at a warehouse, transfer to branches with cost-based ledger',
+      'Branch can be flagged as salon, warehouse, or both',
+      'Five new warehouse/inventory reports',
+    ],
+    details: [
+      {
+        section: 'Skill-based Employee Allocation',
+        items: [
+          'New Skills page (owner/manager) — free-form skill tags, create/edit/deactivate',
+          'Staff form: assign skills to each employee via multi-select',
+          'Service form: pick required skills (shows ALL active skills, not just employee-assigned)',
+          'Allocation runs when a service is added to the cart and when token services are pulled in',
+          'Eligibility: checked-in today, not on break, no in-progress BillItem assigned',
+          'Strict per-skill round-robin among eligible staff; tie-break by earliest check-in',
+          'Multi-employee services auto-fill the first slot; cashier picks the rest',
+          'No-skill or no-eligible-staff: leave blank + inline warning, never block the cart-add',
+          'Cashier can always reallocate manually — no hard lock',
+          'Branch-scoped: only employees on duty at the current branch are considered',
+        ],
+      },
+      {
+        section: 'Customer Token System',
+        items: [
+          'New Tokens page — issue tokens with optional services, customer name, and phone',
+          'Token format: <BRANCH_CODE>-NNN, sequence resets per branch per shop-day (e.g., PUN-001)',
+          'Quick customer create inline — phone is the lookup key; matches existing customer if found',
+          'Customer name/phone snapshot stored on the token so printed slip stays correct',
+          'Token slip print — number-only (no barcode/QR), customer details, services list',
+          'Bill page: enter token number or pick from "Open tokens" list to pull services into the cart',
+          'Pulled services run through skill-based allocation automatically',
+          'Lifecycle: open → consumed | expired | cancelled (rows kept for history, never deleted)',
+          'Daily reset cron fires at (branch open time − 2h) IST and expires still-open tokens',
+          'Branch-scoped: tokens issued at Branch A cannot be redeemed at Branch B',
+          'Multiple open tokens per customer allowed; available to all roles except employee',
+        ],
+      },
+      {
+        section: 'SKU & Barcode Printing',
+        items: [
+          'New SKU layer — products are now variants under an SKU (e.g., "Loreal Shampoo" → 100ml/250ml/500ml)',
+          'New SKUs page (owner/manager) for creating and managing SKUs',
+          'Products page restructured — every product picks its parent SKU; brand/category live on the SKU',
+          'Barcodes auto-generated on product create (10-char base36, unique, Code 128 encoding)',
+          'Admin can regenerate a product barcode (audit-logged) when a label is lost',
+          'New Barcode Print page — multi-select products, set qty per product, print label sheet',
+          'Three label sizes shipped: 50×25 mm, 38×25 mm, 100×50 mm — global setting in Settings',
+          'Bill page: scan input resolves a barcode directly to a product variant and adds to cart',
+          'Manual product add shows a variant selector when an SKU has multiple products',
+        ],
+      },
+      {
+        section: 'Warehouse Management',
+        items: [
+          'Branch row gains isSalon and isWarehouse flags — a branch can be salon, warehouse, or both',
+          'New Warehouses page (owner-only) for managing warehouse-branches',
+          'Purchase Batch destination defaults to a warehouse; salon-branch override allowed for emergency buys',
+          'Stock Transfers: warehouse → branch transfers valued at sum(qty × costPrice) on completion',
+          'Completing a warehouse → branch transfer auto-writes a CashSource at the warehouse and an Expense at the branch (category "Stock from warehouse")',
+          'Transfer completion blocks if any product is missing a costPrice — clear error surfaced',
+          'Warehouse-only branches hide chairs/staff/billing tabs — only inventory and cash views',
+          'Warehouse cash machinery reuses existing PurchaseBatch + PurchasePayment + CashSource flow',
+        ],
+      },
+      {
+        section: 'Reports',
+        items: [
+          'Warehouse stock-on-hand — qty and cost value per product, per warehouse, as-of date',
+          'Warehouse purchases ledger — supplier-grouped purchase history per warehouse',
+          'Warehouse transfers-out — per-branch transfer summary with valuation',
+          'Branch P&L — now includes "Stock from warehouse" as a cost line',
+          'Inventory value snapshot — total stock value across warehouses and branches at cost',
+        ],
+      },
+      {
+        section: 'Schema & Migrations',
+        items: [
+          'New tables: skills, employee_skills, service_skills, customer_tokens, skus',
+          'Modified: branches (isSalon, isWarehouse), products (skuId required; brand/sku/categoryId removed)',
+          'New enum value: CashSourceType.internal_transfer_in; new TokenStatus enum',
+          'Dropped: waiting_list table (unused)',
+          'Seeds: "Stock from warehouse" expense category, default barcode label size 50×25 mm',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.8.0',
     date: 'Apr 2026',

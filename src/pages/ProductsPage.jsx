@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSelector } from 'react-redux'
 import { productService } from '@/services/product.service'
+import { skuService } from '@/services/sku.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,12 +28,15 @@ import {
   X,
   ScanLine,
   Printer,
+  RefreshCw,
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
 function ProductsPage() {
   const queryClient = useQueryClient()
+  const { user } = useSelector((state) => state.auth)
+  const isOwner = user?.role === 'owner' || user?.role === 'developer'
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
@@ -42,17 +47,21 @@ function ProductsPage() {
   const [scanResult, setScanResult] = useState(null)
   const [scanLoading, setScanLoading] = useState(false)
   const [formData, setFormData] = useState({
+    sku_id: '',
     product_name: '',
     brand: '',
     category_id: '',
     barcode: '',
     sku: '',
+    weight_value: '',
+    weight_unit: 'ml',
     mrp: '',
     selling_price: '',
     cost_price: '',
     product_type: 'retail',
     reorder_level: 10,
   })
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', { page, search }],
@@ -64,9 +73,15 @@ function ProductsPage() {
     queryFn: () => productService.getCategories(),
   })
 
+  const { data: skusData } = useQuery({
+    queryKey: ['skus', { active: 'true' }],
+    queryFn: () => skuService.getSkus({ active: 'true' }),
+  })
+
   const products = data?.data || []
   const pagination = data?.pagination || { page: 1, totalPages: 1, total: 0 }
   const categories = categoriesData?.data || []
+  const skus = skusData?.data || []
 
   const createMutation = useMutation({
     mutationFn: productService.createProduct,
@@ -103,6 +118,20 @@ function ProductsPage() {
     },
   })
 
+  const regenerateMutation = useMutation({
+    mutationFn: productService.regenerateBarcode,
+    onSuccess: (res) => {
+      toast.success('Barcode regenerated')
+      queryClient.invalidateQueries(['products'])
+      // Reflect the new barcode in the open form
+      const newBarcode = res?.data?.barcode
+      if (newBarcode) setFormData((prev) => ({ ...prev, barcode: newBarcode }))
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error?.message || 'Failed to regenerate barcode')
+    },
+  })
+
   const handlePrintBarcodes = () => {
     const selected = products.filter((p) => selectedIds.has(p.product_id))
     if (selected.length === 0) return toast.error('No products selected')
@@ -130,31 +159,39 @@ function ProductsPage() {
     if (product) {
       setEditingProduct(product)
       setFormData({
+        sku_id: product.sku_id || product.parent_sku?.id || '',
         product_name: product.product_name,
         brand: product.brand || '',
         category_id: product.category?.category_id || '',
         barcode: product.barcode || '',
         sku: product.sku || '',
+        weight_value: product.weight_value ?? '',
+        weight_unit: product.weight_unit || 'ml',
         mrp: product.mrp || '',
         selling_price: product.selling_price || '',
         cost_price: product.cost_price || '',
         product_type: product.product_type,
         reorder_level: product.reorder_level || 10,
       })
+      setShowAdvanced(!!product.sku)
     } else {
       setEditingProduct(null)
       setFormData({
+        sku_id: '',
         product_name: '',
         brand: '',
         category_id: '',
         barcode: '',
         sku: '',
+        weight_value: '',
+        weight_unit: 'ml',
         mrp: '',
         selling_price: '',
         cost_price: '',
         product_type: 'retail',
         reorder_level: 10,
       })
+      setShowAdvanced(false)
     }
     setShowModal(true)
   }
@@ -166,13 +203,26 @@ function ProductsPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    // If a parent SKU is picked, brand + category are inherited from it.
+    const parentSku = formData.sku_id ? skus.find((s) => s.id === formData.sku_id) : null
+
     const submitData = {
       ...formData,
+      sku_id: formData.sku_id || null,
+      brand: parentSku ? (parentSku.brand || null) : (formData.brand || null),
+      category_id: parentSku
+        ? (parentSku.category_id || parentSku.category?.id || null)
+        : (formData.category_id || null),
+      weight_value: formData.weight_value !== '' ? parseFloat(formData.weight_value) : null,
+      weight_unit: formData.weight_unit || null,
       mrp: formData.mrp ? parseFloat(formData.mrp) : null,
       selling_price: formData.selling_price ? parseFloat(formData.selling_price) : null,
       cost_price: formData.cost_price ? parseFloat(formData.cost_price) : null,
       reorder_level: parseInt(formData.reorder_level) || 10,
-      category_id: formData.category_id || null,
+      // Don't send empty barcode; let BE auto-generate.
+      barcode: formData.barcode?.trim() ? formData.barcode.trim() : undefined,
+      // Don't send empty legacy sku
+      sku: formData.sku?.trim() ? formData.sku.trim() : undefined,
     }
 
     if (editingProduct) {
@@ -449,54 +499,159 @@ function ProductsPage() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              {/* Parent SKU */}
               <div>
-                <Label>Product Name *</Label>
-                <Input
-                  value={formData.product_name}
-                  onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                  required
-                />
+                <Label>Parent SKU</Label>
+                <select
+                  className="w-full h-10 px-3 border rounded-md"
+                  value={formData.sku_id}
+                  onChange={(e) => setFormData({ ...formData, sku_id: e.target.value })}
+                >
+                  <option value="">— None (standalone product) —</option>
+                  {skus.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}{s.brand ? ` · ${s.brand}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Group this product under an SKU (e.g., "Loreal Shampoo") so all its size variants share name/brand/category.
+                </p>
               </div>
+              {(() => {
+                const parentSku = formData.sku_id ? skus.find((s) => s.id === formData.sku_id) : null
+                return (
+                  <>
+                    {/* Inherited summary when SKU is picked */}
+                    {parentSku && (
+                      <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-gray-600 space-y-0.5">
+                        <div><span className="font-medium text-gray-700">Brand:</span> {parentSku.brand || '—'}</div>
+                        <div><span className="font-medium text-gray-700">Category:</span> {parentSku.category?.name || '—'}</div>
+                        <div className="text-gray-400 pt-1">Inherited from SKU. Edit the SKU to change.</div>
+                      </div>
+                    )}
+
+                    <div>
+                      <Label>{parentSku ? 'Variant Label *' : 'Product Name *'}</Label>
+                      <Input
+                        value={formData.product_name}
+                        onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                        placeholder={parentSku ? 'e.g., 250ml' : 'Product name'}
+                        required
+                      />
+                    </div>
+
+                    {/* Brand + Category — only shown when no parent SKU */}
+                    {!parentSku && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Brand</Label>
+                          <Input
+                            value={formData.brand}
+                            onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <Label>Category</Label>
+                          <select
+                            className="w-full h-10 px-3 border rounded-md"
+                            value={formData.category_id}
+                            onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                          >
+                            <option value="">Select Category</option>
+                            {categories.map((cat) => (
+                              <option key={cat.category_id} value={cat.category_id}>
+                                {cat.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+
+              {/* Weight (variant axis) */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Brand</Label>
+                  <Label>Weight / Volume</Label>
                   <Input
-                    value={formData.brand}
-                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    type="number"
+                    step="0.01"
+                    value={formData.weight_value}
+                    onChange={(e) => setFormData({ ...formData, weight_value: e.target.value })}
+                    placeholder="e.g., 250"
                   />
                 </div>
                 <div>
-                  <Label>Category</Label>
+                  <Label>Unit</Label>
                   <select
                     className="w-full h-10 px-3 border rounded-md"
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    value={formData.weight_unit}
+                    onChange={(e) => setFormData({ ...formData, weight_unit: e.target.value })}
                   >
-                    <option value="">Select Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.category_id} value={cat.category_id}>
-                        {cat.name}
-                      </option>
-                    ))}
+                    <option value="ml">ml</option>
+                    <option value="L">L</option>
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="piece">piece</option>
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Barcode</Label>
+
+              {/* Barcode */}
+              <div>
+                <Label>Barcode</Label>
+                <div className="flex gap-2">
                   <Input
                     value={formData.barcode}
-                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                    readOnly
+                    placeholder={editingProduct ? '' : 'auto-generated on save'}
+                    className="font-mono bg-gray-50"
                   />
+                  {editingProduct && isOwner && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="Regenerate barcode (invalidates printed labels)"
+                      onClick={() => {
+                        if (window.confirm('Regenerate the barcode? Any printed labels for this product will become invalid.')) {
+                          regenerateMutation.mutate(editingProduct.product_id)
+                        }
+                      }}
+                      disabled={regenerateMutation.isPending}
+                    >
+                      {regenerateMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                 </div>
+              </div>
+
+              {/* Advanced — legacy SKU code */}
+              {!showAdvanced ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(true)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Show advanced (legacy SKU code)
+                </button>
+              ) : (
                 <div>
-                  <Label>SKU</Label>
+                  <Label>Legacy SKU code</Label>
                   <Input
                     value={formData.sku}
                     onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    placeholder="Optional — only for backward compat with imports"
                   />
                 </div>
-              </div>
+              )}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>MRP</Label>

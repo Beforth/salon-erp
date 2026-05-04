@@ -95,10 +95,20 @@ function BranchesPage() {
                 {branches.map((branch) => (
                   <TableRow key={branch.branch_id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <BranchColorDot color={branch.color_code} className="w-3 h-3" />
                         {!branch.color_code && <Building2 className="h-4 w-4 text-gray-400" />}
-                        {branch.name}
+                        <span>{branch.name}</span>
+                        {branch.is_warehouse && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-800">
+                            Warehouse
+                          </span>
+                        )}
+                        {!branch.is_salon && branch.is_warehouse && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                            no salon
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>

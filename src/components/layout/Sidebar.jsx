@@ -34,6 +34,7 @@ import {
   Activity,
   Cpu,
   CalendarCheck,
+  Printer,
   Building,
   PanelLeftClose,
   PanelLeftOpen,
@@ -85,12 +86,19 @@ const getNavItemsByRole = (role) => {
       roles: ['owner', 'developer', 'manager', 'cashier'],
     },
     {
+      title: 'Tokens',
+      href: '/tokens',
+      icon: PackagePlus,
+      roles: ['owner', 'developer', 'manager', 'cashier'],
+    },
+    {
       title: 'Catalog',
       icon: BookOpen,
       roles: ['owner', 'developer', 'manager'],
       children: [
         { title: 'Services', href: '/services', icon: Scissors },
         { title: 'Packages', href: '/packages', icon: Package },
+        { title: 'Skills', href: '/skills', icon: Activity },
       ],
     },
     {
@@ -99,9 +107,19 @@ const getNavItemsByRole = (role) => {
       roles: ['owner', 'developer', 'manager'],
       children: [
         {
+          title: 'SKUs',
+          href: '/skus',
+          icon: BoxesIcon,
+        },
+        {
           title: 'Products',
           href: '/products',
           icon: ShoppingBag,
+        },
+        {
+          title: 'Warehouses',
+          href: '/warehouses',
+          icon: Warehouse,
         },
         {
           title: 'Stock Levels',
@@ -115,6 +133,7 @@ const getNavItemsByRole = (role) => {
         },
         { title: 'Suppliers', href: '/suppliers', icon: Truck },
         { title: 'Purchase Batches', href: '/purchase-batches', icon: PackagePlus },
+        { title: 'Print Barcodes', href: '/barcode-print', icon: Printer },
       ],
     },
     {
@@ -365,8 +384,8 @@ function Sidebar() {
   const navItems = getNavItemsByRole(user?.role || 'employee')
 
   // Auto-expand groups if current path matches
-  const isCatalogPath = location.pathname.startsWith('/services') || location.pathname.startsWith('/packages')
-  const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products') || location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/purchase-batches')
+  const isCatalogPath = location.pathname.startsWith('/services') || location.pathname.startsWith('/packages') || location.pathname.startsWith('/skills')
+  const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products') || location.pathname.startsWith('/skus') || location.pathname.startsWith('/warehouses') || location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/purchase-batches') || location.pathname.startsWith('/barcode-print')
   const isFinancePath = location.pathname.startsWith('/savings-pots') || location.pathname.startsWith('/counter-withdrawals') || location.pathname.startsWith('/cash-reconciliation') || location.pathname.startsWith('/expenses') || location.pathname.startsWith('/upi-accounts') || location.pathname.startsWith('/bank-deposits')
   const [expandedGroups, setExpandedGroups] = useState({
     ...(isCatalogPath ? { Catalog: true } : {}),

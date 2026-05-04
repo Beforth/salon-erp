@@ -10,6 +10,8 @@ import { billService } from '@/services/bill.service'
 import { chairService } from '@/services/chair.service'
 import { upiAccountService } from '@/services/upiAccount.service'
 import { attendanceService } from '@/services/attendance.service'
+import { allocationService } from '@/services/allocation.service'
+import { tokenService } from '@/services/token.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -49,6 +51,7 @@ import {
   Star,
   Armchair,
   Play,
+  Ticket,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import CustomerModal from '@/components/modals/CustomerModal'
@@ -106,6 +109,11 @@ function BillCreatePage() {
   // Customer
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [consumedTokenId, setConsumedTokenId] = useState(null)
+  const [tokenInput, setTokenInput] = useState('')
+  const [loadingToken, setLoadingToken] = useState(false)
+  const [showTokenDropdown, setShowTokenDropdown] = useState(false)
+  const tokenBoxRef = useRef(null)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false)
 
@@ -147,6 +155,35 @@ function BillCreatePage() {
   const [notes, setNotes] = useState('')
 
   // Queries
+  const { data: openTokensData } = useQuery({
+    queryKey: ['tokens', { branchId: selectedBranch, status: 'open' }],
+    queryFn: () => tokenService.getOpenTokens({ status: 'open', branch_id: selectedBranch }),
+    enabled: !!selectedBranch,
+    staleTime: 30 * 1000,  // tokens churn fast — refetch every 30s when used
+  })
+  const openTokens = openTokensData?.data || []
+
+  // Close token dropdown on outside click
+  useEffect(() => {
+    const onDown = (e) => {
+      if (tokenBoxRef.current && !tokenBoxRef.current.contains(e.target)) {
+        setShowTokenDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
+  const filteredOpenTokens = useMemo(() => {
+    const q = (tokenInput || '').trim().toLowerCase()
+    if (!q) return openTokens
+    return openTokens.filter((t) =>
+      (t.token_number || '').toLowerCase().includes(q) ||
+      (t.customer_name_snap || '').toLowerCase().includes(q) ||
+      (t.customer_phone_snap || '').includes(q)
+    )
+  }, [openTokens, tokenInput])
+
   const { data: customersData, isLoading: customersLoading } = useQuery({
     queryKey: ['customers', customerSearch],
     queryFn: () => customerService.getCustomers({ search: customerSearch, limit: 10 }),
@@ -339,6 +376,112 @@ function BillCreatePage() {
     setShowCustomerDropdown(false)
   }
 
+  // Load a token: prefill the customer + push pre-selected services into the cart with auto-allocation.
+  const loadTokenIntoBill = async (token) => {
+    if (!token) return
+    if (token.branch_id && selectedBranch && token.branch_id !== selectedBranch) {
+      toast.error('Token belongs to a different branch')
+      return
+    }
+
+    // Prefill customer
+    const customerForCart = {
+      customer_id: token.customer?.id || token.customer_id,
+      customer_name: token.customer?.customer_name || token.customer_name_snap,
+      phone: token.customer?.phone || token.customer_phone_snap,
+      customer_code: token.customer?.customer_code || null,
+    }
+    setSelectedCustomer(customerForCart)
+    setCustomerSearch(customerForCart.customer_name || '')
+    setShowCustomerDropdown(false)
+    setConsumedTokenId(token.id)
+
+    // Push token's services into cart (allocate per service).
+    // Packages are surfaced as a notice so the cashier can add them via the
+    // existing package flow (which handles OR-groups / per-service picks).
+    const tokenItems = token.services_requested || []
+    if (tokenItems.length === 0) {
+      toast.success(`Token ${token.token_number} loaded`)
+      return
+    }
+
+    const additions = []
+    let unallocatedCount = 0
+    const pendingPackageNames = []
+
+    for (const ts of tokenItems) {
+      // Legacy shape: no `kind`, but `service_id` set → treat as service.
+      const kind = ts.kind || (ts.service_id ? 'service' : null)
+      if (kind === 'package') {
+        pendingPackageNames.push(ts.name || ts.service_name || 'Package')
+        continue
+      }
+      const svc = services.find((s) => s.service_id === ts.service_id)
+      if (!svc) continue
+      let empIds = []
+      try {
+        const res = await allocationService.previewAllocation({
+          branchId: selectedBranch,
+          serviceIds: [svc.service_id],
+        })
+        const picked = res?.data?.[svc.service_id]
+        if (picked?.employee_id) empIds = [picked.employee_id]
+        else unallocatedCount += 1
+      } catch {
+        unallocatedCount += 1
+      }
+      additions.push({
+        cart_id: crypto.randomUUID(),
+        item_type: 'service',
+        service_id: svc.service_id,
+        item_name: svc.service_name || svc.name || '',
+        unit_price: parseFloat(svc.price ?? 0),
+        quantity: 1,
+        employee_ids: empIds,
+        employee_id: null,
+        star_points: svc.star_points ?? 0,
+        discount_percent: 0,
+        is_multi_employee: svc.is_multi_employee ?? false,
+        employee_count: svc.employee_count ?? null,
+        item_status: 'completed',
+      })
+    }
+    setCartItems((prev) => [...prev, ...additions])
+
+    if (additions.length > 0) {
+      toast.success(
+        unallocatedCount === 0
+          ? `Token ${token.token_number} loaded with ${additions.length} service(s)`
+          : `Token loaded — ${unallocatedCount} of ${additions.length} services need a manual employee pick`
+      )
+    }
+    if (pendingPackageNames.length > 0) {
+      toast.warning(
+        `Token includes ${pendingPackageNames.length} package(s) — add manually: ${pendingPackageNames.join(', ')}`,
+        { duration: 6000 }
+      )
+    }
+  }
+
+  const handleLookupToken = async () => {
+    const number = tokenInput.trim()
+    if (!number) return
+    if (!selectedBranch) {
+      toast.error('Select a branch first')
+      return
+    }
+    setLoadingToken(true)
+    try {
+      const res = await tokenService.lookupToken({ branchId: selectedBranch, number })
+      await loadTokenIntoBill(res?.data)
+      setTokenInput('')
+    } catch (err) {
+      toast.error(err.response?.data?.error?.message || 'Token not found')
+    } finally {
+      setLoadingToken(false)
+    }
+  }
+
   const handleItemSelect = (id) => {
     setSelectedItemId(id || null)
     setComponentEmployees({})
@@ -484,7 +627,29 @@ function BillCreatePage() {
         ])
       }
     } else if (selectedCategory === 'services') {
-      const empIds = (componentEmployees[0] || []).filter(Boolean)
+      let empIds = (componentEmployees[0] || []).filter(Boolean)
+
+      // Auto-allocate by skill if cashier didn't pick anyone manually.
+      // Allocation is best-effort: if no one is eligible, leave unassigned + warn.
+      if (empIds.length === 0 && selectedBranch) {
+        try {
+          const res = await allocationService.previewAllocation({
+            branchId: selectedBranch,
+            serviceIds: [selectedItemId],
+          })
+          const picked = res?.data?.[selectedItemId]
+          if (picked?.employee_id) {
+            empIds = [picked.employee_id]
+            toast.success(`Auto-assigned to ${picked.full_name || picked.employee_name}`)
+          } else {
+            toast.warning('No employee available with the required skill — please assign manually')
+          }
+        } catch (err) {
+          // Allocation failure shouldn't block adding to cart
+          console.warn('Allocation preview failed:', err)
+        }
+      }
+
       setCartItems([
         ...cartItems,
         {
@@ -803,6 +968,7 @@ function BillCreatePage() {
       discount_amount: parseFloat(billDiscount.toFixed(2)),
       discount_reason: discountReason,
       notes,
+      ...(consumedTokenId ? { token_id: consumedTokenId } : {}),
     }
 
     createBillMutation.mutate(billData)
@@ -846,6 +1012,7 @@ function BillCreatePage() {
       discount_reason: discountReason,
       notes,
       status: 'pending',
+      ...(consumedTokenId ? { token_id: consumedTokenId } : {}),
     }
 
     createBillMutation.mutate(billData)
@@ -920,6 +1087,27 @@ function BillCreatePage() {
           Back
         </Button>
 
+        {/* Branch — first because all other dropdowns (customer, chair, services, tokens) are branch-scoped */}
+        {!branchId ? (
+          <select
+            className="h-8 px-2 text-sm border rounded-md w-40"
+            value={selectedBranch || ''}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            title="Branch"
+          >
+            <option value="">Select branch...</option>
+            {branches.map((branch) => (
+              <option key={branch.branch_id} value={branch.branch_id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="inline-flex items-center h-8 px-2 text-xs font-medium text-gray-700 bg-gray-100 rounded-md">
+            {user?.branch?.name || 'Branch'}
+          </span>
+        )}
+
         <Tabs
           value={billType}
           onValueChange={(v) => setBillType(v)}
@@ -931,6 +1119,62 @@ function BillCreatePage() {
           </TabsList>
         </Tabs>
 
+        {/* Token searchable dropdown */}
+        <div className="relative" ref={tokenBoxRef}>
+          <div className="relative">
+            <Ticket className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              placeholder="Token # / customer..."
+              className="h-8 pl-7 pr-2 text-sm w-56"
+              value={tokenInput}
+              onChange={(e) => { setTokenInput(e.target.value); setShowTokenDropdown(true) }}
+              onFocus={() => setShowTokenDropdown(true)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLookupToken() } }}
+              disabled={loadingToken}
+            />
+            {loadingToken && (
+              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-gray-400" />
+            )}
+          </div>
+          {showTokenDropdown && (
+            <div className="absolute z-50 mt-1 w-72 bg-white border rounded-lg shadow-lg max-h-72 overflow-auto">
+              {filteredOpenTokens.length === 0 ? (
+                <div className="p-3 text-center text-xs text-gray-500">
+                  {tokenInput.trim()
+                    ? 'No matching open tokens. Press Enter to look up by exact number.'
+                    : 'No open tokens for today.'}
+                </div>
+              ) : (
+                filteredOpenTokens.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={async () => {
+                      setShowTokenDropdown(false)
+                      setTokenInput('')
+                      await loadTokenIntoBill(t)
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b last:border-b-0 flex items-center gap-3"
+                  >
+                    <span className="font-bold text-primary text-sm w-20 shrink-0">
+                      {t.token_number}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{t.customer_name_snap}</div>
+                      {t.customer_phone_snap && (
+                        <div className="text-xs text-gray-500">{t.customer_phone_snap}</div>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+        {consumedTokenId && (
+          <span className="text-xs text-green-700 font-medium">Token attached</span>
+        )}
+
         <div className="flex-1 min-w-[200px] max-w-[320px] relative">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -941,7 +1185,7 @@ function BillCreatePage() {
               onChange={(e) => {
                 setCustomerSearch(e.target.value)
                 setShowCustomerDropdown(true)
-                if (!e.target.value) setSelectedCustomer(null)
+                if (!e.target.value) { setSelectedCustomer(null); setConsumedTokenId(null) }
               }}
               onFocus={() => setShowCustomerDropdown(true)}
             />
@@ -991,21 +1235,6 @@ function BillCreatePage() {
             </div>
           )}
         </div>
-
-        {!branchId && (
-          <select
-            className="h-8 px-2 text-sm border rounded-md w-36"
-            value={selectedBranch || ''}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-          >
-            <option value="">Branch...</option>
-            {branches.map((branch) => (
-              <option key={branch.branch_id} value={branch.branch_id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        )}
 
         {selectedBranch && (
           <select
@@ -2590,6 +2819,7 @@ function BillCreatePage() {
           handleSelectCustomer(newCustomer)
         }}
       />
+
     </div>
   )
 }
