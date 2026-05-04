@@ -624,6 +624,24 @@ function SettingsPage() {
                   placeholder="Enter terms and conditions to display on bills"
                 />
               </div>
+
+              {/* Barcode labels */}
+              <div className="pt-4 border-t space-y-2">
+                <Label htmlFor="barcode_label_size">Barcode Label Size</Label>
+                <select
+                  id="barcode_label_size"
+                  className="w-full md:w-1/2 h-10 px-3 border rounded-md"
+                  value={formData['barcode.label_size'] || '50x25'}
+                  onChange={(e) => handleChange('barcode.label_size', e.target.value)}
+                >
+                  <option value="50x25">50 × 25 mm</option>
+                  <option value="38x25">38 × 25 mm</option>
+                  <option value="100x50">100 × 50 mm</option>
+                </select>
+                <p className="text-xs text-gray-500">
+                  Default size used by the Print Barcodes page. The page also lets you override per-print.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

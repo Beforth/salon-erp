@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { userService } from '@/services/user.service'
 import { branchService } from '@/services/branch.service'
+import { skillService } from '@/services/skill.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
@@ -65,6 +67,7 @@ const initialFormData = {
   shift_start: '',
   shift_end: '',
   has_flexible_timing: false,
+  skill_ids: [],
 }
 
 const initialAssetForm = {
@@ -104,6 +107,25 @@ function StaffFormPage() {
   })
 
   const branches = branchesData?.data || []
+
+  // Fetch skills for the picker
+  const { data: skillsData } = useQuery({
+    queryKey: ['skills', { active: 'true' }],
+    queryFn: () => skillService.getSkills({ active: 'true' }),
+  })
+  const allSkills = skillsData?.data || []
+
+  const toggleSkill = (skillId) => {
+    setFormData((prev) => {
+      const has = prev.skill_ids.includes(skillId)
+      return {
+        ...prev,
+        skill_ids: has
+          ? prev.skill_ids.filter((id) => id !== skillId)
+          : [...prev.skill_ids, skillId],
+      }
+    })
+  }
 
   // Fetch assets (only when editing)
   const { data: assetsData, isLoading: isLoadingAssets } = useQuery({
@@ -149,6 +171,7 @@ function StaffFormPage() {
         shift_start: staff.employee_details?.shift_start || '',
         shift_end: staff.employee_details?.shift_end || '',
         has_flexible_timing: staff.employee_details?.has_flexible_timing ?? false,
+        skill_ids: (staff.skills || []).map((s) => s.id),
       })
     } else if (!isEditing) {
       setFormData({
@@ -357,7 +380,7 @@ function StaffFormPage() {
         <Card>
           <CardContent className="p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="basic" className="flex items-center gap-1.5">
                   <User className="h-4 w-4" />
                   Basic
@@ -365,6 +388,10 @@ function StaffFormPage() {
                 <TabsTrigger value="employment" className="flex items-center gap-1.5">
                   <Briefcase className="h-4 w-4" />
                   Employment
+                </TabsTrigger>
+                <TabsTrigger value="skills" className="flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4" />
+                  Skills
                 </TabsTrigger>
                 <TabsTrigger value="bank" className="flex items-center gap-1.5">
                   <CreditCard className="h-4 w-4" />
@@ -653,6 +680,49 @@ function StaffFormPage() {
                     />
                   </div>
                 </div>
+              </TabsContent>
+
+              {/* ==================== Skills Tab ==================== */}
+              <TabsContent value="skills" className="space-y-4 mt-6">
+                <div>
+                  <Label>Skills</Label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Tap a skill to assign it to this employee. The system uses these to auto-allocate work at billing time — services that need a skill go to the next available employee who has it.
+                  </p>
+                </div>
+                {allSkills.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-6 text-center">
+                    <p className="text-sm text-gray-500">
+                      No skills defined yet. Create them under{' '}
+                      <Link to="/skills" className="text-primary hover:underline">Catalog → Skills</Link>.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {allSkills.map((skill) => {
+                        const selected = formData.skill_ids.includes(skill.id)
+                        return (
+                          <button
+                            key={skill.id}
+                            type="button"
+                            onClick={() => toggleSkill(skill.id)}
+                            className={
+                              selected
+                                ? 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'
+                                : 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:border-primary hover:text-primary transition-colors'
+                            }
+                          >
+                            {skill.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {formData.skill_ids.length} of {allSkills.length} selected
+                    </p>
+                  </>
+                )}
               </TabsContent>
 
               {/* ==================== Bank Details Tab ==================== */}

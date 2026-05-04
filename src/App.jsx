@@ -38,6 +38,11 @@ import VersionHistoryPage from './pages/VersionHistoryPage'
 import JobsPage from './pages/JobsPage'
 import MachinesPage from './pages/MachinesPage'
 import AttendancePage from './pages/AttendancePage'
+import SkillsPage from './pages/SkillsPage'
+import TokensPage from './pages/TokensPage'
+import SkusPage from './pages/SkusPage'
+import BarcodePrintPage from './pages/BarcodePrintPage'
+import WarehousesPage from './pages/WarehousesPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
@@ -125,6 +130,11 @@ function App() {
         <Route path="jobs" element={<JobsPage />} />
         <Route path="machines" element={<MachinesPage />} />
         <Route path="attendance" element={<AttendancePage />} />
+        <Route path="skills" element={<SkillsPage />} />
+        <Route path="tokens" element={<TokensPage />} />
+        <Route path="skus" element={<SkusPage />} />
+        <Route path="barcode-print" element={<BarcodePrintPage />} />
+        <Route path="warehouses" element={<WarehousesPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

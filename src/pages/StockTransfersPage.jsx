@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { formatCurrency } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -302,6 +303,7 @@ function StockTransfersPage() {
                   <TableHead></TableHead>
                   <TableHead>To</TableHead>
                   <TableHead>Items</TableHead>
+                  <TableHead className="text-right">Value (cost)</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -338,6 +340,17 @@ function StockTransfersPage() {
                         <Badge variant="outline">
                           {transfer.items?.length || 0} products
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {transfer.is_warehouse_to_salon ? (
+                          transfer.missing_cost_count > 0 ? (
+                            <span className="text-xs text-rose-600">{transfer.missing_cost_count} missing cost</span>
+                          ) : (
+                            <span className="font-medium">{formatCurrency(transfer.total_value_at_cost || 0)}</span>
+                          )
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-gray-500">
                         {formatDate(transfer.created_at)}
@@ -580,6 +593,33 @@ function StockTransfersPage() {
                 </div>
               </div>
 
+              {/* Warehouse → branch valuation banner */}
+              {selectedTransfer.is_warehouse_to_salon && (
+                <div className={
+                  selectedTransfer.missing_cost_count > 0
+                    ? 'rounded-md border border-rose-200 bg-rose-50 p-3 text-sm'
+                    : 'rounded-md border border-violet-200 bg-violet-50 p-3 text-sm'
+                }>
+                  {selectedTransfer.missing_cost_count > 0 ? (
+                    <>
+                      <p className="font-medium text-rose-800">Cannot complete this transfer</p>
+                      <p className="text-rose-700 mt-1">
+                        {selectedTransfer.missing_cost_count} product(s) are missing a cost price. Set the cost price on these products before approving.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-violet-900">
+                        Will debit {selectedTransfer.to_location?.branch?.name || 'branch'} by {formatCurrency(selectedTransfer.total_value_at_cost || 0)}
+                      </p>
+                      <p className="text-violet-700 mt-1 text-xs">
+                        On approve: warehouse gets a CashSource of this amount, branch gets a "Stock from warehouse" expense.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Items */}
               <div>
                 <p className="text-sm font-medium mb-2">Products ({selectedTransfer.items?.length || 0})</p>
@@ -631,8 +671,9 @@ function StockTransfersPage() {
                   </Button>
                   <Button
                     onClick={handleApproveTransfer}
-                    disabled={approveMutation.isPending}
+                    disabled={approveMutation.isPending || (selectedTransfer.is_warehouse_to_salon && selectedTransfer.missing_cost_count > 0)}
                     className="bg-green-600 hover:bg-green-700"
+                    title={selectedTransfer.is_warehouse_to_salon && selectedTransfer.missing_cost_count > 0 ? 'Set cost price on all products before approving' : ''}
                   >
                     {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     <Check className="h-4 w-4 mr-2" />

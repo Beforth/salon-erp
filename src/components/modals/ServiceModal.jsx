@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { serviceService } from '@/services/service.service'
+import { skillService } from '@/services/skill.service'
 import {
   Dialog,
   DialogContent,
@@ -31,6 +33,7 @@ const initialFormData = {
   is_multi_employee: false,
   employee_count: null,
   is_active: true,
+  skill_ids: [],
 }
 
 function ServiceModal({ open, onOpenChange, service = null }) {
@@ -59,6 +62,30 @@ function ServiceModal({ open, onOpenChange, service = null }) {
 
   const categories = categoriesData?.data || []
 
+  // Skills picker — show all active skills.
+  // (Original spec restricted this to employee-assigned skills, but the user
+  //  relaxed the rule to make service setup easier. If a service ends up
+  //  requiring a skill no employee has, allocation will leave the bill row
+  //  unassigned and warn the cashier.)
+  const { data: skillsData } = useQuery({
+    queryKey: ['skills', { active: 'true' }],
+    queryFn: () => skillService.getSkills({ active: 'true' }),
+    enabled: open,
+  })
+  const availableSkills = skillsData?.data || []
+
+  const toggleSkill = (skillId) => {
+    setFormData((prev) => {
+      const has = prev.skill_ids.includes(skillId)
+      return {
+        ...prev,
+        skill_ids: has
+          ? prev.skill_ids.filter((id) => id !== skillId)
+          : [...prev.skill_ids, skillId],
+      }
+    })
+  }
+
   useEffect(() => {
     if (serviceForForm) {
       setFormData({
@@ -71,6 +98,7 @@ function ServiceModal({ open, onOpenChange, service = null }) {
         is_multi_employee: serviceForForm.is_multi_employee === true,
         employee_count: serviceForForm.employee_count ?? null,
         is_active: serviceForForm.is_active ?? true,
+        skill_ids: (serviceForForm.skills || []).map((s) => s.id),
       })
     } else {
       setFormData({ ...initialFormData })
@@ -135,6 +163,7 @@ function ServiceModal({ open, onOpenChange, service = null }) {
       is_multi_employee: !!(formData.is_multi_employee),
       employee_count: formData.is_multi_employee && formData.employee_count ? parseInt(formData.employee_count, 10) : null,
       is_active: formData.is_active,
+      skill_ids: formData.skill_ids,
     }
 
     if (isEditing) {
@@ -278,6 +307,42 @@ function ServiceModal({ open, onOpenChange, service = null }) {
               onChange={(e) => handleChange('description', e.target.value)}
               placeholder="Service description"
             />
+          </div>
+
+          {/* Required Skills */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label>Required Skills</Label>
+            <p className="text-xs text-gray-500">
+              The system will auto-allocate the next available employee who has these skills. Leave empty for manual assignment only.
+            </p>
+            {availableSkills.length === 0 ? (
+              <p className="text-xs text-gray-500 mt-2">
+                No skills defined yet. Add some under{' '}
+                <Link to="/skills" className="text-primary hover:underline" onClick={() => onOpenChange(false)}>
+                  Catalog → Skills
+                </Link>.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {availableSkills.map((skill) => {
+                  const selected = formData.skill_ids.includes(skill.id)
+                  return (
+                    <button
+                      key={skill.id}
+                      type="button"
+                      onClick={() => toggleSkill(skill.id)}
+                      className={
+                        selected
+                          ? 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'
+                          : 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:border-primary hover:text-primary transition-colors'
+                      }
+                    >
+                      {skill.name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Active Status */}

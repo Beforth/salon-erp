@@ -31,6 +31,10 @@ import {
   FileSpreadsheet,
   FileText,
   ChevronDown,
+  Warehouse,
+  ArrowRightLeft,
+  Landmark,
+  BoxesIcon,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -57,6 +61,12 @@ const REPORT_TYPES = [
   { id: 'inventory', label: 'Inventory Report', icon: Package },
   { id: 'service-liability', label: 'Service Liability', icon: TrendingDown },
   { id: 'supplier-credit', label: 'Supplier Credit', icon: DollarSign },
+  // Warehouse reports (Feature 3)
+  { id: 'wh-stock', label: 'Warehouse Stock', icon: Warehouse },
+  { id: 'wh-purchases', label: 'Warehouse Purchases', icon: DollarSign },
+  { id: 'wh-transfers', label: 'Transfers Out', icon: ArrowRightLeft },
+  { id: 'branch-pl', label: 'Branch P&L', icon: Landmark },
+  { id: 'stock-snapshot', label: 'Stock Value Snapshot', icon: BoxesIcon },
 ]
 
 function ReportsPage() {
@@ -168,6 +178,39 @@ function ReportsPage() {
   const inventory = inventoryData?.data
   const liability = liabilityData?.data || liabilityData || {}
   const supplierCredit = supplierCreditData?.data || supplierCreditData || {}
+
+  // ── Warehouse reports (Feature 3) ──────────────────────────────────────
+  const { data: whStockData } = useQuery({
+    queryKey: ['wh-stock', selectedBranch],
+    queryFn: () => reportsService.getWarehouseStockOnHand({ branch_id: selectedBranch }),
+    enabled: activeReport === 'wh-stock' && !!selectedBranch,
+  })
+  const { data: whPurchasesData } = useQuery({
+    queryKey: ['wh-purchases', selectedBranch],
+    queryFn: () => reportsService.getWarehousePurchases({ branch_id: selectedBranch }),
+    enabled: activeReport === 'wh-purchases' && !!selectedBranch,
+  })
+  const { data: whTransfersData } = useQuery({
+    queryKey: ['wh-transfers', selectedBranch],
+    queryFn: () => reportsService.getWarehouseTransfersOut({ branch_id: selectedBranch }),
+    enabled: activeReport === 'wh-transfers' && !!selectedBranch,
+  })
+  const { data: branchPLData } = useQuery({
+    queryKey: ['branch-pl', selectedBranch],
+    queryFn: () => reportsService.getBranchPL({ branch_id: selectedBranch }),
+    enabled: activeReport === 'branch-pl' && !!selectedBranch,
+  })
+  const { data: snapshotData } = useQuery({
+    queryKey: ['stock-snapshot'],
+    queryFn: () => reportsService.getStockValueSnapshot(),
+    enabled: activeReport === 'stock-snapshot',
+  })
+
+  const whStock = whStockData?.data || []
+  const whPurchases = whPurchasesData?.data || []
+  const whTransfers = whTransfersData?.data || []
+  const branchPL = branchPLData?.data || null
+  const snapshot = snapshotData?.data || []
 
   // Export button component with dropdown
   const ExportButton = ({ data, filename, title, summaryCards = [] }) => {
@@ -1020,6 +1063,210 @@ function ReportsPage() {
             <p className="text-center text-gray-500 py-8">No data available</p>
           )}
         </div>
+      )}
+
+      {/* ─── Warehouse: Stock-on-hand ──────────────────────────────────── */}
+      {activeReport === 'wh-stock' && (
+        <div>
+          {!selectedBranch ? (
+            <p className="text-center text-gray-500 py-8">Select a warehouse branch to view stock.</p>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle>Stock on hand — {branches.find(b => b.branch_id === selectedBranch)?.name || ''}</CardTitle></CardHeader>
+              <CardContent>
+                {whStock.length === 0 ? (
+                  <p className="text-center text-gray-500 py-6">No stock at this branch.</p>
+                ) : (
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Cost</TableHead>
+                      <TableHead className="text-right">Value at cost</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {whStock.map((r) => (
+                        <TableRow key={r.product_id}>
+                          <TableCell className="font-medium">{r.product_name}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{r.sku_name || '—'}</TableCell>
+                          <TableCell className="text-right">{r.quantity}</TableCell>
+                          <TableCell className="text-right">{r.cost_price != null ? formatCurrency(r.cost_price) : <span className="text-rose-600 text-xs">missing</span>}</TableCell>
+                          <TableCell className="text-right font-medium">{r.value_at_cost ? formatCurrency(r.value_at_cost) : '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ─── Warehouse: Purchases by supplier ──────────────────────────── */}
+      {activeReport === 'wh-purchases' && (
+        <div>
+          {!selectedBranch ? (
+            <p className="text-center text-gray-500 py-8">Select a warehouse branch.</p>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle>Purchases by supplier</CardTitle></CardHeader>
+              <CardContent>
+                {whPurchases.length === 0 ? (
+                  <p className="text-center text-gray-500 py-6">No purchases yet.</p>
+                ) : (
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Supplier</TableHead>
+                      <TableHead className="text-center">Batches</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Paid</TableHead>
+                      <TableHead className="text-right">Pending</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {whPurchases.map((s) => (
+                        <TableRow key={s.supplier_id}>
+                          <TableCell className="font-medium">{s.supplier_name}</TableCell>
+                          <TableCell className="text-center">{s.batches}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(s.total_amount)}</TableCell>
+                          <TableCell className="text-right text-green-700">{formatCurrency(s.paid_amount)}</TableCell>
+                          <TableCell className="text-right text-rose-700">{formatCurrency(s.pending_amount)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ─── Warehouse: Transfers out per branch ───────────────────────── */}
+      {activeReport === 'wh-transfers' && (
+        <div>
+          {!selectedBranch ? (
+            <p className="text-center text-gray-500 py-8">Select a warehouse branch.</p>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle>Transfers out per receiving branch</CardTitle></CardHeader>
+              <CardContent>
+                {whTransfers.length === 0 ? (
+                  <p className="text-center text-gray-500 py-6">No transfers yet.</p>
+                ) : (
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Branch</TableHead>
+                      <TableHead className="text-center">Transfers</TableHead>
+                      <TableHead className="text-right">Total value (cost)</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {whTransfers.map((r) => (
+                        <TableRow key={r.branch_id}>
+                          <TableCell className="font-medium">{r.branch_name}</TableCell>
+                          <TableCell className="text-center">{r.transfer_count}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(r.total_value_at_cost)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ─── Branch P&L ────────────────────────────────────────────────── */}
+      {activeReport === 'branch-pl' && (
+        <div>
+          {!selectedBranch ? (
+            <p className="text-center text-gray-500 py-8">Select a branch to view P&amp;L.</p>
+          ) : !branchPL ? (
+            <p className="text-center text-gray-500 py-8">Loading…</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Card><CardContent className="p-4">
+                  <div className="text-xs text-gray-500 uppercase">Revenue</div>
+                  <div className="text-2xl font-bold text-green-700">{formatCurrency(branchPL.revenue || 0)}</div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4">
+                  <div className="text-xs text-gray-500 uppercase">Total Expense</div>
+                  <div className="text-2xl font-bold text-rose-700">{formatCurrency(branchPL.total_expense || 0)}</div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4">
+                  <div className="text-xs text-gray-500 uppercase">Stock from warehouse</div>
+                  <div className="text-2xl font-bold text-violet-700">{formatCurrency(branchPL.stock_from_warehouse_expense || 0)}</div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4">
+                  <div className="text-xs text-gray-500 uppercase">Profit</div>
+                  <div className={'text-2xl font-bold ' + ((branchPL.profit || 0) >= 0 ? 'text-green-700' : 'text-rose-700')}>{formatCurrency(branchPL.profit || 0)}</div>
+                </CardContent></Card>
+              </div>
+              <Card>
+                <CardHeader><CardTitle>Expenses by category</CardTitle></CardHeader>
+                <CardContent>
+                  {(branchPL.expenses_by_category || []).length === 0 ? (
+                    <p className="text-center text-gray-500 py-4">No expenses.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {branchPL.expenses_by_category.map((e) => (
+                          <TableRow key={e.name}>
+                            <TableCell>{e.name}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(e.amount)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Stock value snapshot (all locations) ──────────────────────── */}
+      {activeReport === 'stock-snapshot' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Stock value snapshot</CardTitle>
+            <CardDescription>Inventory valued at cost across every location.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {snapshot.length === 0 ? (
+              <p className="text-center text-gray-500 py-6">No stock anywhere yet.</p>
+            ) : (
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Units</TableHead>
+                  <TableHead className="text-right">Value at cost</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {snapshot.map((r) => (
+                    <TableRow key={r.location_id}>
+                      <TableCell className="font-medium">{r.location_name}</TableCell>
+                      <TableCell>{r.branch_name || '—'}</TableCell>
+                      <TableCell>
+                        {r.is_warehouse && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-800 mr-1">Warehouse</span>}
+                        {r.is_salon && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800">Salon</span>}
+                      </TableCell>
+                      <TableCell className="text-right">{r.units}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(r.value_at_cost)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   )

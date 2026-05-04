@@ -16,4 +16,6 @@ export const productService = {
   getLowStock: () => api.get('/products/low-stock'),
 
   getByBarcode: (barcode) => api.get(`/products/barcode/${barcode}`),
+
+  regenerateBarcode: (id) => api.post(`/products/${id}/regenerate-barcode`),
 }

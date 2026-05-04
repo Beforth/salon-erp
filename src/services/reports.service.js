@@ -18,4 +18,11 @@ export const reportsService = {
   getServiceLiability: (params) => api.get('/reports/service-liability', { params }),
 
   getSupplierCredit: (params) => api.get('/reports/supplier-credit', { params }),
+
+  // Warehouse reports (Feature 3)
+  getWarehouseStockOnHand: (params) => api.get('/reports/warehouse/stock-on-hand', { params }),
+  getWarehousePurchases:   (params) => api.get('/reports/warehouse/purchases', { params }),
+  getWarehouseTransfersOut:(params) => api.get('/reports/warehouse/transfers-out', { params }),
+  getBranchPL:             (params) => api.get('/reports/branch/pl', { params }),
+  getStockValueSnapshot:   ()       => api.get('/reports/inventory/value-snapshot'),
 }
