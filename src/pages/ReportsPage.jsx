@@ -51,6 +51,7 @@ import {
   SimplePieChart,
   SimpleBarChart,
 } from '@/components/charts'
+import StaffIncentivesReport from '@/components/StaffIncentivesReport'
 
 const REPORT_TYPES = [
   { id: 'daily', label: 'Daily Sales', icon: Calendar },
@@ -67,6 +68,7 @@ const REPORT_TYPES = [
   { id: 'wh-transfers', label: 'Transfers Out', icon: ArrowRightLeft },
   { id: 'branch-pl', label: 'Branch P&L', icon: Landmark },
   { id: 'stock-snapshot', label: 'Stock Value Snapshot', icon: BoxesIcon },
+  { id: 'staff-incentives', label: 'Staff Incentives', icon: TrendingUp },
 ]
 
 function ReportsPage() {
@@ -1267,6 +1269,11 @@ function ReportsPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* ─── Staff incentives (Feature 5) ──────────────────────────────── */}
+      {activeReport === 'staff-incentives' && (
+        <StaffIncentivesReport />
       )}
     </div>
   )
