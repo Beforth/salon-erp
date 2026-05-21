@@ -14,6 +14,7 @@ import BillDetailPage from './pages/BillDetailPage'
 import ServicesPage from './pages/ServicesPage'
 import PackagesPage from './pages/PackagesPage'
 import ProductsPage from './pages/ProductsPage'
+import ProductCategoriesPage from './pages/ProductCategoriesPage'
 import InventoryPage from './pages/InventoryPage'
 import StockTransfersPage from './pages/StockTransfersPage'
 import ReportsPage from './pages/ReportsPage'
@@ -106,6 +107,10 @@ function App() {
         <Route path="bills/:id" element={<BillDetailPage />} />
         <Route path="services" element={<ServicesPage />} />
         <Route path="packages" element={<PackagesPage />} />
+        <Route
+           path="product-categories"
+          element={<ProductCategoriesPage />}
+        />
         <Route path="products" element={<ProductsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="inventory/transfers" element={<StockTransfersPage />} />

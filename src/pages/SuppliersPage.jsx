@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Loader2, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,7 +11,6 @@ import { supplierService } from '@/services/supplier.service'
 import SupplierModal from '@/components/modals/SupplierModal'
 
 export default function SuppliersPage() {
-  const { user } = useSelector((state) => state.auth)
   const queryClient = useQueryClient()
 
   const [page, setPage] = useState(1)
@@ -21,14 +19,14 @@ export default function SuppliersPage() {
   const [editSupplier, setEditSupplier] = useState(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['suppliers', { page, search, branch: user?.branchId }],
-    queryFn: () => supplierService.getSuppliers({
+  queryKey: ['suppliers', { page, search }],
+  queryFn: () =>
+    supplierService.getSuppliers({
       page,
       limit: 20,
       search: search || undefined,
-      branch_id: user?.branchId || undefined,
     }),
-  })
+})
   const suppliers = data?.data || []
   const pagination = data?.pagination || {}
 
@@ -84,7 +82,6 @@ export default function SuppliersPage() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Phone</TableHead>
-                    <TableHead>Branch</TableHead>
                     <TableHead className="text-right">Pending</TableHead>
                     <TableHead className="text-center">Batches</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
@@ -95,7 +92,6 @@ export default function SuppliersPage() {
                     <TableRow key={s.supplier_id}>
                       <TableCell className="font-medium">{s.name}</TableCell>
                       <TableCell>{s.phone || '—'}</TableCell>
-                      <TableCell className="text-sm">{s.branch_name}</TableCell>
                       <TableCell className="text-right">
                         <span className={s.pending_amount > 0 ? 'text-red-600 font-semibold' : ''}>
                           {formatCurrency(s.pending_amount || 0)}
