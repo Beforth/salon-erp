@@ -23,7 +23,6 @@ export default function PurchaseBatchCreatePage() {
 
   const [supplierId, setSupplierId] = useState('')
   const [branchId, setBranchId] = useState(user?.branchId || '')
-  const [emergencyMode, setEmergencyMode] = useState(false)
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState([{ product_id: '', quantity: '', unit_cost: '' }])
@@ -51,20 +50,8 @@ export default function PurchaseBatchCreatePage() {
   const branchesList = branchesData?.data || []
 
   // Default destination = first active warehouse. Toggle "emergency" to allow salon branches.
-  const warehouseBranches = branchesList.filter((b) => b.is_warehouse)
-  const salonBranches = branchesList.filter((b) => b.is_salon && !b.is_warehouse)
-  const destinationOptions = emergencyMode ? branchesList : warehouseBranches
 
-  useEffect(() => {
-    // Auto-pick the first warehouse on first load when no branch is fixed and none chosen.
-    if (!branchId && warehouseBranches.length > 0 && !emergencyMode) {
-      setBranchId(warehouseBranches[0].branch_id)
-    }
-    // If user toggles back to warehouse-only and current pick isn't a warehouse, reset.
-    if (!emergencyMode && branchId && !warehouseBranches.some((b) => b.branch_id === branchId)) {
-      setBranchId(warehouseBranches[0]?.branch_id || '')
-    }
-  }, [branchId, emergencyMode, warehouseBranches])
+
 
   const totalAmount = items.reduce((sum, item) => {
     const qty = Number(item.quantity) || 0
@@ -98,7 +85,10 @@ export default function PurchaseBatchCreatePage() {
 
   const handleSubmit = () => {
     if (!supplierId) return toast.error('Select a supplier')
-    if (!branchId) return toast.error('Select a branch')
+    if (!branchId)
+  return toast.error(
+    'Select a salon'
+  )
 
     const validItems = items.filter((i) => i.product_id && Number(i.quantity) > 0 && Number(i.unit_cost) > 0)
     if (validItems.length === 0) return toast.error('Add at least one item with product, quantity, and cost')
@@ -163,36 +153,28 @@ export default function PurchaseBatchCreatePage() {
               </div>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label>Destination {emergencyMode ? '(branch)' : '(warehouse)'}</Label>
-                <label className="flex items-center gap-1 text-xs text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={emergencyMode}
-                    onChange={(e) => setEmergencyMode(e.target.checked)}
-                    className="h-3 w-3"
-                  />
-                  Emergency — direct to salon branch
-                </label>
-              </div>
-              <Select value={branchId} onValueChange={setBranchId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={emergencyMode ? 'Select branch' : 'Select warehouse'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {destinationOptions.map((b) => (
-                    <SelectItem key={b.branch_id} value={b.branch_id}>
-                      {b.name}{b.is_warehouse ? ' (warehouse)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!emergencyMode && warehouseBranches.length === 0 && (
-                <p className="text-xs text-rose-600 mt-1">
-                  No active warehouse configured — mark a branch as warehouse, or use Emergency.
-                </p>
-              )}
-            </div>
+  <Label>Salon</Label>
+
+  <Select
+    value={branchId}
+    onValueChange={setBranchId}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select salon" />
+    </SelectTrigger>
+
+    <SelectContent>
+      {branchesList.map((b) => (
+        <SelectItem
+          key={b.branch_id}
+          value={b.branch_id}
+        >
+          {b.name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
             <div>
               <Label>Purchase Date</Label>
               <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
@@ -236,12 +218,15 @@ export default function PurchaseBatchCreatePage() {
                         <SelectValue placeholder="Select product" />
                       </SelectTrigger>
                       <SelectContent>
-                        {products.map((p) => (
-                          <SelectItem key={p.product_id} value={p.product_id}>
-                            {p.name} {p.sku ? `(${p.sku})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                   {products.map((p) => (
+                        <SelectItem
+                        key={p.product_id}
+                        value={p.product_id}
+                       >
+                     {p.name || p.product_name || p.sku}
+                     </SelectItem>
+                     ))}
+                    </SelectContent>
                     </Select>
                   </TableCell>
                   <TableCell>

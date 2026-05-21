@@ -106,16 +106,31 @@ const getNavItemsByRole = (role) => {
       icon: BoxesIcon,
       roles: ['owner', 'developer', 'manager'],
       children: [
+        // {
+        //   title: 'SKUs',
+        //   href: '/skus',
+        //   icon: BoxesIcon,
+        // },
+        // {
+        //   title: 'Products',
+        //   href: '/products',
+        //   icon: ShoppingBag,
+        // },
         {
-          title: 'SKUs',
-          href: '/skus',
-          icon: BoxesIcon,
-        },
-        {
-          title: 'Products',
-          href: '/products',
-          icon: ShoppingBag,
-        },
+  title: 'SKUs',
+  href: '/skus',
+  icon: BoxesIcon,
+},
+{
+  title: 'Product Categories',
+  href: '/product-categories',
+  icon: Package,
+},
+{
+  title: 'Products',
+  href: '/products',
+  icon: ShoppingBag,
+},
         {
           title: 'Warehouses',
           href: '/warehouses',
@@ -385,7 +400,9 @@ function Sidebar() {
 
   // Auto-expand groups if current path matches
   const isCatalogPath = location.pathname.startsWith('/services') || location.pathname.startsWith('/packages') || location.pathname.startsWith('/skills')
-  const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products') || location.pathname.startsWith('/skus') || location.pathname.startsWith('/warehouses') || location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/purchase-batches') || location.pathname.startsWith('/barcode-print')
+  // const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products') || location.pathname.startsWith('/skus') || location.pathname.startsWith('/warehouses') || location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/purchase-batches') || location.pathname.startsWith('/barcode-print')
+
+  const isInventoryPath = location.pathname.startsWith('/inventory') || location.pathname.startsWith('/products') || location.pathname.startsWith('/product-categories') || location.pathname.startsWith('/skus') || location.pathname.startsWith('/warehouses') || location.pathname.startsWith('/suppliers') || location.pathname.startsWith('/purchase-batches') || location.pathname.startsWith('/barcode-print')
   const isFinancePath = location.pathname.startsWith('/savings-pots') || location.pathname.startsWith('/counter-withdrawals') || location.pathname.startsWith('/cash-reconciliation') || location.pathname.startsWith('/expenses') || location.pathname.startsWith('/upi-accounts') || location.pathname.startsWith('/bank-deposits')
   const [expandedGroups, setExpandedGroups] = useState({
     ...(isCatalogPath ? { Catalog: true } : {}),

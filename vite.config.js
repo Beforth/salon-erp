@@ -9,4 +9,14 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // Proxy API calls to Express (see salon-erp-be, default PORT=5001 in .env).
+    // Frontend uses same-origin /api/v1 in dev (src/services/api.js).
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+      },
+    },
+  },
 })
