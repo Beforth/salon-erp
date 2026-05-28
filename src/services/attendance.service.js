@@ -7,4 +7,6 @@ export const attendanceService = {
   endBreak: (data) => api.post('/attendance/break/end', data),
   markLeave: (data) => api.post('/attendance/leave/mark', data),
   runAutoClose: (data) => api.post('/attendance/run-auto-close', data),
+  getMonthlyAttendance: (params) => api.get('/attendance/monthly', { params }),
+  updateTimes: (data) => api.post('/attendance/update-times', data),
 }

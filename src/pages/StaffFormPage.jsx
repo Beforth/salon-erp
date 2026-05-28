@@ -30,9 +30,11 @@ import {
   Pencil,
   Trash2,
   Sparkles,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 
 const ROLES = [
   { value: 'employee', label: 'Employee' },
@@ -74,6 +76,8 @@ const initialAssetForm = {
   name: '',
   amount: '',
   quantity: '1',
+  type: 'debit',
+  notes: '',
 }
 
 function StaffFormPage() {
@@ -92,6 +96,7 @@ function StaffFormPage() {
   const [assetForm, setAssetForm] = useState(initialAssetForm)
   const [showAssetForm, setShowAssetForm] = useState(false)
   const [editingAssetId, setEditingAssetId] = useState(null)
+  const [showTransactionLog, setShowTransactionLog] = useState(false)
 
   // Fetch user data when editing
   const { data: userData, isLoading: isLoadingUser } = useQuery({
@@ -134,13 +139,41 @@ function StaffFormPage() {
     enabled: isEditing,
   })
 
-  const assets = assetsData?.data || []
+  // Normalize assets data to support both `id` and `asset_id`, as well as `createdAt` and `created_at`
+  const allNormalizedAssets = useMemo(() => {
+    const rawAssets = assetsData?.data || []
+    return rawAssets.map((asset) => ({
+      ...asset,
+      id: asset.id || asset.asset_id,
+      createdAt: asset.createdAt || asset.created_at,
+    }))
+  }, [assetsData])
+
+  // Current active assets that the employee currently holds
+  const activeAssets = useMemo(() => {
+    // Group quantities by asset name to compute what the employee currently holds
+    const totals = {}
+    allNormalizedAssets.forEach((asset) => {
+      const nameKey = asset.name.trim().toLowerCase()
+      if (!totals[nameKey]) {
+        totals[nameKey] = {
+          name: asset.name,
+          amount: parseFloat(asset.amount) || 0,
+          quantity: 0,
+          id: asset.id,
+        }
+      }
+      totals[nameKey].quantity += parseInt(asset.quantity) || 0
+    })
+    // Only show items that are currently possessed (quantity > 0)
+    return Object.values(totals).filter(item => item.quantity > 0)
+  }, [allNormalizedAssets])
 
   const totalAssetsValue = useMemo(() => {
-    return assets.reduce((sum, asset) => {
+    return activeAssets.reduce((sum, asset) => {
       return sum + (parseFloat(asset.amount) || 0) * (parseInt(asset.quantity) || 0)
     }, 0)
-  }, [assets])
+  }, [activeAssets])
 
   // Populate form when user data loads
   useEffect(() => {
@@ -303,6 +336,10 @@ function StaffFormPage() {
       toast.error('Asset name is required')
       return
     }
+    if ((assetForm.type === 'credit' || assetForm.type === 'broken') && !assetForm.notes?.trim()) {
+      toast.error('Reason is required')
+      return
+    }
     if (!assetForm.amount || parseFloat(assetForm.amount) <= 0) {
       toast.error('Amount must be greater than 0')
       return
@@ -312,10 +349,13 @@ function StaffFormPage() {
       return
     }
 
+    const qty = parseInt(assetForm.quantity)
+    const isReturning = assetForm.type === 'credit' || assetForm.type === 'broken'
     const payload = {
       name: assetForm.name.trim(),
       amount: parseFloat(assetForm.amount),
-      quantity: parseInt(assetForm.quantity),
+      quantity: isReturning ? -qty : qty,
+      notes: assetForm.type === 'broken' ? `[Broken] ${assetForm.notes?.trim()}` : (assetForm.notes?.trim() || null),
     }
 
     if (editingAssetId) {
@@ -326,10 +366,15 @@ function StaffFormPage() {
   }
 
   const handleEditAsset = (asset) => {
+    const qty = parseInt(asset.quantity) || 0
+    const isBroken = asset.notes?.startsWith('[Broken] ')
+    const notesContent = isBroken ? asset.notes.replace('[Broken] ', '') : (asset.notes || '')
     setAssetForm({
       name: asset.name || '',
       amount: asset.amount?.toString() || '',
-      quantity: asset.quantity?.toString() || '1',
+      quantity: Math.abs(qty).toString() || '1',
+      type: qty < 0 ? (isBroken ? 'broken' : 'credit') : 'debit',
+      notes: notesContent,
     })
     setEditingAssetId(asset.id)
     setShowAssetForm(true)
@@ -806,7 +851,7 @@ function StaffFormPage() {
                       <p className="text-sm font-medium">
                         {editingAssetId ? 'Edit Asset' : 'New Asset'}
                       </p>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="space-y-1">
                           <Label htmlFor="asset_name" className="text-xs">Name *</Label>
                           <Input
@@ -815,6 +860,19 @@ function StaffFormPage() {
                             onChange={(e) => setAssetForm(prev => ({ ...prev, name: e.target.value }))}
                             placeholder="e.g., Hair Dryer"
                           />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="asset_type" className="text-xs">Type *</Label>
+                          <select
+                            id="asset_type"
+                            className="w-full h-10 px-3 border rounded-md text-sm bg-white"
+                            value={assetForm.type}
+                            onChange={(e) => setAssetForm(prev => ({ ...prev, type: e.target.value }))}
+                          >
+                            <option value="debit">Given (Debit)</option>
+                            <option value="credit">Returned (Credit)</option>
+                            <option value="broken">Broken (Credit)</option>
+                          </select>
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="asset_amount" className="text-xs">Amount (&#8377;) *</Label>
@@ -841,6 +899,26 @@ function StaffFormPage() {
                           />
                         </div>
                       </div>
+
+                      {/* Reason input (Always visible, but marked mandatory if credit/Returned or broken) */}
+                      <div className="space-y-1">
+                        <Label htmlFor="asset_notes" className="text-xs">
+                          Reason {(assetForm.type === 'credit' || assetForm.type === 'broken') && '*'}
+                        </Label>
+                        <Input
+                          id="asset_notes"
+                          value={assetForm.notes}
+                          onChange={(e) => setAssetForm(prev => ({ ...prev, notes: e.target.value }))}
+                          placeholder={
+                            assetForm.type === 'credit'
+                              ? "Reason for returning (required)"
+                              : assetForm.type === 'broken'
+                              ? "How did it break? (required)"
+                              : "Optional comments/reason"
+                          }
+                        />
+                      </div>
+
                       <div className="flex items-center gap-2">
                         <Button
                           type="button"
@@ -869,72 +947,167 @@ function StaffFormPage() {
                     <div className="flex items-center justify-center py-10">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
-                  ) : assets.length === 0 ? (
+                  ) : allNormalizedAssets.length === 0 ? (
                     <div className="text-center py-10 text-muted-foreground border rounded-lg">
                       <Package className="h-10 w-10 mx-auto mb-2 opacity-20" />
                       <p className="text-sm">No assets assigned yet.</p>
                     </div>
                   ) : (
-                    <div className="border rounded-lg">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead className="text-right">Amount (&#8377;)</TableHead>
-                            <TableHead className="text-right">Quantity</TableHead>
-                            <TableHead className="text-right">Total Value</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {assets.map((asset) => (
-                            <TableRow key={asset.id}>
-                              <TableCell className="font-medium">{asset.name}</TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency(asset.amount)}
-                              </TableCell>
-                              <TableCell className="text-right">{asset.quantity}</TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency((parseFloat(asset.amount) || 0) * (parseInt(asset.quantity) || 0))}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditAsset(asset)}
-                                    disabled={isAssetSubmitting || deleteAssetMutation.isPending}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-500 hover:text-red-700"
-                                    onClick={() => handleDeleteAsset(asset.id)}
-                                    disabled={deleteAssetMutation.isPending}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                        <TableFooter>
-                          <TableRow>
-                            <TableCell colSpan={3} className="font-semibold">
-                              Total Assets Value
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {formatCurrency(totalAssetsValue)}
-                            </TableCell>
-                            <TableCell />
-                          </TableRow>
-                        </TableFooter>
-                      </Table>
+                    <div className="space-y-6">
+                      {/* Active Assets Holdings */}
+                      <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 bg-muted/20 border-b">
+                          <h4 className="text-sm font-semibold text-gray-900">Current Possessed Assets</h4>
+                          <p className="text-xs text-muted-foreground">List of assets currently in possession of the employee.</p>
+                        </div>
+                        {activeAssets.length === 0 ? (
+                          <div className="text-center py-6 text-muted-foreground text-xs">
+                            No assets currently in possession. All previously assigned items have been returned.
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead className="text-right">Rate (&#8377;)</TableHead>
+                                <TableHead className="text-right">Quantity</TableHead>
+                                <TableHead className="text-right">Total Value</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {activeAssets.map((asset) => (
+                                <TableRow key={asset.id}>
+                                  <TableCell className="font-medium text-gray-900">{asset.name}</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(asset.amount)}</TableCell>
+                                  <TableCell className="text-right font-semibold text-primary">{asset.quantity}</TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {formatCurrency(asset.amount * asset.quantity)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                            <TableFooter>
+                              <TableRow>
+                                <TableCell colSpan={3} className="font-semibold">
+                                  Current Assets Net Value
+                                </TableCell>
+                                <TableCell className="text-right font-bold text-gray-900">
+                                  {formatCurrency(totalAssetsValue)}
+                                </TableCell>
+                              </TableRow>
+                            </TableFooter>
+                          </Table>
+                        )}
+                      </div>
+
+                      {/* Transaction Logs (Collapsible Accordion) */}
+                      <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                        <button
+                          type="button"
+                          className="w-full flex items-center justify-between px-4 py-3.5 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+                          onClick={() => setShowTransactionLog(prev => !prev)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">Transaction History Logs</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                              {allNormalizedAssets.length}
+                            </span>
+                          </div>
+                          {showTransactionLog ? (
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-gray-500" />
+                          )}
+                        </button>
+                        {showTransactionLog && (
+                          <div className="border-t">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead>Name / Reason</TableHead>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead className="text-right">Rate (&#8377;)</TableHead>
+                                  <TableHead className="text-right">Quantity</TableHead>
+                                  <TableHead className="text-right">Transaction Value</TableHead>
+                                  <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {allNormalizedAssets.map((asset) => {
+                                  const isCredit = (parseInt(asset.quantity) || 0) < 0
+                                  return (
+                                    <TableRow key={asset.id} className={isCredit ? 'bg-green-50/20' : 'bg-rose-50/10'}>
+                                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                        {formatDate(asset.createdAt)}
+                                      </TableCell>
+                                      <TableCell className="max-w-[200px]">
+                                        <div className="font-medium text-gray-900 truncate" title={asset.name}>
+                                          {asset.name}
+                                        </div>
+                                        {asset.notes && (
+                                          <div className="text-xs text-muted-foreground mt-0.5 break-words">
+                                            <span className="font-semibold text-gray-500">Reason:</span> {asset.notes}
+                                          </div>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        {isCredit ? (
+                                          asset.notes?.startsWith('[Broken] ') ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                              Broken (Credit)
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">
+                                              Returned (Credit)
+                                            </span>
+                                          )
+                                        ) : (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-800">
+                                            Given (Debit)
+                                          </span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-right text-xs">
+                                        {formatCurrency(asset.amount)}
+                                      </TableCell>
+                                      <TableCell className="text-right font-mono text-xs">
+                                        {Math.abs(parseInt(asset.quantity) || 0)}
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium text-xs">
+                                        {formatCurrency(parseFloat(asset.amount) * Math.abs(parseInt(asset.quantity) || 0))}
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        <div className="flex justify-end gap-1">
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleEditAsset(asset)}
+                                            disabled={isAssetSubmitting || deleteAssetMutation.isPending}
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-red-500 hover:text-red-700"
+                                            onClick={() => handleDeleteAsset(asset.id)}
+                                            disabled={deleteAssetMutation.isPending}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  )
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                   </>
