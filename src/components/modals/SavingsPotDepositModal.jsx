@@ -193,28 +193,38 @@ export default function SavingsPotDepositModal({ open, onOpenChange, allPots, pe
                   </tr>
                 </thead>
                 <tbody>
-                  {allocations.map((alloc, i) => (
-                    <tr key={alloc.savings_pot_id} className="border-t">
-                      <td className="px-3 py-2">{alloc.name}</td>
-                      <td className="px-3 py-2 text-right">
-                        {formData.divide_equally ? (
-                          <span className="text-gray-600">{formatCurrency(equalShare)}</span>
-                        ) : (
-                          <Input
-                            type="number"
-                            value={alloc.amount}
-                            onChange={(e) => {
-                              const updated = [...allocations]
-                              updated[i] = { ...updated[i], amount: e.target.value }
-                              setAllocations(updated)
-                            }}
-                            className="w-28 text-right ml-auto"
-                            placeholder="0"
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {allocations.map((alloc, i) => {
+                    const potObj = (allPots || []).find((p) => p.pot_id === alloc.savings_pot_id)
+                    return (
+                      <tr key={alloc.savings_pot_id} className="border-t">
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-gray-900">{alloc.name}</div>
+                          {potObj?.account_number && (
+                            <div className="text-xs font-mono text-gray-500">
+                              {potObj.account_number}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formData.divide_equally ? (
+                            <span className="text-gray-600">{formatCurrency(equalShare)}</span>
+                          ) : (
+                            <Input
+                              type="number"
+                              value={alloc.amount}
+                              onChange={(e) => {
+                                const updated = [...allocations]
+                                updated[i] = { ...updated[i], amount: e.target.value }
+                                setAllocations(updated)
+                              }}
+                              className="w-28 text-right ml-auto"
+                              placeholder="0"
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
               {!formData.divide_equally && formData.total_amount && (

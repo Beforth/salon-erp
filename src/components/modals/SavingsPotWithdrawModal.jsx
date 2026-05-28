@@ -64,6 +64,12 @@ export default function SavingsPotWithdrawModal({ open, onOpenChange, pot }) {
               <span className="text-gray-500">Current Balance</span>
               <span className="font-semibold">{formatCurrency(pot.balance)}</span>
             </div>
+            {pot.account_number && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Pot Number</span>
+                <span className="font-mono text-gray-700">{pot.account_number}</span>
+              </div>
+            )}
             {pot.maturity_date && (
               <div className="flex justify-between">
                 <span className="text-gray-500">Maturity</span>
