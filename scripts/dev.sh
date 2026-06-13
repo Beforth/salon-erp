@@ -160,11 +160,11 @@ ensure_backend_ready() {
 apply_pending_migrations() {
   if [[ "$BACKEND_MODE" == "docker" ]]; then
     if docker ps --format '{{.Names}}' | grep -qx 'salon-erp-backend'; then
-      info "Applying database migrations (docker backend)…"
-      if docker_compose exec -T backend npx prisma migrate deploy >>"$LOG_DIR/migrate.log" 2>&1; then
-        ok "Database migrations up to date"
+      info "Syncing database schema (docker backend)…"
+      if docker_compose exec -T backend npx prisma db push >>"$LOG_DIR/migrate.log" 2>&1; then
+        ok "Database schema up to date"
       else
-        warn "prisma migrate deploy failed — see $LOG_DIR/migrate.log"
+        warn "prisma db push failed — see $LOG_DIR/migrate.log"
       fi
     fi
     return
@@ -173,15 +173,15 @@ apply_pending_migrations() {
   ensure_backend_ready
   load_backend_env
   if [[ -z "${DATABASE_URL:-}" ]]; then
-    warn "DATABASE_URL not set — skipping migrate deploy"
+    warn "DATABASE_URL not set — skipping db push"
     return
   fi
 
-  info "Applying database migrations…"
-  if (cd "$BACKEND_DIR" && npx prisma migrate deploy >>"$LOG_DIR/migrate.log" 2>&1); then
-    ok "Database migrations up to date"
+  info "Syncing database schema…"
+  if (cd "$BACKEND_DIR" && npx prisma db push >>"$LOG_DIR/migrate.log" 2>&1); then
+    ok "Database schema up to date"
   else
-    warn "prisma migrate deploy failed — see $LOG_DIR/migrate.log"
+    warn "prisma db push failed — see $LOG_DIR/migrate.log"
   fi
 }
 
