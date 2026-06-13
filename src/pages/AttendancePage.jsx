@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
@@ -61,12 +61,25 @@ export default function AttendancePage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches', 'active'],
-    queryFn: () => branchService.getBranches({ is_active: 'true' }),
+    queryKey: ['branches', 'active', 'salon'],
+    queryFn: () => branchService.getBranches({ is_active: 'true', type: 'salon' }),
   })
-  const branches = branchesData?.data || []
+  const branches = useMemo(
+    () => (branchesData?.data || []).filter((b) => b.is_salon !== false),
+    [branchesData?.data]
+  )
 
-  const { data: machinesData } = useQuery({
+  // Warehouse-only branches must not appear in attendance; reset if selection is invalid.
+  useEffect(() => {
+    if (branches.length === 0) return
+    const currentValid = branches.some((b) => b.branch_id === branchId)
+    if (!currentValid) {
+      const userSalon = branches.find((b) => b.branch_id === user?.branchId)
+      setBranchId(userSalon?.branch_id || branches[0].branch_id)
+    }
+  }, [branches, branchId, user?.branchId])
+
+  const { data: machinesData, isLoading: machinesLoading, isFetched: machinesFetched } = useQuery({
     queryKey: ['machines', branchId],
     queryFn: () => machineService.list({ branch_id: branchId }),
     enabled: !!branchId,
@@ -76,6 +89,29 @@ export default function AttendancePage() {
     () => machines.find((m) => m.is_active)?.machine_no || machines[0]?.machine_no || '',
     [machines]
   )
+
+  const ensureMachineMutation = useMutation({
+    mutationFn: () => machineService.ensureDefault({ branch_id: branchId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['machines', branchId] })
+    },
+  })
+  const ensuredBranchRef = useRef(null)
+
+  useEffect(() => {
+    ensuredBranchRef.current = null
+  }, [branchId])
+
+  useEffect(() => {
+    if (!branchId || !machinesFetched || machinesLoading) return
+    if (machines.length > 0) {
+      ensuredBranchRef.current = branchId
+      return
+    }
+    if (ensuredBranchRef.current === branchId || ensureMachineMutation.isPending) return
+    ensuredBranchRef.current = branchId
+    ensureMachineMutation.mutate()
+  }, [branchId, machinesFetched, machinesLoading, machines.length, ensureMachineMutation.isPending])
 
   // Today's roster query
   const { data: rosterData, isLoading, refetch, isFetching } = useQuery({
@@ -158,14 +194,25 @@ export default function AttendancePage() {
     onError: (e) => toast.error(e.response?.data?.error?.message || 'Failed'),
   })
 
-  const handleBreak = (emp, type) => {
-    if (!defaultMachineNo) {
+  const handleBreak = async (emp, type) => {
+    let machineNo = defaultMachineNo
+    if (!machineNo && branchId) {
+      try {
+        const res = await machineService.ensureDefault({ branch_id: branchId })
+        machineNo = res?.data?.machine_no
+        queryClient.invalidateQueries({ queryKey: ['machines', branchId] })
+      } catch {
+        toast.error('Could not set up attendance machine for this branch')
+        return
+      }
+    }
+    if (!machineNo) {
       toast.error('Register a machine for this branch before marking breaks manually')
       return
     }
     const payload = {
       employee_code: emp.employee_code,
-      machine_no: defaultMachineNo,
+      machine_no: machineNo,
       reason: type === 'start' ? 'Break start (cashier)' : 'Break end (cashier)',
     }
     if (type === 'start') breakStartMutation.mutate(payload)
@@ -177,8 +224,19 @@ export default function AttendancePage() {
     return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
   }
 
-  const handlePunch = (emp, punchType) => {
-    if (!defaultMachineNo) {
+  const handlePunch = async (emp, punchType) => {
+    let machineNo = defaultMachineNo
+    if (!machineNo && branchId) {
+      try {
+        const res = await machineService.ensureDefault({ branch_id: branchId })
+        machineNo = res?.data?.machine_no
+        queryClient.invalidateQueries({ queryKey: ['machines', branchId] })
+      } catch {
+        toast.error('Could not set up attendance machine for this branch')
+        return
+      }
+    }
+    if (!machineNo) {
       toast.error('Register a machine for this branch before punching manually')
       return
     }
@@ -419,7 +477,11 @@ export default function AttendancePage() {
               </div>
               {!defaultMachineNo && branchId && (
                 <p className="text-xs text-amber-600">
-                  No active machine registered for this branch. Manual break/leave actions need a machine.
+                  {ensureMachineMutation.isPending
+                    ? 'Setting up attendance machine for this branch…'
+                    : ensureMachineMutation.isError
+                      ? 'Could not auto-create attendance machine. Ask an owner to register one under Machines.'
+                      : null}
                 </p>
               )}
             </CardContent>

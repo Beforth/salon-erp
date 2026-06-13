@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryService } from '@/services/inventory.service'
 import { productService } from '@/services/product.service'
@@ -7,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { formatCurrency } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -45,8 +45,12 @@ const statusConfig = {
   cancelled: { label: 'Cancelled', variant: 'destructive', icon: XCircle },
 }
 
+const BRANCH_STAFF = new Set(['cashier', 'manager'])
+
 function StockTransfersPage() {
   const queryClient = useQueryClient()
+  const { user } = useSelector((state) => state.auth)
+  const isBranchStaff = BRANCH_STAFF.has(user?.role)
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -86,13 +90,65 @@ function StockTransfersPage() {
   const locations = locationsData?.data || []
   const products = productsData?.data || []
 
+  const userBranchIds = useMemo(() => {
+    const ids = new Set()
+    if (user?.branchId) ids.add(user.branchId)
+    if (user?.branch_id) ids.add(user.branch_id)
+    if (user?.branch?.branch_id) ids.add(user.branch.branch_id)
+    if (user?.branch?.id) ids.add(user.branch.id)
+    return ids
+  }, [user])
+
+  const myBranchLocations = useMemo(() => {
+    if (userBranchIds.size === 0) return locations
+    return locations.filter((loc) => loc.branch?.branch_id && userBranchIds.has(loc.branch.branch_id))
+  }, [locations, userBranchIds])
+
+  const defaultFromLocationId = myBranchLocations[0]?.location_id || ''
+
+  const destinationLocations = useMemo(() => {
+    const fromId = transferData.from_location_id
+    const fromLoc = locations.find((l) => l.location_id === fromId)
+    const fromBranchId = fromLoc?.branch?.branch_id
+    return locations.filter((loc) => {
+      if (loc.location_id === fromId) return false
+      if (fromBranchId && loc.branch?.branch_id === fromBranchId) return false
+      return true
+    })
+  }, [locations, transferData.from_location_id])
+
+  const pendingIncoming = useMemo(
+    () => transfers.filter((t) => t.status === 'pending' && t.can_approve).length,
+    [transfers]
+  )
+
+  useEffect(() => {
+    if (showCreateModal && isBranchStaff && defaultFromLocationId && !transferData.from_location_id) {
+      setTransferData((prev) => ({ ...prev, from_location_id: defaultFromLocationId }))
+    }
+  }, [showCreateModal, isBranchStaff, defaultFromLocationId, transferData.from_location_id])
+
+  const getAvailableAtLocation = (productId, locationId) => {
+    if (!productId || !locationId) return null
+    const product = products.find((p) => p.product_id === productId)
+    const row = product?.stock_by_location?.find((l) => l.location_id === locationId)
+    return row?.available_quantity ?? 0
+  }
+
+  const transferLineAvailable = useMemo(() => {
+    return transferData.items.map((item) =>
+      getAvailableAtLocation(item.product_id, transferData.from_location_id)
+    )
+  }, [transferData.items, transferData.from_location_id, products])
+
   // Create transfer mutation
   const createMutation = useMutation({
     mutationFn: inventoryService.createTransfer,
     onSuccess: () => {
-      toast.success('Stock transfer created successfully')
+      toast.success('Transfer request sent — receiving branch will be notified')
       queryClient.invalidateQueries({ queryKey: ['stock-transfers'] })
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
       setShowCreateModal(false)
       resetTransferForm()
     },
@@ -101,23 +157,49 @@ function StockTransfersPage() {
     },
   })
 
-  // Approve transfer mutation
   const approveMutation = useMutation({
     mutationFn: inventoryService.approveTransfer,
     onSuccess: () => {
-      toast.success('Transfer approved and completed')
+      toast.success('Transfer accepted — stock moved')
       queryClient.invalidateQueries({ queryKey: ['stock-transfers'] })
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
       setShowDetailModal(false)
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to approve transfer')
+      toast.error(error.response?.data?.error?.message || 'Failed to accept transfer')
+    },
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }) => inventoryService.rejectTransfer(id, { reason }),
+    onSuccess: () => {
+      toast.success('Transfer declined')
+      queryClient.invalidateQueries({ queryKey: ['stock-transfers'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      setShowDetailModal(false)
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error?.message || 'Failed to decline transfer')
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }) => inventoryService.cancelTransfer(id, { reason }),
+    onSuccess: () => {
+      toast.success('Transfer request cancelled')
+      queryClient.invalidateQueries({ queryKey: ['stock-transfers'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      setShowDetailModal(false)
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error?.message || 'Failed to cancel transfer')
     },
   })
 
   const resetTransferForm = () => {
     setTransferData({
-      from_location_id: '',
+      from_location_id: isBranchStaff ? defaultFromLocationId : '',
       to_location_id: '',
       items: [{ product_id: '', quantity: '' }],
       notes: '',
@@ -138,6 +220,16 @@ function StockTransfersPage() {
       return
     }
 
+    for (const item of validItems) {
+      const available = getAvailableAtLocation(item.product_id, transferData.from_location_id)
+      const qty = parseInt(item.quantity, 10)
+      if (available != null && qty > available) {
+        const product = products.find((p) => p.product_id === item.product_id)
+        toast.error(`Insufficient stock for ${product?.product_name || 'product'} (available: ${available})`)
+        return
+      }
+    }
+
     createMutation.mutate({
       ...transferData,
       items: validItems.map((i) => ({
@@ -148,9 +240,21 @@ function StockTransfersPage() {
   }
 
   const handleApproveTransfer = () => {
-    if (selectedTransfer) {
+    if (selectedTransfer?.can_approve) {
       approveMutation.mutate(selectedTransfer.transfer_id)
     }
+  }
+
+  const handleRejectTransfer = () => {
+    if (!selectedTransfer?.can_reject) return
+    const reason = window.prompt('Reason for declining (optional)') || undefined
+    rejectMutation.mutate({ id: selectedTransfer.transfer_id, reason })
+  }
+
+  const handleCancelTransfer = () => {
+    if (!selectedTransfer?.can_cancel) return
+    const reason = window.prompt('Reason for cancelling (optional)') || undefined
+    cancelMutation.mutate({ id: selectedTransfer.transfer_id, reason })
   }
 
   const addTransferItem = () => {
@@ -191,13 +295,22 @@ function StockTransfersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Stock Transfers</h1>
-          <p className="text-gray-500">Transfer inventory between locations</p>
+          <p className="text-gray-500">
+            Request stock from your branch — receiving branch cashiers/managers accept via notification
+          </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
+        <Button onClick={() => { resetTransferForm(); setShowCreateModal(true) }}>
           <Plus className="h-4 w-4 mr-2" />
-          New Transfer
+          Request Transfer
         </Button>
       </div>
+
+      {pendingIncoming > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>{pendingIncoming}</strong> transfer{pendingIncoming > 1 ? 's' : ''} waiting for your branch to accept.
+          Check notifications or review pending rows below.
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -303,7 +416,6 @@ function StockTransfersPage() {
                   <TableHead></TableHead>
                   <TableHead>To</TableHead>
                   <TableHead>Items</TableHead>
-                  <TableHead className="text-right">Value (cost)</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -341,28 +453,27 @@ function StockTransfersPage() {
                           {transfer.items?.length || 0} products
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        {transfer.is_warehouse_to_salon ? (
-                          transfer.missing_cost_count > 0 ? (
-                            <span className="text-xs text-rose-600">{transfer.missing_cost_count} missing cost</span>
-                          ) : (
-                            <span className="font-medium">{formatCurrency(transfer.total_value_at_cost || 0)}</span>
-                          )
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </TableCell>
                       <TableCell className="text-gray-500">
-                        {formatDate(transfer.created_at)}
+                        {formatDate(transfer.requested_at)}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={statusConfig[transfer.status]?.variant || 'secondary'}
-                          className="flex items-center gap-1 w-fit"
-                        >
-                          <StatusIcon className="h-3 w-3" />
-                          {statusConfig[transfer.status]?.label || transfer.status}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge
+                            variant={statusConfig[transfer.status]?.variant || 'secondary'}
+                            className="flex items-center gap-1 w-fit"
+                          >
+                            <StatusIcon className="h-3 w-3" />
+                            {statusConfig[transfer.status]?.label || transfer.status}
+                          </Badge>
+                          {transfer.status === 'pending' && transfer.can_approve && (
+                            <p className="text-xs text-green-700 font-medium">Accept at your branch</p>
+                          )}
+                          {transfer.status === 'pending' && !transfer.can_approve && (
+                            <p className="text-xs text-gray-500">
+                              Awaiting {transfer.to_location?.branch?.name || 'receiving branch'}
+                            </p>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -373,11 +484,12 @@ function StockTransfersPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {transfer.status === 'pending' && (
+                          {transfer.can_approve && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="text-green-600 hover:text-green-700"
+                              title="Accept transfer"
                               onClick={() => {
                                 setSelectedTransfer(transfer)
                                 approveMutation.mutate(transfer.transfer_id)
@@ -431,30 +543,45 @@ function StockTransfersPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ArrowRightLeft className="h-5 w-5" />
-              Create Stock Transfer
+              Request Stock Transfer
             </DialogTitle>
           </DialogHeader>
+
+          {isBranchStaff && (
+            <p className="text-sm text-gray-500 -mt-2">
+              Send from your branch ({user?.branch?.name || 'assigned branch'}). The receiving branch
+              gets a notification to accept.
+            </p>
+          )}
 
           <form onSubmit={handleCreateTransfer} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>From Location *</Label>
+                <Label>From (your branch) *</Label>
                 <select
                   className="w-full h-10 px-3 border rounded-md"
                   value={transferData.from_location_id}
-                  onChange={(e) => setTransferData({ ...transferData, from_location_id: e.target.value })}
+                  onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      from_location_id: e.target.value,
+                      to_location_id: '',
+                    })
+                  }
                   required
+                  disabled={isBranchStaff && myBranchLocations.length <= 1}
                 >
                   <option value="">Select Source</option>
-                  {locations.map((loc) => (
+                  {(isBranchStaff ? myBranchLocations : locations).map((loc) => (
                     <option key={loc.location_id} value={loc.location_id}>
-                      {loc.location_name} ({loc.location_type})
+                      {loc.location_name}
+                      {loc.branch?.branch_name ? ` · ${loc.branch.branch_name}` : ''}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>To Location *</Label>
+                <Label>To (other branch) *</Label>
                 <select
                   className="w-full h-10 px-3 border rounded-md"
                   value={transferData.to_location_id}
@@ -462,13 +589,12 @@ function StockTransfersPage() {
                   required
                 >
                   <option value="">Select Destination</option>
-                  {locations
-                    .filter(loc => loc.location_id !== transferData.from_location_id)
-                    .map((loc) => (
-                      <option key={loc.location_id} value={loc.location_id}>
-                        {loc.location_name} ({loc.location_type})
-                      </option>
-                    ))}
+                  {destinationLocations.map((loc) => (
+                    <option key={loc.location_id} value={loc.location_id}>
+                      {loc.location_name}
+                      {loc.branch?.branch_name ? ` · ${loc.branch.branch_name}` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -482,8 +608,13 @@ function StockTransfersPage() {
                 </Button>
               </div>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {transferData.items.map((item, index) => (
-                  <div key={index} className="flex gap-2">
+                {transferData.items.map((item, index) => {
+                  const available = transferLineAvailable[index]
+                  const qty = parseInt(item.quantity, 10) || 0
+                  const overStock = available != null && qty > available
+                  return (
+                  <div key={index} className="space-y-1">
+                    <div className="flex gap-2">
                     <select
                       className="flex-1 h-10 px-3 border rounded-md"
                       value={item.product_id}
@@ -499,7 +630,7 @@ function StockTransfersPage() {
                     <Input
                       type="number"
                       min="1"
-                      className="w-24"
+                      className={`w-24 ${overStock ? 'border-red-500' : ''}`}
                       placeholder="Qty"
                       value={item.quantity}
                       onChange={(e) => updateTransferItem(index, 'quantity', e.target.value)}
@@ -514,8 +645,16 @@ function StockTransfersPage() {
                         <X className="h-4 w-4" />
                       </Button>
                     )}
+                    </div>
+                    {item.product_id && transferData.from_location_id && (
+                      <p className={`text-xs ${overStock ? 'text-red-600' : 'text-gray-500'}`}>
+                        Available at source: {available ?? 0}
+                        {overStock ? ` — exceeds available by ${qty - available}` : ''}
+                      </p>
+                    )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -541,7 +680,7 @@ function StockTransfersPage() {
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
                 {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create Transfer
+                Send Request
               </Button>
             </DialogFooter>
           </form>
@@ -593,30 +732,13 @@ function StockTransfersPage() {
                 </div>
               </div>
 
-              {/* Warehouse → branch valuation banner */}
+              {/* Transfer accounting note */}
               {selectedTransfer.is_warehouse_to_salon && (
-                <div className={
-                  selectedTransfer.missing_cost_count > 0
-                    ? 'rounded-md border border-rose-200 bg-rose-50 p-3 text-sm'
-                    : 'rounded-md border border-violet-200 bg-violet-50 p-3 text-sm'
-                }>
-                  {selectedTransfer.missing_cost_count > 0 ? (
-                    <>
-                      <p className="font-medium text-rose-800">Cannot complete this transfer</p>
-                      <p className="text-rose-700 mt-1">
-                        {selectedTransfer.missing_cost_count} product(s) are missing a cost price. Set the cost price on these products before approving.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-medium text-violet-900">
-                        Will debit {selectedTransfer.to_location?.branch?.name || 'branch'} by {formatCurrency(selectedTransfer.total_value_at_cost || 0)}
-                      </p>
-                      <p className="text-violet-700 mt-1 text-xs">
-                        On approve: warehouse gets a CashSource of this amount, branch gets a "Stock from warehouse" expense.
-                      </p>
-                    </>
-                  )}
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+                  <p className="font-medium text-blue-900">Stock-only internal transfer</p>
+                  <p className="text-blue-700 mt-1 text-xs">
+                    Approval moves inventory between locations and writes transfer audit entries. It does not create cash income or branch expense entries.
+                  </p>
                 </div>
               )}
 
@@ -627,12 +749,9 @@ function StockTransfersPage() {
                   {selectedTransfer.items?.map((item, index) => (
                     <div key={index} className="p-3 flex justify-between items-center">
                       <div>
-                        <p className="font-medium">{item.product?.product_name || 'Unknown'}</p>
-                        {item.product?.barcode && (
-                          <p className="text-xs text-gray-500">{item.product.barcode}</p>
-                        )}
+                        <p className="font-medium">{item.product_name || 'Unknown'}</p>
                       </div>
-                      <Badge variant="outline">Qty: {item.quantity}</Badge>
+                      <Badge variant="outline">Qty: {item.quantity_requested}</Badge>
                     </div>
                   ))}
                 </div>
@@ -650,7 +769,7 @@ function StockTransfersPage() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-500">Created</p>
-                  <p>{formatDate(selectedTransfer.created_at)}</p>
+                  <p>{formatDate(selectedTransfer.requested_at)}</p>
                 </div>
                 {selectedTransfer.completed_at && (
                   <div>
@@ -660,25 +779,44 @@ function StockTransfersPage() {
                 )}
               </div>
 
-              {/* Actions */}
-              {selectedTransfer.status === 'pending' && (
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowDetailModal(false)}
-                  >
+              {selectedTransfer.status === 'pending' &&
+                (selectedTransfer.can_approve ||
+                  selectedTransfer.can_reject ||
+                  selectedTransfer.can_cancel) && (
+                <DialogFooter className="flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => setShowDetailModal(false)}>
                     Close
                   </Button>
-                  <Button
-                    onClick={handleApproveTransfer}
-                    disabled={approveMutation.isPending || (selectedTransfer.is_warehouse_to_salon && selectedTransfer.missing_cost_count > 0)}
-                    className="bg-green-600 hover:bg-green-700"
-                    title={selectedTransfer.is_warehouse_to_salon && selectedTransfer.missing_cost_count > 0 ? 'Set cost price on all products before approving' : ''}
-                  >
-                    {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    <Check className="h-4 w-4 mr-2" />
-                    Approve Transfer
-                  </Button>
+                  {selectedTransfer.can_cancel && (
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelTransfer}
+                      disabled={cancelMutation.isPending}
+                    >
+                      Cancel request
+                    </Button>
+                  )}
+                  {selectedTransfer.can_reject && (
+                    <Button
+                      variant="outline"
+                      className="text-red-600 border-red-200"
+                      onClick={handleRejectTransfer}
+                      disabled={rejectMutation.isPending}
+                    >
+                      Decline
+                    </Button>
+                  )}
+                  {selectedTransfer.can_approve && (
+                    <Button
+                      onClick={handleApproveTransfer}
+                      disabled={approveMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      <Check className="h-4 w-4 mr-2" />
+                      Accept transfer
+                    </Button>
+                  )}
                 </DialogFooter>
               )}
             </div>

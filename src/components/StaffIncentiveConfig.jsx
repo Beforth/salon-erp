@@ -51,7 +51,13 @@ export default function StaffIncentiveConfig() {
         p1PayoutRate: c.p1_payout_rate,
         p2Tiers: [...(c.p2_tiers || [])],
         p3DailyThresholdRatio: c.p3_daily_threshold_ratio,
-        p3DailyBonus: c.p3_daily_bonus,
+        p3DailyBonus: c.p3_daily_bonus ?? c.daily_earnings_payout_rate,
+        dailyStarTiers: [...(c.daily_star_tiers || [])],
+        salaryCapMultiplier: c.salary_cap_multiplier ?? 3,
+        targetSalaryMultiplier: c.target_salary_multiplier ?? 0.95,
+        targetFactor: c.target_factor ?? 5,
+        dailyThresholdDivisor: c.daily_threshold_divisor ?? 30,
+        femaleIncentives: { ...(c.female_incentives || {}) },
         enabled: c.enabled,
       })
     }
@@ -81,7 +87,7 @@ export default function StaffIncentiveConfig() {
 
   const updatePunctualityTier = (idx, key, value) => {
     setDraft((d) => {
-      const tiers = d.punctualityTiers.map((t, i) => (i === idx ? { ...t, [key]: num(value) } : t))
+      const tiers = d.punctualityTiers.map((t, i) => (i === idx ? { ...t, [key]: value } : t))
       return { ...d, punctualityTiers: tiers }
     })
   }
@@ -89,7 +95,7 @@ export default function StaffIncentiveConfig() {
   const addPunctualityTier = () => {
     setDraft((d) => ({
       ...d,
-      punctualityTiers: [...d.punctualityTiers, { minutesEarly: 0, amount: 0 }],
+      punctualityTiers: [...d.punctualityTiers, { arrivalTime: '07:15', amount: 0 }],
     }))
   }
 
@@ -100,22 +106,22 @@ export default function StaffIncentiveConfig() {
     }))
   }
 
-  const updateP2Tier = (idx, key, value) => {
+  const updateStarTier = (listKey, idx, key, value) => {
     setDraft((d) => {
-      const tiers = d.p2Tiers.map((t, i) => (i === idx ? { ...t, [key]: num(value) } : t))
-      return { ...d, p2Tiers: tiers }
+      const tiers = d[listKey].map((t, i) => (i === idx ? { ...t, [key]: num(value) } : t))
+      return { ...d, [listKey]: tiers }
     })
   }
 
-  const addP2Tier = () => {
+  const addStarTier = (listKey) => {
     setDraft((d) => ({
       ...d,
-      p2Tiers: [...d.p2Tiers, { minServices: 0, rate: 0 }],
+      [listKey]: [...d[listKey], { minStars: 0, rate: 0 }],
     }))
   }
 
-  const removeP2Tier = (idx) => {
-    setDraft((d) => ({ ...d, p2Tiers: d.p2Tiers.filter((_, i) => i !== idx) }))
+  const removeStarTier = (listKey, idx) => {
+    setDraft((d) => ({ ...d, [listKey]: d[listKey].filter((_, i) => i !== idx) }))
   }
 
   if (!isOwner) {
@@ -144,8 +150,8 @@ export default function StaffIncentiveConfig() {
             <div>
               <CardTitle>Staff Incentive Configuration</CardTitle>
               <CardDescription>
-                Per-branch parameters for monthly incentive computation. Changes apply to the
-                live report immediately; locked snapshots keep the config used at lock time.
+                Incentive Distribution Policy — target = salary × 0.95 × 5, star tiers,
+                daily earnings bonus, punctuality, and female employee add-ons.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -166,13 +172,10 @@ export default function StaffIncentiveConfig() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Master enable */}
           <div className="flex items-center justify-between p-3 rounded border bg-gray-50">
             <div>
               <div className="font-medium">Incentive computation enabled</div>
-              <p className="text-xs text-gray-500">
-                When off, all employees in this branch get ₹0 incentive for the month.
-              </p>
+              <p className="text-xs text-gray-500">When off, all employees in this branch get ₹0 incentive.</p>
             </div>
             <Button
               size="sm"
@@ -183,35 +186,180 @@ export default function StaffIncentiveConfig() {
             </Button>
           </div>
 
-          {/* Punctuality tiers */}
+          <section>
+            <h3 className="font-semibold mb-2">Monthly target</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Target = salary × salary multiplier × factor (default 0.95 × 5). When met,
+              bonus = target × achievement rate (default 10%).
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <Label>Salary multiplier</Label>
+                <Input
+                  type="number"
+                  step="0.0001"
+                  value={draft.targetSalaryMultiplier}
+                  onChange={(e) => updateDraft({ targetSalaryMultiplier: num(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Target factor</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={draft.targetFactor}
+                  onChange={(e) => updateDraft({ targetFactor: num(e.target.value), p1RevenueMultiplier: num(e.target.value) * (draft.targetSalaryMultiplier || 0.95) })}
+                />
+              </div>
+              <div>
+                <Label>Target achievement rate</Label>
+                <Input
+                  type="number"
+                  step="0.0001"
+                  value={draft.p1PayoutRate}
+                  onChange={(e) => updateDraft({ p1PayoutRate: num(e.target.value) })}
+                />
+              </div>
+            </div>
+          </section>
+
           <section>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold">Punctuality bonuses (daily)</h3>
-              <Button size="sm" variant="outline" onClick={addPunctualityTier}>
+              <h3 className="font-semibold">Monthly star tiers (when target met)</h3>
+              <Button size="sm" variant="outline" onClick={() => addStarTier('p2Tiers')}>
                 <Plus className="h-3 w-3 mr-1" /> Add tier
               </Button>
             </div>
-            <p className="text-xs text-gray-500 mb-3 flex items-start gap-1">
-              <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
-              Highest matching tier wins per day. Reference is the employee's shift start, falling
-              back to branch open time. Flexible-timing staff are excluded.
-            </p>
+            <p className="text-xs text-gray-500 mb-3">% of total monthly earnings. Highest qualifying tier wins.</p>
             <div className="space-y-2">
-              {draft.punctualityTiers.map((t, i) => (
+              {draft.p2Tiers.map((t, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <span className="text-sm text-gray-600 w-24">If ≥</span>
                   <Input
                     type="number"
-                    value={t.minutesEarly}
-                    onChange={(e) => updatePunctualityTier(i, 'minutesEarly', e.target.value)}
+                    value={t.minStars ?? t.minServices}
+                    onChange={(e) => updateStarTier('p2Tiers', i, 'minStars', e.target.value)}
                     className="w-28"
                   />
-                  <span className="text-sm text-gray-600">min early →</span>
-                  <span className="text-sm text-gray-600">₹</span>
+                  <span className="text-sm text-gray-600">stars →</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={t.rate}
+                    onChange={(e) => updateStarTier('p2Tiers', i, 'rate', e.target.value)}
+                    className="w-28"
+                  />
+                  <span className="text-sm text-gray-600">× earnings</span>
+                  <Button size="sm" variant="ghost" onClick={() => removeStarTier('p2Tiers', i)}>
+                    <Trash2 className="h-3 w-3 text-red-600" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-semibold mb-2">Daily earnings bonus</h3>
+            <p className="text-xs text-gray-500 mb-3 flex items-start gap-1">
+              <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+              Threshold = (effective salary × ratio) ÷ divisor. Effective salary = X if earnings ≥ 3X, else earnings.
+              Bonus = 5% of that day&apos;s earnings when above threshold.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <Label>Salary cap multiplier (3X)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={draft.salaryCapMultiplier}
+                  onChange={(e) => updateDraft({ salaryCapMultiplier: num(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Daily threshold ratio</Label>
+                <Input
+                  type="number"
+                  step="0.0001"
+                  value={draft.p3DailyThresholdRatio}
+                  onChange={(e) => updateDraft({ p3DailyThresholdRatio: num(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Threshold divisor (days)</Label>
+                <Input
+                  type="number"
+                  value={draft.dailyThresholdDivisor}
+                  onChange={(e) => updateDraft({ dailyThresholdDivisor: num(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Daily earnings payout rate</Label>
+                <Input
+                  type="number"
+                  step="0.0001"
+                  value={draft.p3DailyBonus}
+                  onChange={(e) => updateDraft({ p3DailyBonus: num(e.target.value) })}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Daily star tiers</h3>
+              <Button size="sm" variant="outline" onClick={() => addStarTier('dailyStarTiers')}>
+                <Plus className="h-3 w-3 mr-1" /> Add tier
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {draft.dailyStarTiers.map((t, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600 w-24">If ≥</span>
+                  <Input
+                    type="number"
+                    value={t.minStars}
+                    onChange={(e) => updateStarTier('dailyStarTiers', i, 'minStars', e.target.value)}
+                    className="w-28"
+                  />
+                  <span className="text-sm text-gray-600">stars/day →</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={t.rate}
+                    onChange={(e) => updateStarTier('dailyStarTiers', i, 'rate', e.target.value)}
+                    className="w-28"
+                  />
+                  <span className="text-sm text-gray-600">× day earnings</span>
+                  <Button size="sm" variant="ghost" onClick={() => removeStarTier('dailyStarTiers', i)}>
+                    <Trash2 className="h-3 w-3 text-red-600" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Punctuality (arrival time)</h3>
+              <Button size="sm" variant="outline" onClick={addPunctualityTier}>
+                <Plus className="h-3 w-3 mr-1" /> Add tier
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {draft.punctualityTiers.map((t, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600 w-24">By</span>
+                  <Input
+                    type="time"
+                    value={t.arrivalTime || ''}
+                    onChange={(e) => updatePunctualityTier(i, 'arrivalTime', e.target.value)}
+                    className="w-36"
+                  />
+                  <span className="text-sm text-gray-600">→ ₹</span>
                   <Input
                     type="number"
                     value={t.amount}
-                    onChange={(e) => updatePunctualityTier(i, 'amount', e.target.value)}
+                    onChange={(e) => updatePunctualityTier(i, 'amount', num(e.target.value))}
                     className="w-28"
                   />
                   <Button size="sm" variant="ghost" onClick={() => removePunctualityTier(i)}>
@@ -222,103 +370,28 @@ export default function StaffIncentiveConfig() {
             </div>
           </section>
 
-          {/* P1 */}
           <section>
-            <h3 className="font-semibold mb-2">Priority 1 — Sales-based</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              If monthly service revenue ≥ <code>baseSalary × multiplier</code>, employee earns
-              <code> revenue × payout rate</code>.
-            </p>
+            <h3 className="font-semibold mb-2">Female employee add-ons</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <Label>Revenue multiplier</Label>
+                <Label>Early arrival before</Label>
                 <Input
-                  type="number"
-                  step="0.0001"
-                  value={draft.p1RevenueMultiplier}
-                  onChange={(e) => updateDraft({ p1RevenueMultiplier: num(e.target.value) })}
+                  type="time"
+                  value={draft.femaleIncentives?.earlyArrivalBefore || '09:00'}
+                  onChange={(e) => updateDraft({
+                    femaleIncentives: { ...draft.femaleIncentives, earlyArrivalBefore: e.target.value },
+                  })}
                 />
-                <p className="text-xs text-gray-500 mt-1">Default 4.75 (= 0.95 × 5)</p>
               </div>
               <div>
-                <Label>Payout rate (0–1)</Label>
+                <Label>Early arrival amount (₹)</Label>
                 <Input
                   type="number"
-                  step="0.0001"
-                  value={draft.p1PayoutRate}
-                  onChange={(e) => updateDraft({ p1PayoutRate: num(e.target.value) })}
+                  value={draft.femaleIncentives?.earlyArrivalAmount ?? 20}
+                  onChange={(e) => updateDraft({
+                    femaleIncentives: { ...draft.femaleIncentives, earlyArrivalAmount: num(e.target.value) },
+                  })}
                 />
-                <p className="text-xs text-gray-500 mt-1">Default 0.10 (10% of revenue)</p>
-              </div>
-            </div>
-          </section>
-
-          {/* P2 */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold">Priority 2 — Service-count tiers</h3>
-              <Button size="sm" variant="outline" onClick={addP2Tier}>
-                <Plus className="h-3 w-3 mr-1" /> Add tier
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mb-3">
-              Used only when P1 misses. Highest matching tier wins. Payout is{' '}
-              <code>baseSalary × rate</code>.
-            </p>
-            <div className="space-y-2">
-              {draft.p2Tiers.map((t, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600 w-24">If ≥</span>
-                  <Input
-                    type="number"
-                    value={t.minServices}
-                    onChange={(e) => updateP2Tier(i, 'minServices', e.target.value)}
-                    className="w-28"
-                  />
-                  <span className="text-sm text-gray-600">services →</span>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={t.rate}
-                    onChange={(e) => updateP2Tier(i, 'rate', e.target.value)}
-                    className="w-28"
-                  />
-                  <span className="text-sm text-gray-600">× base salary</span>
-                  <Button size="sm" variant="ghost" onClick={() => removeP2Tier(i)}>
-                    <Trash2 className="h-3 w-3 text-red-600" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* P3 */}
-          <section>
-            <h3 className="font-semibold mb-2">Priority 3 — Daily fallback</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              Fires only when P1 and P2 both produce ₹0. For each day where service revenue ≥{' '}
-              <code>baseSalary × ratio</code>, employee earns the daily bonus.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <Label>Daily threshold ratio (0–1)</Label>
-                <Input
-                  type="number"
-                  step="0.0001"
-                  value={draft.p3DailyThresholdRatio}
-                  onChange={(e) => updateDraft({ p3DailyThresholdRatio: num(e.target.value) })}
-                />
-                <p className="text-xs text-gray-500 mt-1">Default 0.10 (10% of base salary)</p>
-              </div>
-              <div>
-                <Label>Daily bonus (₹)</Label>
-                <Input
-                  type="number"
-                  step="1"
-                  value={draft.p3DailyBonus}
-                  onChange={(e) => updateDraft({ p3DailyBonus: num(e.target.value) })}
-                />
-                <p className="text-xs text-gray-500 mt-1">Default ₹50</p>
               </div>
             </div>
           </section>
@@ -336,7 +409,11 @@ export default function StaffIncentiveConfig() {
               <RotateCcw className="h-4 w-4 mr-1" /> Reset to defaults
             </Button>
             <Button
-              onClick={() => saveMutation.mutate(draft)}
+              onClick={() => saveMutation.mutate({
+                ...draft,
+                p1RevenueMultiplier: (draft.targetSalaryMultiplier || 0.95) * (draft.targetFactor || 5),
+                dailyEarningsPayoutRate: draft.p3DailyBonus,
+              })}
               disabled={saveMutation.isPending}
             >
               {saveMutation.isPending ? (

@@ -1,8 +1,9 @@
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logout } from '@/store/slices/authSlice'
 import { cashService } from '@/services/cash.service'
+import { notificationService } from '@/services/notification.service'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,15 +15,42 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bell, Menu, LogOut, User, Settings, IndianRupee } from 'lucide-react'
+import { Bell, Menu, LogOut, User, Settings, IndianRupee, ArrowRightLeft } from 'lucide-react'
 import { useState } from 'react'
 
 function Header({ onMenuClick }) {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { user } = useSelector((state) => state.auth)
   const isCashier = user?.role === 'cashier'
   const [showTooltip, setShowTooltip] = useState(false)
+
+  const { data: notificationsData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => notificationService.getNotifications({ limit: 20 }),
+    refetchInterval: 30000,
+  })
+
+  const notifications = notificationsData?.data?.notifications || []
+  const unreadCount = notificationsData?.data?.unread_count ?? 0
+
+  const markReadMutation = useMutation({
+    mutationFn: notificationService.markRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+
+  const markAllReadMutation = useMutation({
+    mutationFn: notificationService.markAllRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+
+  const handleNotificationClick = (n) => {
+    if (!n.is_read) markReadMutation.mutate(n.notification_id)
+    if (n.reference_type === 'stock_transfer' && n.reference_id) {
+      navigate('/inventory/transfers')
+    }
+  }
 
   // Fetch today's summary for cashier only
   const { data: summaryData } = useQuery({
@@ -88,10 +116,57 @@ function Header({ onMenuClick }) {
           )}
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5 text-gray-500" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="h-5 w-5 text-gray-500" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => markAllReadMutation.mutate()}
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {notifications.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-gray-500 text-center">No notifications</p>
+              ) : (
+                notifications.slice(0, 8).map((n) => (
+                  <DropdownMenuItem
+                    key={n.notification_id}
+                    className={`flex flex-col items-start gap-0.5 cursor-pointer ${!n.is_read ? 'bg-amber-50' : ''}`}
+                    onClick={() => handleNotificationClick(n)}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      {n.type?.includes('stock_transfer') && (
+                        <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      )}
+                      <span className="font-medium text-sm truncate">{n.title}</span>
+                    </div>
+                    <span className="text-xs text-gray-500 line-clamp-2 pl-5">{n.message}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/inventory/transfers')}>
+                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                Stock transfers
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Separator */}
           <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" />

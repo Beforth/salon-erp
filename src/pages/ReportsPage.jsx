@@ -35,7 +35,14 @@ import {
   ArrowRightLeft,
   Landmark,
   BoxesIcon,
+  Droplets,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +67,7 @@ const REPORT_TYPES = [
   { id: 'employees', label: 'Employee Performance', icon: Star },
   { id: 'services', label: 'Service Analytics', icon: Scissors },
   { id: 'inventory', label: 'Inventory Report', icon: Package },
+  { id: 'backbar-consumption', label: 'Backbar Consumption', icon: Droplets },
   { id: 'service-liability', label: 'Service Liability', icon: TrendingDown },
   { id: 'supplier-credit', label: 'Supplier Credit', icon: DollarSign },
   // Warehouse reports (Feature 3)
@@ -79,6 +87,9 @@ function ReportsPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [period, setPeriod] = useState(30)
+  const [consumptionTab, setConsumptionTab] = useState('usage')
+  const [consumptionStatus, setConsumptionStatus] = useState('')
+  const [selectedBottleId, setSelectedBottleId] = useState(null)
 
   const branchId = user?.branchId || null
 
@@ -148,6 +159,38 @@ function ReportsPage() {
     enabled: activeReport === 'inventory',
   })
 
+  const consumptionParams = {
+    period,
+    branch_id: selectedBranch || branchId || undefined,
+  }
+
+  const { data: consumptionUsageData, isLoading: consumptionUsageLoading } = useQuery({
+    queryKey: ['consumption-usage', consumptionParams],
+    queryFn: () => reportsService.getConsumptionUsageByService(consumptionParams),
+    enabled: activeReport === 'backbar-consumption' && consumptionTab === 'usage',
+  })
+
+  const { data: consumptionWastageData, isLoading: consumptionWastageLoading } = useQuery({
+    queryKey: ['consumption-wastage', consumptionParams],
+    queryFn: () => reportsService.getConsumptionWastage(consumptionParams),
+    enabled: activeReport === 'backbar-consumption' && consumptionTab === 'wastage',
+  })
+
+  const { data: consumptionLifecycleData, isLoading: consumptionLifecycleLoading } = useQuery({
+    queryKey: ['consumption-lifecycle', consumptionParams, consumptionStatus],
+    queryFn: () => reportsService.getBottleLifecycle({
+      ...consumptionParams,
+      status: consumptionStatus || undefined,
+    }),
+    enabled: activeReport === 'backbar-consumption' && consumptionTab === 'lifecycle',
+  })
+
+  const { data: bottleDetailData, isLoading: bottleDetailLoading } = useQuery({
+    queryKey: ['bottle-lifecycle-detail', selectedBottleId],
+    queryFn: () => reportsService.getBottleLifecycleDetail(selectedBottleId),
+    enabled: !!selectedBottleId,
+  })
+
   // Service Liability
   const [liabilityStartDate, setLiabilityStartDate] = useState('')
   const [liabilityEndDate, setLiabilityEndDate] = useState('')
@@ -178,6 +221,10 @@ function ReportsPage() {
   const employees = employeeData?.data
   const services = serviceData?.data
   const inventory = inventoryData?.data
+  const consumptionUsage = consumptionUsageData?.data || consumptionUsageData
+  const consumptionWastage = consumptionWastageData?.data || consumptionWastageData
+  const consumptionLifecycle = consumptionLifecycleData?.data || consumptionLifecycleData
+  const bottleDetail = bottleDetailData?.data || bottleDetailData
   const liability = liabilityData?.data || liabilityData || {}
   const supplierCredit = supplierCreditData?.data || supplierCreditData || {}
 
@@ -335,7 +382,7 @@ function ReportsPage() {
               </>
             )}
 
-            {['customers', 'employees', 'services'].includes(activeReport) && (
+            {['customers', 'employees', 'services', 'backbar-consumption'].includes(activeReport) && (
               <div>
                 <Label className="mb-2 block">Period</Label>
                 <select
@@ -898,6 +945,306 @@ function ReportsPage() {
               )}
             </>
           ) : null}
+        </div>
+      )}
+
+      {/* Backbar Consumption Reports (Phase 3) */}
+      {activeReport === 'backbar-consumption' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'usage', label: 'Usage by Service' },
+              { id: 'wastage', label: 'Wastage' },
+              { id: 'lifecycle', label: 'Bottle Lifecycle' },
+            ].map((tab) => (
+              <Button
+                key={tab.id}
+                size="sm"
+                variant={consumptionTab === tab.id ? 'default' : 'outline'}
+                onClick={() => setConsumptionTab(tab.id)}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+
+          {consumptionTab === 'lifecycle' && (
+            <Card>
+              <CardContent className="py-3 px-4">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div>
+                    <Label className="text-xs">Status</Label>
+                    <select
+                      className="h-9 px-3 border rounded-md text-sm min-w-[140px]"
+                      value={consumptionStatus}
+                      onChange={(e) => setConsumptionStatus(e.target.value)}
+                    >
+                      <option value="">All</option>
+                      <option value="active">Active</option>
+                      <option value="empty">Empty</option>
+                      <option value="discarded">Discarded</option>
+                    </select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {consumptionTab === 'usage' && (
+            consumptionUsageLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : consumptionUsage ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card>
+                    <CardContent className="p-6">
+                      <p className="text-sm text-gray-500">Total usages</p>
+                      <p className="text-2xl font-bold">{consumptionUsage.summary?.total_usages ?? 0}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-6">
+                      <p className="text-sm text-gray-500">Service / product pairs</p>
+                      <p className="text-2xl font-bold">{consumptionUsage.summary?.service_product_pairs ?? 0}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-6">
+                      <p className="text-sm text-gray-500">Volume deducted (mixed units)</p>
+                      <p className="text-2xl font-bold">{consumptionUsage.summary?.total_amount ?? 0}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Product usage per service</CardTitle>
+                    <CardDescription>Backbar deductions from open bottles during the selected period</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {(consumptionUsage.rows || []).length === 0 ? (
+                      <p className="text-center text-gray-500 py-10">No consumption recorded in this period.</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Service</TableHead>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Times used</TableHead>
+                            <TableHead className="text-right">Total amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {consumptionUsage.rows.map((row) => (
+                            <TableRow key={`${row.service_id}-${row.product_id}-${row.unit}`}>
+                              <TableCell className="font-medium">{row.service_name}</TableCell>
+                              <TableCell>{row.product_name}</TableCell>
+                              <TableCell className="text-right">{row.usage_count}</TableCell>
+                              <TableCell className="text-right font-mono">
+                                {row.total_amount} {row.unit}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : null
+          )}
+
+          {consumptionTab === 'wastage' && (
+            consumptionWastageLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : consumptionWastage ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card className="border-amber-200">
+                    <CardContent className="p-6">
+                      <p className="text-sm text-amber-600">Bottles discarded</p>
+                      <p className="text-2xl font-bold text-amber-700">{consumptionWastage.summary?.bottles_discarded ?? 0}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-amber-200">
+                    <CardContent className="p-6">
+                      <p className="text-sm text-amber-600">Volume wasted (mixed units)</p>
+                      <p className="text-2xl font-bold text-amber-700">{consumptionWastage.summary?.total_wasted_volume ?? 0}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+                {(consumptionWastage.by_product || []).length > 0 && (
+                  <Card>
+                    <CardHeader><CardTitle>Wastage by product</CardTitle></CardHeader>
+                    <CardContent className="p-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Bottles</TableHead>
+                            <TableHead className="text-right">Wasted volume</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {consumptionWastage.by_product.map((row) => (
+                            <TableRow key={`${row.product_id}-${row.unit}`}>
+                              <TableCell className="font-medium">{row.product_name}</TableCell>
+                              <TableCell className="text-right">{row.bottles_discarded}</TableCell>
+                              <TableCell className="text-right font-mono">{row.wasted_volume} {row.unit}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
+                <Card>
+                  <CardHeader><CardTitle>Discarded bottles</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    {(consumptionWastage.rows || []).length === 0 ? (
+                      <p className="text-center text-gray-500 py-10">No discarded bottles in this period.</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Barcode</TableHead>
+                            <TableHead>Branch</TableHead>
+                            <TableHead className="text-right">Wasted</TableHead>
+                            <TableHead>Discarded</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {consumptionWastage.rows.map((row) => (
+                            <TableRow key={row.open_container_id}>
+                              <TableCell className="font-medium">{row.product_name}</TableCell>
+                              <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
+                              <TableCell>{row.branch_name}</TableCell>
+                              <TableCell className="text-right font-mono text-amber-700">
+                                {row.wasted_volume} {row.volume_unit}
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-500">
+                                {row.discarded_at ? new Date(row.discarded_at).toLocaleDateString('en-IN') : '—'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : null
+          )}
+
+          {consumptionTab === 'lifecycle' && (
+            consumptionLifecycleLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : consumptionLifecycle ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <Card><CardContent className="p-6"><p className="text-sm text-gray-500">Total bottles</p><p className="text-2xl font-bold">{consumptionLifecycle.summary?.total_bottles ?? 0}</p></CardContent></Card>
+                  <Card><CardContent className="p-6"><p className="text-sm text-green-600">Active</p><p className="text-2xl font-bold text-green-700">{consumptionLifecycle.summary?.active ?? 0}</p></CardContent></Card>
+                  <Card><CardContent className="p-6"><p className="text-sm text-gray-500">Empty</p><p className="text-2xl font-bold">{consumptionLifecycle.summary?.empty ?? 0}</p></CardContent></Card>
+                  <Card><CardContent className="p-6"><p className="text-sm text-amber-600">Discarded</p><p className="text-2xl font-bold text-amber-700">{consumptionLifecycle.summary?.discarded ?? 0}</p></CardContent></Card>
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Bottle lifecycle</CardTitle>
+                    <CardDescription>Bottles opened in the selected period — click a row for full usage history</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {(consumptionLifecycle.rows || []).length === 0 ? (
+                      <p className="text-center text-gray-500 py-10">No bottles opened in this period.</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Barcode</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Volume</TableHead>
+                            <TableHead className="text-right">Uses</TableHead>
+                            <TableHead>Opened</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {consumptionLifecycle.rows.map((row) => (
+                            <TableRow
+                              key={row.open_container_id}
+                              className="cursor-pointer hover:bg-gray-50"
+                              onClick={() => setSelectedBottleId(row.open_container_id)}
+                            >
+                              <TableCell className="font-medium">{row.product_name}</TableCell>
+                              <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
+                              <TableCell>
+                                <Badge variant={row.status === 'active' ? 'default' : row.status === 'discarded' ? 'destructive' : 'secondary'}>
+                                  {row.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm font-mono">
+                                {row.remaining_volume}/{row.initial_volume} {row.volume_unit}
+                                <span className="text-gray-400 ml-1">({row.consumed_volume} used)</span>
+                              </TableCell>
+                              <TableCell className="text-right">{row.usage_count}</TableCell>
+                              <TableCell className="text-sm text-gray-500">
+                                {row.opened_at ? new Date(row.opened_at).toLocaleDateString('en-IN') : '—'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : null
+          )}
+
+          <Dialog open={!!selectedBottleId} onOpenChange={(open) => { if (!open) setSelectedBottleId(null) }}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Bottle usage history</DialogTitle>
+              </DialogHeader>
+              {bottleDetailLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : bottleDetail ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><span className="text-gray-500">Product</span><p className="font-medium">{bottleDetail.product_name}</p></div>
+                    <div><span className="text-gray-500">Barcode</span><p className="font-mono">{bottleDetail.barcode}</p></div>
+                    <div><span className="text-gray-500">Status</span><p><Badge>{bottleDetail.status}</Badge></p></div>
+                    <div><span className="text-gray-500">Branch</span><p>{bottleDetail.branch_name}</p></div>
+                    <div><span className="text-gray-500">Volume</span><p className="font-mono">{bottleDetail.remaining_volume}/{bottleDetail.initial_volume} {bottleDetail.volume_unit}</p></div>
+                    <div><span className="text-gray-500">Consumed</span><p className="font-mono">{bottleDetail.consumed_volume} {bottleDetail.volume_unit}</p></div>
+                  </div>
+                  {(bottleDetail.usage_log || []).length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">No service deductions recorded yet.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Service</TableHead>
+                          <TableHead>Bill</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bottleDetail.usage_log.map((log) => (
+                          <TableRow key={log.log_id}>
+                            <TableCell className="text-sm">{log.used_at ? new Date(log.used_at).toLocaleString('en-IN') : '—'}</TableCell>
+                            <TableCell>{log.service_name || log.item_name || '—'}</TableCell>
+                            <TableCell className="font-mono text-xs">{log.bill_number || '—'}</TableCell>
+                            <TableCell className="text-right font-mono">{log.amount} {log.unit}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 

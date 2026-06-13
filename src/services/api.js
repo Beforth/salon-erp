@@ -16,58 +16,90 @@ const api = axios.create({
   },
 })
 
+/** Single in-flight refresh so parallel 401s don't race or spam /auth/refresh. */
+let refreshPromise = null
+
+function clearAuthStorage() {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+}
+
+function getStoredToken(key) {
+  const value = localStorage.getItem(key)
+  if (!value || value === 'undefined' || value === 'null') return null
+  return value
+}
+
+async function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const refreshToken = getStoredToken('refreshToken')
+    if (!refreshToken) {
+      throw new Error('No refresh token')
+    }
+
+    const response = await axios.post(`${baseURL}/auth/refresh`, {
+      refresh_token: refreshToken,
+    })
+
+    const accessToken = response.data?.data?.access_token
+    if (!accessToken) {
+      throw new Error('Refresh response missing access_token')
+    }
+
+    localStorage.setItem('accessToken', accessToken)
+    return accessToken
+  })().finally(() => {
+    refreshPromise = null
+  })
+
+  return refreshPromise
+}
+
+function redirectToLogin() {
+  clearAuthStorage()
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login'
+  }
+}
+
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken')
+    const token = getStoredToken('accessToken')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor - handle errors and token refresh
+// Response interceptor - unwrap body + refresh expired access tokens
 api.interceptors.response.use(
   (response) => response.data,
   async (error) => {
     const originalRequest = error.config
+    if (!originalRequest) {
+      return Promise.reject(error)
+    }
 
-    // Skip token refresh for auth endpoints (login, refresh, logout)
-    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
+    const isAuthEndpoint =
+      originalRequest.url?.includes('/auth/login') ||
       originalRequest.url?.includes('/auth/refresh') ||
       originalRequest.url?.includes('/auth/logout')
 
-    // Handle token expiration (but not for auth endpoints)
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken')
-        if (!refreshToken) {
-          throw new Error('No refresh token')
-        }
-
-        const response = await axios.post(
-          `${baseURL}/auth/refresh`,
-          { refresh_token: refreshToken }
-        )
-
-        const { access_token } = response.data.data
-
-        localStorage.setItem('accessToken', access_token)
-
-        originalRequest.headers.Authorization = `Bearer ${access_token}`
+        const accessToken = await refreshAccessToken()
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`
         return api(originalRequest)
       } catch (refreshError) {
-        // Refresh failed - logout user
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('user')
-        window.location.href = '/login'
+        redirectToLogin()
         return Promise.reject(refreshError)
       }
     }
@@ -76,4 +108,5 @@ api.interceptors.response.use(
   }
 )
 
+export { clearAuthStorage, getStoredToken, refreshAccessToken, redirectToLogin }
 export default api

@@ -50,6 +50,11 @@ export default function RecordPaymentModal({ open, onOpenChange, batch }) {
 
   if (!batch) return null
 
+  const pendingAmount = Number(batch.pending_amount) || 0
+  const enteredAmount = Number(formData.amount) || 0
+  const remainingAfterPayment = pendingAmount - enteredAmount
+  const exceedsPending = enteredAmount > pendingAmount && formData.amount !== ''
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[400px]">
@@ -57,21 +62,51 @@ export default function RecordPaymentModal({ open, onOpenChange, batch }) {
           <DialogTitle>Record Payment</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="bg-gray-50 rounded-lg p-3 text-sm">
+          <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-2">
             <div className="flex justify-between">
-              <span className="text-gray-500">Pending Amount</span>
-              <span className="font-semibold text-red-600">{formatCurrency(batch.pending_amount)}</span>
+              <span className="text-gray-500">Pending amount</span>
+              <span className="font-semibold text-red-600">{formatCurrency(pendingAmount)}</span>
             </div>
+            {formData.amount !== '' && (
+              <>
+                <div className="flex justify-between border-t pt-2">
+                  <span className="text-gray-500">Paying now</span>
+                  <span className="font-medium">{formatCurrency(enteredAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">
+                    {exceedsPending ? 'Exceeds pending by' : 'Remaining after payment'}
+                  </span>
+                  <span
+                    className={
+                      exceedsPending
+                        ? 'font-semibold text-red-600'
+                        : remainingAfterPayment === 0
+                          ? 'font-semibold text-green-600'
+                          : 'font-semibold text-amber-700'
+                    }
+                  >
+                    {formatCurrency(Math.abs(remainingAfterPayment))}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
           <div>
             <Label>Amount</Label>
             <Input
               type="number"
+              min="0"
+              step="0.01"
               value={formData.amount}
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               placeholder="0"
-              max={batch.pending_amount}
             />
+            {formData.amount === '' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter amount to see remaining balance
+              </p>
+            )}
           </div>
           <div>
             <Label>Payment Mode</Label>

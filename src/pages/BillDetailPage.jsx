@@ -51,6 +51,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { printThermalReceipt } from '@/components/ThermalReceipt'
+import GstInvoice, { printGstInvoiceElement } from '@/components/invoices/GstInvoice'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
 import CompletePendingServiceModal from '@/components/modals/CompletePendingServiceModal'
 
@@ -76,6 +77,8 @@ function BillDetailPage() {
   const returnTo = searchParams.get('returnTo')
   const goBack = () => navigate(returnTo || '/bills')
   const printRef = useRef(null)
+  const gstInvoiceRef = useRef(null)
+  const [gstInvoiceOpen, setGstInvoiceOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editItemStatuses, setEditItemStatuses] = useState({})
   const [completeBillModalOpen, setCompleteBillModalOpen] = useState(false)
@@ -444,6 +447,10 @@ function BillDetailPage() {
             <Printer className="h-4 w-4 mr-2" />
             Print Receipt
           </Button>
+          <Button variant="outline" onClick={() => setGstInvoiceOpen(true)}>
+            <FileText className="h-4 w-4 mr-2" />
+            GST Invoice
+          </Button>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
             Print A4
@@ -689,6 +696,7 @@ function BillDetailPage() {
                                         setSelectedPendingItemForComplete({
                                           item_id: item.item_id,
                                           item_name: item.item_name || item.service?.service_name || 'Service',
+                                          service_id: item.service?.service_id || null,
                                           total_price: item.total_price,
                                           bill_id: bill.bill_id,
                                           bill_number: bill.bill_number,
@@ -767,6 +775,7 @@ function BillDetailPage() {
                                   setSelectedPendingItemForComplete({
                                     item_id: item.item_id,
                                     item_name: item.item_name || item.service?.service_name || 'Service',
+                                    service_id: item.service?.service_id || null,
                                     total_price: item.total_price,
                                     bill_id: bill.bill_id,
                                     bill_number: bill.bill_number,
@@ -806,10 +815,20 @@ function BillDetailPage() {
                     </TableCell>
                   </TableRow>
                 )}
+                {(bill.taxable_subtotal ?? 0) > 0 && bill.tax_amount > 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-right font-medium text-gray-600">
+                      Taxable value
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(bill.taxable_subtotal)}
+                    </TableCell>
+                  </TableRow>
+                )}
                 {bill.tax_amount > 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-right font-medium">
-                      Tax
+                      GST (CGST + SGST)
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(bill.tax_amount)}
@@ -1379,6 +1398,24 @@ function BillDetailPage() {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Save Reconfiguration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={gstInvoiceOpen} onOpenChange={setGstInvoiceOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>GST Tax Invoice — {bill.bill_number}</DialogTitle>
+          </DialogHeader>
+          <GstInvoice ref={gstInvoiceRef} bill={bill} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGstInvoiceOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={() => printGstInvoiceElement(gstInvoiceRef.current)}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print GST Invoice
             </Button>
           </DialogFooter>
         </DialogContent>

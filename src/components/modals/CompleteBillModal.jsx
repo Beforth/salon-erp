@@ -25,6 +25,10 @@ import {
   Check,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import ServiceConsumptionPicker, {
+  buildContainerSelections,
+  isConsumptionComplete,
+} from '@/components/billing/ServiceConsumptionPicker'
 
 const PAYMENT_MODES = [
   { value: 'cash', label: 'Cash', icon: Banknote },
@@ -44,6 +48,7 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
   const [payments, setPayments] = useState([{ payment_mode: 'cash', amount: '' }])
   const [notes, setNotes] = useState('')
   const [pendingItemIds, setPendingItemIds] = useState([])
+  const [containerSelections, setContainerSelections] = useState({})
 
   const totalAmount = bill?.total_amount || 0
   // Full payment always required — pending items are services to be completed later
@@ -53,9 +58,18 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
     if (open && bill) {
       setNotes('')
       setPendingItemIds([])
+      setContainerSelections({})
       setPayments([{ payment_mode: 'cash', amount: totalAmount > 0 ? totalAmount.toFixed(2) : '' }])
     }
   }, [open, bill, totalAmount])
+
+  const { data: previewData } = useQuery({
+    queryKey: ['consumption-preview', bill?.bill_id, pendingItemIds.join(',')],
+    queryFn: () =>
+      billService.getConsumptionPreview(bill.bill_id, { pending_item_ids: pendingItemIds }),
+    enabled: open && !!bill?.bill_id,
+  })
+  const consumptionRequirements = previewData?.data?.requirements || previewData?.requirements || []
 
   const completeMutation = useMutation({
     mutationFn: (data) => billService.completeBill(bill.bill_id, data),
@@ -65,6 +79,7 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
       queryClient.invalidateQueries({ queryKey: ['bill', String(bill.bill_id)] })
       queryClient.invalidateQueries({ queryKey: ['chairs'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['open-containers'] })
       onOpenChange(false)
     },
     onError: (error) => {
@@ -140,6 +155,19 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
       payload.pending_item_ids = pendingItemIds
     }
 
+    if (
+      consumptionRequirements.length > 0 &&
+      !isConsumptionComplete(consumptionRequirements, containerSelections)
+    ) {
+      toast.error('Select open bottles for all backbar products used by services')
+      return
+    }
+
+    const containerSelectionsPayload = buildContainerSelections(containerSelections)
+    if (containerSelectionsPayload.length > 0) {
+      payload.container_selections = containerSelectionsPayload
+    }
+
     completeMutation.mutate(payload)
   }
 
@@ -198,9 +226,42 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
             </div>
           )}
 
+          <ServiceConsumptionPicker
+            billId={bill.bill_id}
+            branchId={bill.branch?.branch_id || bill.branch_id}
+            pendingItemIds={pendingItemIds}
+            selections={containerSelections}
+            onChange={setContainerSelections}
+            enabled={open}
+          />
+
           {/* Totals */}
-          <div className="text-sm space-y-1">
-            <div className="flex justify-between font-bold text-lg pt-1 border-t">
+          <div className="text-sm space-y-1 pt-1 border-t">
+            {bill.subtotal != null && (
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span>{formatCurrency(bill.subtotal)}</span>
+              </div>
+            )}
+            {bill.discount_amount > 0 && (
+              <div className="flex justify-between text-red-500">
+                <span>Discount</span>
+                <span>-{formatCurrency(bill.discount_amount)}</span>
+              </div>
+            )}
+            {(bill.taxable_subtotal ?? 0) > 0 && bill.tax_amount > 0 && (
+              <div className="flex justify-between text-gray-600">
+                <span>Taxable value</span>
+                <span>{formatCurrency(bill.taxable_subtotal)}</span>
+              </div>
+            )}
+            {bill.tax_amount > 0 && (
+              <div className="flex justify-between text-gray-600">
+                <span>GST (CGST + SGST)</span>
+                <span>{formatCurrency(bill.tax_amount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-lg pt-1">
               <span>Total</span>
               <span className="text-primary">{formatCurrency(payableAmount)}</span>
             </div>

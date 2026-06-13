@@ -49,6 +49,7 @@ const initialFormData = {
   password: '',
   full_name: '',
   phone: '',
+  gender: '',
   role: 'employee',
   branch_id: '',
   additional_branches: [],
@@ -80,6 +81,67 @@ const initialAssetForm = {
   notes: '',
 }
 
+const PATCHABLE_FIELDS = [
+  'email',
+  'full_name',
+  'phone',
+  'gender',
+  'role',
+  'branch_id',
+  'additional_branches',
+  'is_active',
+  'employee_code',
+  'joining_date',
+  'date_of_birth',
+  'address',
+  'aadhar_number',
+  'pan_number',
+  'base_salary',
+  'bank_account_number',
+  'bank_name',
+  'bank_ifsc',
+  'emergency_contact_name',
+  'emergency_contact_phone',
+  'shift_start',
+  'shift_end',
+  'has_flexible_timing',
+  'skill_ids',
+]
+
+function normalizeFieldValue(field, value) {
+  if (value === null || value === undefined || value === '') return null
+  if (field === 'base_salary') return parseFloat(value) || null
+  if (field === 'additional_branches' || field === 'skill_ids') {
+    return [...(value || [])].sort()
+  }
+  if (typeof value === 'boolean') return value
+  return String(value).trim()
+}
+
+function buildStaffPatchPayload(current, original) {
+  const patch = {}
+
+  for (const field of PATCHABLE_FIELDS) {
+    const currentValue = normalizeFieldValue(field, current[field])
+    const originalValue = normalizeFieldValue(field, original[field])
+    if (JSON.stringify(currentValue) !== JSON.stringify(originalValue)) {
+      if (field === 'base_salary') {
+        patch[field] = current.base_salary ? parseFloat(current.base_salary) : null
+      } else if (field === 'email') {
+        patch[field] = current.email?.trim() || null
+      } else {
+        patch[field] = current[field]
+      }
+    }
+  }
+
+  if (current.password) {
+    patch.password = current.password
+  }
+
+  return patch
+}
+
 function StaffFormPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -90,6 +152,7 @@ function StaffFormPage() {
   const isEditing = !!id
 
   const [formData, setFormData] = useState(initialFormData)
+  const [originalFormData, setOriginalFormData] = useState(null)
   const [activeTab, setActiveTab] = useState(location.state?.tab || 'basic')
 
   // Asset state
@@ -179,12 +242,13 @@ function StaffFormPage() {
   useEffect(() => {
     if (userData?.data) {
       const staff = userData.data
-      setFormData({
+      const loadedFormData = {
         username: staff.username || '',
         email: staff.email || '',
         password: '',
         full_name: staff.full_name || '',
         phone: staff.phone || '',
+        gender: staff.gender || '',
         role: staff.role || 'employee',
         branch_id: staff.branch_id || '',
         additional_branches: (staff.additional_branches || []).map(b => b.branch_id),
@@ -195,7 +259,7 @@ function StaffFormPage() {
         address: staff.employee_details?.address || '',
         aadhar_number: staff.employee_details?.aadhar_number || '',
         pan_number: staff.employee_details?.pan_number || '',
-        base_salary: staff.employee_details?.base_salary || '',
+        base_salary: staff.employee_details?.base_salary ?? '',
         bank_account_number: staff.employee_details?.bank_account_number || '',
         bank_name: staff.employee_details?.bank_name || '',
         bank_ifsc: staff.employee_details?.bank_ifsc || '',
@@ -205,7 +269,9 @@ function StaffFormPage() {
         shift_end: staff.employee_details?.shift_end || '',
         has_flexible_timing: staff.employee_details?.has_flexible_timing ?? false,
         skill_ids: (staff.skills || []).map((s) => s.id),
-      })
+      }
+      setFormData(loadedFormData)
+      setOriginalFormData(loadedFormData)
     } else if (!isEditing) {
       setFormData({
         ...initialFormData,
@@ -308,21 +374,27 @@ function StaffFormPage() {
       return
     }
 
-    const data = {
-      ...formData,
-      base_salary: formData.base_salary ? parseFloat(formData.base_salary) : null,
-    }
-
-    // Remove password if empty (for edits)
-    if (!data.password) {
-      delete data.password
-    }
-
     if (isEditing) {
+      if (!originalFormData) {
+        toast.error('Staff data is still loading')
+        return
+      }
+
+      const data = buildStaffPatchPayload(formData, originalFormData)
+      if (Object.keys(data).length === 0) {
+        toast.info('No changes to save')
+        return
+      }
+
       updateMutation.mutate({ id, data })
-    } else {
-      createMutation.mutate(data)
+      return
     }
+
+    createMutation.mutate({
+      ...formData,
+      gender: formData.gender || null,
+      base_salary: formData.base_salary ? parseFloat(formData.base_salary) : null,
+    })
   }
 
   const resetAssetForm = () => {
@@ -496,6 +568,23 @@ function StaffFormPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label htmlFor="gender">Gender</Label>
+                    <select
+                      id="gender"
+                      className="w-full h-10 px-3 border rounded-md"
+                      value={formData.gender}
+                      onChange={(e) => handleChange('gender', e.target.value)}
+                    >
+                      <option value="">Not specified</option>
+                      <option value="female">Female</option>
+                      <option value="male">Male</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Required for female employee incentive rules (early arrival / late departure).
+                    </p>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="password">
                       Password {!isEditing && '*'}
                     </Label>
@@ -626,7 +715,7 @@ function StaffFormPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="base_salary">Base Salary (&#8377;)</Label>
+                    <Label htmlFor="base_salary">Monthly Salary (&#8377;) *</Label>
                     <Input
                       id="base_salary"
                       type="number"
@@ -634,6 +723,9 @@ function StaffFormPage() {
                       onChange={(e) => handleChange('base_salary', e.target.value)}
                       placeholder="25000"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Used for staff incentive calculation. Target = salary × 0.95 × 5.
+                    </p>
                   </div>
                 </div>
 

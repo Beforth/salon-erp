@@ -9,7 +9,7 @@ export const userService = {
 
   createUser: (data) => api.post('/users', data),
 
-  updateUser: (id, data) => api.put(`/users/${id}`, data),
+  updateUser: (id, data) => api.patch(`/users/${id}`, data),
 
   deleteUser: (id) => api.delete(`/users/${id}`),
 

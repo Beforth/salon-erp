@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Pencil, MapPin, Loader2, Warehouse } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -29,9 +30,11 @@ export default function WarehousesPage() {
             Warehouses receive purchases and transfer stock to salon branches. Each warehouse gets its own inventory location automatically. A branch can be both a warehouse and a salon — those will appear here too.
           </p>
         </div>
-        <Button onClick={() => { setEditBranch(null); setModalOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Warehouse
+        <Button asChild>
+          <Link to="/warehouses/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Warehouse
+          </Link>
         </Button>
       </div>
 
@@ -43,7 +46,10 @@ export default function WarehousesPage() {
             </div>
           ) : warehouses.length === 0 ? (
             <p className="text-center text-gray-500 py-12">
-              No warehouses yet. Click "Add Warehouse" to create your first one.
+              No warehouses yet.{' '}
+              <Link to="/warehouses/new" className="text-primary hover:underline">
+                Create your first warehouse
+              </Link>
             </p>
           ) : (
             <Table>
@@ -101,12 +107,13 @@ export default function WarehousesPage() {
         </CardContent>
       </Card>
 
-      <BranchModal
-        open={modalOpen}
-        onOpenChange={(open) => { setModalOpen(open); if (!open) setEditBranch(null) }}
-        branch={editBranch}
-        presetType={editBranch ? undefined : 'warehouse'}
-      />
+      {editBranch && (
+        <BranchModal
+          open={modalOpen}
+          onOpenChange={(open) => { setModalOpen(open); if (!open) setEditBranch(null) }}
+          branch={editBranch}
+        />
+      )}
     </div>
   )
 }

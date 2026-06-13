@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { authService } from '@/services/auth.service'
+import { clearAuthStorage, getStoredToken } from '@/services/api'
 
 // Check for existing auth data on load
 const getStoredUser = () => {
@@ -11,9 +12,6 @@ const getStoredUser = () => {
   }
 }
 
-const getStoredToken = () => {
-  return localStorage.getItem('accessToken')
-}
 
 // Async thunks
 export const login = createAsyncThunk(
@@ -23,7 +21,10 @@ export const login = createAsyncThunk(
       const response = await authService.login(credentials)
       const { user, tokens } = response.data
 
-      // Store tokens and user
+      if (!tokens?.access_token || !tokens?.refresh_token) {
+        return rejectWithValue('Invalid login response from server')
+      }
+
       localStorage.setItem('accessToken', tokens.access_token)
       localStorage.setItem('refreshToken', tokens.refresh_token)
       localStorage.setItem('user', JSON.stringify(user))
@@ -42,9 +43,7 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   } catch (error) {
     // Ignore logout errors
   } finally {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('user')
+    clearAuthStorage()
   }
 })
 
@@ -62,7 +61,7 @@ export const getCurrentUser = createAsyncThunk(
 
 const initialState = {
   user: getStoredUser(),
-  isAuthenticated: !!getStoredToken(),
+  isAuthenticated: !!getStoredToken('accessToken'),
   loading: false,
   error: null,
 }
@@ -111,6 +110,7 @@ const authSlice = createSlice({
         state.isAuthenticated = true
       })
       .addCase(getCurrentUser.rejected, (state) => {
+        clearAuthStorage()
         state.user = null
         state.isAuthenticated = false
       })

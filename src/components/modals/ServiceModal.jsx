@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { serviceService } from '@/services/service.service'
 import { skillService } from '@/services/skill.service'
+import { productService } from '@/services/product.service'
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const initialFormData = {
@@ -34,6 +35,8 @@ const initialFormData = {
   employee_count: null,
   is_active: true,
   skill_ids: [],
+  tax_rate: '18',
+  hsn_sac_code: '',
 }
 
 function ServiceModal({ open, onOpenChange, service = null }) {
@@ -41,6 +44,7 @@ function ServiceModal({ open, onOpenChange, service = null }) {
   const isEditing = !!service
 
   const [formData, setFormData] = useState(initialFormData)
+  const [recipes, setRecipes] = useState([])
 
   // When editing, fetch full service details so form has is_multi_employee, employee_count, etc.
   const { data: serviceDetailsResponse, isLoading: isLoadingServiceDetails } = useQuery({
@@ -74,6 +78,19 @@ function ServiceModal({ open, onOpenChange, service = null }) {
   })
   const availableSkills = skillsData?.data || []
 
+  const { data: recipeProductsData } = useQuery({
+    queryKey: ['products', { usable_in_recipes: true }],
+    queryFn: () => productService.getProducts({ usable_in_recipes: 'true', is_active: 'true', limit: 500 }),
+    enabled: open && isEditing,
+  })
+  const recipeProducts = recipeProductsData?.data || []
+
+  const productUsageLabel = (p) => {
+    const amt = p.consumption_amount ?? p.weight_value
+    const unit = p.consumption_unit || p.weight_unit
+    return amt ? ` (${amt} ${unit}/pc)` : ''
+  }
+
   const toggleSkill = (skillId) => {
     setFormData((prev) => {
       const has = prev.skill_ids.includes(skillId)
@@ -99,9 +116,19 @@ function ServiceModal({ open, onOpenChange, service = null }) {
         employee_count: serviceForForm.employee_count ?? null,
         is_active: serviceForForm.is_active ?? true,
         skill_ids: (serviceForForm.skills || []).map((s) => s.id),
+        tax_rate: String(serviceForForm.tax_rate ?? 0),
+        hsn_sac_code: serviceForForm.hsn_sac_code || '',
       })
+      setRecipes(
+        (serviceForForm.recipes || []).map((r) => ({
+          product_id: r.product_id,
+          quantity: String(r.quantity),
+          unit: r.unit || 'ml',
+        }))
+      )
     } else {
       setFormData({ ...initialFormData })
+      setRecipes([])
     }
   }, [serviceForForm, open])
 
@@ -118,10 +145,17 @@ function ServiceModal({ open, onOpenChange, service = null }) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => serviceService.updateService(id, data),
+    mutationFn: async ({ id, data, recipePayload }) => {
+      const updated = await serviceService.updateService(id, data)
+      if (recipePayload) {
+        await serviceService.replaceServiceRecipes(id, recipePayload)
+      }
+      return updated
+    },
     onSuccess: () => {
       toast.success('Service updated successfully')
       queryClient.invalidateQueries({ queryKey: ['services'] })
+      queryClient.invalidateQueries({ queryKey: ['service', service?.service_id] })
       onOpenChange(false)
     },
     onError: (error) => {
@@ -130,6 +164,28 @@ function ServiceModal({ open, onOpenChange, service = null }) {
   })
 
   const isLoading = createMutation.isPending || updateMutation.isPending
+
+  const addRecipeLine = () => {
+    setRecipes((prev) => [...prev, { product_id: '', quantity: '', unit: 'ml' }])
+  }
+
+  const updateRecipeLine = (index, field, value) => {
+    setRecipes((prev) => prev.map((line, i) => {
+      if (i !== index) return line
+      const next = { ...line, [field]: value }
+      if (field === 'product_id' && value) {
+        const product = recipeProducts.find((p) => p.product_id === value)
+        if (product) {
+          next.unit = product.consumption_unit || product.weight_unit || line.unit || 'ml'
+        }
+      }
+      return next
+    }))
+  }
+
+  const removeRecipeLine = (index) => {
+    setRecipes((prev) => prev.filter((_, i) => i !== index))
+  }
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -164,10 +220,20 @@ function ServiceModal({ open, onOpenChange, service = null }) {
       employee_count: formData.is_multi_employee && formData.employee_count ? parseInt(formData.employee_count, 10) : null,
       is_active: formData.is_active,
       skill_ids: formData.skill_ids,
+      tax_rate: formData.tax_rate !== '' ? parseFloat(formData.tax_rate) : 0,
+      hsn_sac_code: formData.hsn_sac_code?.trim() || null,
     }
 
+    const recipePayload = recipes
+      .filter((r) => r.product_id && Number(r.quantity) > 0)
+      .map((r) => ({
+        product_id: r.product_id,
+        quantity: Number(r.quantity),
+        unit: r.unit || 'ml',
+      }))
+
     if (isEditing) {
-      updateMutation.mutate({ id: service.service_id, data })
+      updateMutation.mutate({ id: service.service_id, data, recipePayload })
     } else {
       createMutation.mutate(data)
     }
@@ -231,6 +297,31 @@ function ServiceModal({ open, onOpenChange, service = null }) {
                 value={formData.price}
                 onChange={(e) => handleChange('price', e.target.value)}
                 placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tax_rate">GST Rate (%)</Label>
+              <Input
+                id="tax_rate"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={formData.tax_rate}
+                onChange={(e) => handleChange('tax_rate', e.target.value)}
+                placeholder="18"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="hsn_sac_code">SAC Code</Label>
+              <Input
+                id="hsn_sac_code"
+                value={formData.hsn_sac_code}
+                onChange={(e) => handleChange('hsn_sac_code', e.target.value)}
+                placeholder="e.g. 996712"
               />
             </div>
             <div className="space-y-2">
@@ -308,6 +399,79 @@ function ServiceModal({ open, onOpenChange, service = null }) {
               placeholder="Service description"
             />
           </div>
+
+          {isEditing && (
+            <div className="space-y-2 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <Label>Service recipe (optional)</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addRecipeLine}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add product
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Optional — deduct from products in use when this service is completed. Amount uses each product&apos;s usage unit (ml, g, etc.).
+              </p>
+              {recipes.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No recipe — this service won&apos;t deduct products in use.</p>
+              ) : (
+                <div className="space-y-2">
+                  {recipes.map((line, index) => (
+                    <div key={index} className="flex gap-2 items-end">
+                      <div className="flex-1 space-y-1">
+                        <Label className="text-xs">Product</Label>
+                        <Select
+                          value={line.product_id}
+                          onValueChange={(v) => updateRecipeLine(index, 'product_id', v)}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {recipeProducts.map((p) => (
+                              <SelectItem key={p.product_id} value={p.product_id}>
+                                {p.product_name}{productUsageLabel(p)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-20 space-y-1">
+                        <Label className="text-xs">Qty</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={line.quantity}
+                          onChange={(e) => updateRecipeLine(index, 'quantity', e.target.value)}
+                          placeholder="15"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="w-16 space-y-1">
+                        <Label className="text-xs">Unit</Label>
+                        <Input
+                          value={line.unit}
+                          onChange={(e) => updateRecipeLine(index, 'unit', e.target.value)}
+                          placeholder="ml"
+                          className="h-9"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0"
+                        onClick={() => removeRecipeLine(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Required Skills */}
           <div className="space-y-2 pt-2 border-t">

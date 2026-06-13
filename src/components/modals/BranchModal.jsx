@@ -29,6 +29,8 @@ const initialFormData = {
   is_warehouse: false,
   open_time: '',
   close_time: '',
+  gstin: '',
+  legal_business_name: '',
 }
 
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -56,6 +58,8 @@ function BranchModal({ open, onOpenChange, branch = null, presetType }) {
         is_warehouse: branch.is_warehouse ?? false,
         open_time: branch.open_time || '',
         close_time: branch.close_time || '',
+        gstin: branch.gstin || '',
+        legal_business_name: branch.legal_business_name || '',
       })
     } else if (presetType === 'warehouse') {
       // Standalone warehouse preset: salon off, warehouse on, no shop hours.
@@ -136,6 +140,8 @@ function BranchModal({ open, onOpenChange, branch = null, presetType }) {
       is_warehouse: formData.is_warehouse,
       open_time: formData.open_time || null,
       close_time: formData.close_time || null,
+      gstin: formData.gstin?.trim() || null,
+      legal_business_name: formData.legal_business_name?.trim() || null,
     }
 
     if (isEditing) {
@@ -270,6 +276,29 @@ function BranchModal({ open, onOpenChange, branch = null, presetType }) {
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
                 placeholder="email@example.com"
+              />
+            </div>
+          </div>
+
+          {/* GST / invoice details */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="legal_business_name">Legal Business Name</Label>
+              <Input
+                id="legal_business_name"
+                value={formData.legal_business_name}
+                onChange={(e) => handleChange('legal_business_name', e.target.value)}
+                placeholder="Registered business name on GST"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gstin">GSTIN</Label>
+              <Input
+                id="gstin"
+                value={formData.gstin}
+                onChange={(e) => handleChange('gstin', e.target.value.toUpperCase())}
+                placeholder="15-character GSTIN"
+                maxLength={15}
               />
             </div>
           </div>

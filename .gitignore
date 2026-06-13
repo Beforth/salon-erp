@@ -40,3 +40,4 @@ coverage/
 *.tsbuildinfo
 .cache/
 vite.config.js
+.dev/

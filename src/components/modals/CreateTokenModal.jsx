@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +19,7 @@ import { customerService } from '@/services/customer.service'
 import { serviceService } from '@/services/service.service'
 import { fuzzyMatch, fuzzyScore } from '@/lib/utils'
 import { printTokenSlip } from '@/components/TokenSlip'
+import TokenQrCode from '@/components/TokenQrCode'
 
 function CreateTokenModal({ open, onOpenChange, branchId }) {
   const queryClient = useQueryClient()
@@ -34,10 +36,12 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
 
   // Items state — combined services + packages
   const [itemSearch, setItemSearch] = useState('')
+  const [itemKindFilter, setItemKindFilter] = useState('all')
   const [showItemDropdown, setShowItemDropdown] = useState(false)
   const [selectedItems, setSelectedItems] = useState([])  // [{ kind, id, name }]
 
   const [notes, setNotes] = useState('')
+  const [createdToken, setCreatedToken] = useState(null)
 
   const customerBoxRef = useRef(null)
   const itemBoxRef = useRef(null)
@@ -67,9 +71,11 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
       setNewCustomerName('')
       setNewCustomerPhone('')
       setItemSearch('')
+      setItemKindFilter('all')
       setShowItemDropdown(false)
       setSelectedItems([])
       setNotes('')
+      setCreatedToken(null)
     }
   }, [open])
 
@@ -101,12 +107,19 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
       price: s.price,
       category: s.category?.name,
     }))
-    const packages = (packagesData?.data || []).map((p) => ({
-      kind: 'package',
-      id: p.package_id,
-      name: p.package_name,
-      price: p.package_price ?? p.individual_price ?? 0,
-    }))
+    const packages = (packagesData?.data || []).map((p) => {
+      const standaloneCount = (p.services || []).reduce((sum, s) => sum + (s.quantity || 1), 0)
+      const groupCount = (p.service_groups || []).length
+      const serviceCount = standaloneCount + groupCount
+      return {
+        kind: 'package',
+        id: p.package_id,
+        name: p.package_name,
+        price: p.package_price ?? p.individual_price ?? 0,
+        serviceCount,
+        savings: p.savings,
+      }
+    })
     return [...services, ...packages]
   }, [servicesData, packagesData])
 
@@ -114,13 +127,15 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
     const q = (itemSearch || '').trim()
     const selectedKey = (it) => `${it.kind}:${it.id}`
     const selectedSet = new Set(selectedItems.map(selectedKey))
-    const pool = itemOptions.filter((o) => !selectedSet.has(selectedKey(o)))
+    let pool = itemOptions.filter((o) => !selectedSet.has(selectedKey(o)))
+    if (itemKindFilter === 'service') pool = pool.filter((o) => o.kind === 'service')
+    if (itemKindFilter === 'package') pool = pool.filter((o) => o.kind === 'package')
     if (!q) return pool.slice(0, 25)
     return pool
       .filter((o) => fuzzyMatch(o.name || '', q))
       .sort((a, b) => fuzzyScore(b.name || '', q) - fuzzyScore(a.name || '', q))
       .slice(0, 25)
-  }, [itemOptions, itemSearch, selectedItems])
+  }, [itemOptions, itemSearch, selectedItems, itemKindFilter])
 
   const handleSelectCustomer = (customer) => {
     setSelectedCustomer(customer)
@@ -159,13 +174,20 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
       const token = res?.data
       toast.success(`Token ${token?.token_number} created`)
       queryClient.invalidateQueries({ queryKey: ['tokens'] })
-      if (token) printTokenSlip(token)
-      onOpenChange(false)
+      if (token) {
+        setCreatedToken(token)
+        printTokenSlip(token).catch(() => {})
+      }
     },
     onError: (err) => {
       toast.error(err.response?.data?.error?.message || 'Failed to create token')
     },
   })
+
+  const handleClose = (nextOpen) => {
+    if (!nextOpen) setCreatedToken(null)
+    onOpenChange(nextOpen)
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -205,8 +227,60 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[560px]">
+        {createdToken ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Token created</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="text-center">
+                <p className="text-sm text-gray-500 mb-1">Token number</p>
+                <p className="text-3xl font-bold tracking-wide text-primary">{createdToken.token_number}</p>
+                <p className="text-sm text-gray-700 mt-2">{createdToken.customer_name_snap}</p>
+                {createdToken.customer_phone_snap && (
+                  <p className="text-xs text-gray-500">{createdToken.customer_phone_snap}</p>
+                )}
+              </div>
+              {(createdToken.services_requested?.length ?? 0) > 0 && (
+                <div className="rounded-md border bg-gray-50 p-3 text-sm space-y-1">
+                  <p className="text-xs font-medium text-gray-600 mb-2">Requested items</p>
+                  {createdToken.services_requested.map((it, i) => (
+                    <div key={`${it.kind || 'service'}-${it.package_id || it.service_id || i}`} className="flex items-center gap-2">
+                      <span className={it.kind === 'package' ? 'text-violet-700 text-xs font-medium' : 'text-primary text-xs font-medium'}>
+                        {it.kind === 'package' ? 'Package' : 'Service'}
+                      </span>
+                      <span className="text-gray-800">{it.name || it.service_name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-col items-center gap-2">
+                <TokenQrCode token={createdToken} size={180} />
+                <p className="text-xs text-gray-500 text-center max-w-xs">
+                  Scan this QR at billing to load the customer, services, and packages automatically.
+                </p>
+              </div>
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 text-center">
+                Testing mode — token billing is still being refined. If something does not load correctly, staff can add items manually. Sorry for any inconvenience.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => printTokenSlip(createdToken)}
+              >
+                Print slip
+              </Button>
+              <Button type="button" onClick={() => handleClose(false)}>
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
         <DialogHeader>
           <DialogTitle>New Token</DialogTitle>
         </DialogHeader>
@@ -326,7 +400,15 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
 
           {/* Services + Packages search */}
           <div className="space-y-2">
-            <Label>Services / Packages (optional)</Label>
+            <Label>Services &amp; packages (optional)</Label>
+
+            <Tabs value={itemKindFilter} onValueChange={setItemKindFilter}>
+              <TabsList className="grid w-full grid-cols-3 h-8">
+                <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
+                <TabsTrigger value="service" className="text-xs">Services</TabsTrigger>
+                <TabsTrigger value="package" className="text-xs">Packages</TabsTrigger>
+              </TabsList>
+            </Tabs>
 
             {/* Selected chips */}
             {selectedItems.length > 0 && (
@@ -359,7 +441,13 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <Input
-                  placeholder="Search services or packages..."
+                  placeholder={
+                    itemKindFilter === 'package'
+                      ? 'Search packages...'
+                      : itemKindFilter === 'service'
+                        ? 'Search services...'
+                        : 'Search services or packages...'
+                  }
                   className="pl-8"
                   value={itemSearch}
                   onChange={(e) => { setItemSearch(e.target.value); setShowItemDropdown(true) }}
@@ -382,8 +470,14 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
                             {it.kind === 'package' && '📦 '}
                             {it.name}
                           </div>
-                          {it.category && (
+                          {it.kind === 'service' && it.category && (
                             <div className="text-xs text-gray-500">{it.category}</div>
+                          )}
+                          {it.kind === 'package' && (
+                            <div className="text-xs text-gray-500">
+                              {it.serviceCount > 0 ? `${it.serviceCount} service${it.serviceCount === 1 ? '' : 's'}` : 'Package'}
+                              {it.savings > 0 ? ` · save ₹${Number(it.savings).toFixed(0)}` : ''}
+                            </div>
                           )}
                         </div>
                         <span className="text-xs text-gray-500 shrink-0">
@@ -396,7 +490,7 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
               )}
             </div>
             <p className="text-xs text-gray-400">
-              Optional — pre-selecting items lets billing pull them in automatically when the token is loaded.
+              Optional — add individual services and combo packages. Billing will load them when this token is scanned.
             </p>
           </div>
 
@@ -413,7 +507,7 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>
+            <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={createMutation.isPending}>
               Cancel
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
@@ -422,6 +516,8 @@ function CreateTokenModal({ open, onOpenChange, branchId }) {
             </Button>
           </DialogFooter>
         </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )

@@ -112,7 +112,13 @@ export default function BarcodePrintPage() {
             <title>Barcode labels</title>
             <style>
               @page { margin: 0; size: ${mmW}mm ${mmH}mm; }
-              html, body { margin: 0; padding: 0; }
+              html, body {
+                margin: 0;
+                padding: 0;
+                width: ${mmW}mm;
+                height: ${mmH}mm;
+                overflow: hidden;
+              }
               .lbl {
                 width: ${mmW}mm;
                 height: ${mmH}mm;
@@ -126,8 +132,10 @@ export default function BarcodePrintPage() {
                 overflow: hidden;
               }
               .lbl img {
-                max-width: 100%;
-                max-height: 100%;
+                display: block;
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
               }
               .lbl:last-child { page-break-after: auto; break-after: auto; }
             </style>

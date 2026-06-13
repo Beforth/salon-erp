@@ -10,8 +10,9 @@ import { billService } from '@/services/bill.service'
 import { chairService } from '@/services/chair.service'
 import { upiAccountService } from '@/services/upiAccount.service'
 import { attendanceService } from '@/services/attendance.service'
-import { allocationService } from '@/services/allocation.service'
+import { rotationQueueService } from '@/services/rotationQueue.service'
 import { tokenService } from '@/services/token.service'
+import { parseTokenQrPayload } from '@/lib/tokenQr'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatCurrency, fuzzyMatch, fuzzyScore } from '@/lib/utils'
+import { computeBillTaxTotals } from '@/lib/gst'
 import {
   Search,
   Plus,
@@ -49,12 +51,14 @@ import {
   ChevronRight,
   ChevronLeft,
   Star,
+  Users,
   Armchair,
   Play,
   Ticket,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import CustomerModal from '@/components/modals/CustomerModal'
+import EmployeeRotationPanel from '@/components/billing/EmployeeRotationPanel'
 import { UserPlus } from 'lucide-react'
 import { useSidebar } from '@/contexts/SidebarContext'
 
@@ -141,6 +145,73 @@ function BillCreatePage() {
   const [cartItems, setCartItems] = useState([])
   const [cartCollapsed, setCartCollapsed] = useState(false)
 
+  // Employees held by pending cart lines (not yet saved — removed from "next up")
+  const heldEmployeeIds = useMemo(() => {
+    const ids = new Set()
+    const addIds = (list) => {
+      for (const id of list || []) {
+        if (id) ids.add(String(id))
+      }
+    }
+    for (const item of cartItems) {
+      if (item.item_type === 'package') {
+        if (item.item_status === 'pending') addIds(item.employee_ids)
+        for (const svc of item.selected_services || []) {
+          if (svc.item_status === 'pending') addIds(svc.employee_ids)
+        }
+      } else if (item.item_type === 'service' && item.item_status === 'pending') {
+        addIds(item.employee_ids)
+      }
+    }
+    return [...ids]
+  }, [cartItems])
+
+  const pickFromRotationQueue = async ({ serviceId, exclude = [] } = {}) => {
+    if (!selectedBranch) return null
+    try {
+      const res = await rotationQueueService.pickNext({
+        branchId: selectedBranch,
+        serviceId: serviceId || undefined,
+        exclude,
+        held: heldEmployeeIds,
+      })
+      const picked = res?.data?.data ?? res?.data ?? null
+      return picked?.employee_id ? picked : null
+    } catch (err) {
+      console.warn('Rotation queue pick failed:', err)
+      return null
+    }
+  }
+
+  const pickEmployeesFromQueue = async (serviceId, count = 1, exclude = []) => {
+    const pickedIds = []
+    const excludeSet = [...exclude]
+    for (let i = 0; i < count; i += 1) {
+      const row = await pickFromRotationQueue({ serviceId, exclude: excludeSet })
+      if (!row) break
+      pickedIds.push(row.employee_id)
+      excludeSet.push(row.employee_id)
+    }
+    return pickedIds
+  }
+
+  const handleAddEmployeeFromQueue = async (componentIndex = 0, serviceId = null) => {
+    const svcId =
+      serviceId
+      || (selectedCategory === 'services' ? selectedItemId : null)
+    const current = (componentEmployees[componentIndex] || []).filter(Boolean)
+    const row = await pickFromRotationQueue({ serviceId: svcId, exclude: current })
+    if (!row) {
+      toast.warning('No eligible employee in the check-in queue')
+      return
+    }
+    setComponentEmployees((prev) => ({
+      ...prev,
+      [componentIndex]: [...current, row.employee_id],
+    }))
+    toast.success(`Added ${row.full_name} from queue`)
+  }
+
   // Edit modal
   const [editingItemIndex, setEditingItemIndex] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -204,7 +275,13 @@ function BillCreatePage() {
 
   const { data: productsData } = useQuery({
     queryKey: ['products', 'active', selectedBranch],
-    queryFn: () => productService.getProducts({ is_active: 'true', product_type: 'retail' }),
+    queryFn: () =>
+      productService.getProducts({
+        is_active: 'true',
+        product_type: 'retail',
+        branch_id: selectedBranch,
+        limit: 500,
+      }),
     enabled: !!selectedBranch,
   })
 
@@ -265,11 +342,14 @@ function BillCreatePage() {
         id: s.service_id,
         name: s.service_name,
         price: s.price,
+        tax_rate: s.tax_rate ?? 0,
+        hsn_sac_code: s.hsn_sac_code || null,
         duration: s.duration_minutes,
         category: s.category?.name,
         star_points: s.star_points ?? 0,
         is_multi_employee: s.is_multi_employee ?? false,
         employee_count: s.employee_count ?? null,
+        skills: s.skills || [],
       }))
     }
     if (selectedCategory === 'packages') {
@@ -285,16 +365,24 @@ function BillCreatePage() {
       }))
     }
     if (selectedCategory === 'products') {
-      return products.map((p) => ({
-        id: p.product_id,
-        name: p.product_name,
-        price: parseFloat(p.selling_price || p.mrp || 0),
-        brand: p.brand,
-        stock: p.total_stock,
-      }))
+      return products.map((p) => {
+        const baseAvailable = p.branch_available_stock ?? p.total_available_stock ?? p.total_stock ?? 0
+        const inCart = cartItems
+          .filter((i) => i.item_type === 'product' && i.product_id === p.product_id)
+          .reduce((sum, i) => sum + (i.quantity || 0), 0)
+        return {
+          id: p.product_id,
+          name: p.product_name,
+          price: parseFloat(p.selling_price || p.mrp || 0),
+          tax_rate: p.tax_rate ?? 0,
+          hsn_sac_code: p.hsn_sac_code || null,
+          brand: p.brand,
+          stock: Math.max(0, baseAvailable - inCart),
+        }
+      })
     }
     return []
-  }, [selectedCategory, services, packages, products])
+  }, [selectedCategory, services, packages, products, cartItems])
 
   // Filtered item options (fuzzy search): type "hircut" → matches "Haircut", etc.
   const filteredItemOptions = useMemo(() => {
@@ -329,13 +417,27 @@ function BillCreatePage() {
     return Math.round((lineTotal * (item.discount_percent || 0)) / 100)
   }
 
-  // Calculate totals
-  const subtotal = cartItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
-  const itemsDiscount = cartItems.reduce((sum, item) => sum + getItemDiscount(item), 0)
+  // Calculate totals (incl. GST)
+  const taxPreviewItems = cartItems.map((item) => ({
+    unitPrice: item.unit_price,
+    quantity: item.quantity,
+    discountAmount: getItemDiscount(item),
+    taxRate: item.tax_rate ?? 0,
+  }))
+  const grossBeforeBillDisc =
+    taxPreviewItems.reduce((s, l) => s + l.unitPrice * l.quantity, 0) -
+    taxPreviewItems.reduce((s, l) => s + l.discountAmount, 0)
   const billDiscount =
-    subtotal > 0 ? Math.round((subtotal - itemsDiscount) * (billDiscountPercent / 100)) : 0
-  const totalDiscount = itemsDiscount + billDiscount
-  const totalAmount = Math.round(subtotal - totalDiscount)
+    grossBeforeBillDisc > 0
+      ? Math.round(grossBeforeBillDisc * (billDiscountPercent / 100))
+      : 0
+  const taxTotals = computeBillTaxTotals(taxPreviewItems, billDiscount)
+  const subtotal = taxTotals.subtotal
+  const itemsDiscount = taxTotals.itemsDiscount
+  const totalDiscount = taxTotals.discountAmount
+  const taxableSubtotal = taxTotals.taxableSubtotal
+  const taxAmount = taxTotals.taxAmount
+  const totalAmount = Math.round(taxTotals.totalAmount)
   const totalPaid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
   const remaining = totalAmount - totalPaid
 
@@ -376,6 +478,131 @@ function BillCreatePage() {
     setShowCustomerDropdown(false)
   }
 
+  // Build a package cart line from token data (auto-picks first OR option + queue employees).
+  const buildTokenPackageCartItem = async (rawPkg) => {
+    const pkg = {
+      id: rawPkg.package_id,
+      name: rawPkg.package_name,
+      price: rawPkg.package_price ?? rawPkg.individual_price ?? 0,
+      services: rawPkg.services || [],
+      service_groups: rawPkg.service_groups || [],
+      individual_price: rawPkg.individual_price ?? 0,
+    }
+    const standaloneServices = pkg.services
+    const serviceGroups = pkg.service_groups
+    const hasGroups = serviceGroups.length > 0
+    const packagePrice = parseFloat(pkg.price) || pkg.individual_price || 0
+    let unallocated = 0
+    let usedDefaultOrChoices = hasGroups
+
+    const assignEmployees = async (ps) => {
+      const needCount = ps.is_multi_employee ? Math.max(1, ps.employee_count || 1) : 1
+      try {
+        const empIds = await pickEmployeesFromQueue(ps.service_id, needCount)
+        if (empIds.length < needCount) unallocated += 1
+        return empIds
+      } catch {
+        unallocated += 1
+        return []
+      }
+    }
+
+    if (standaloneServices.length > 0 || hasGroups) {
+      const selectedServices = []
+
+      for (const ps of standaloneServices) {
+        const empIds = await assignEmployees(ps)
+        selectedServices.push({
+          service_id: ps.service_id,
+          service_name: ps.service_name,
+          original_service_price: ps.service_price,
+          employee_ids: empIds,
+          star_points: getPackageServiceStarPoints(ps),
+          is_multi_employee: ps.is_multi_employee ?? false,
+          employee_count: ps.employee_count ?? null,
+          quantity: ps.quantity,
+          item_status: 'completed',
+        })
+      }
+
+      for (const g of serviceGroups) {
+        const chosen = (g.services || [])[0]
+        if (!chosen) continue
+        const empIds = await assignEmployees(chosen)
+        selectedServices.push({
+          service_id: chosen.service_id,
+          service_name: chosen.service_name,
+          original_service_price: chosen.service_price,
+          employee_ids: empIds,
+          star_points: getPackageServiceStarPoints(chosen),
+          is_multi_employee: chosen.is_multi_employee ?? false,
+          employee_count: chosen.employee_count ?? null,
+          quantity: chosen.quantity,
+          item_status: 'completed',
+        })
+      }
+
+      try {
+        const previewRes = await serviceService.previewPackageDistribution({
+          package_id: pkg.id,
+          package_price: packagePrice,
+          selected_services: selectedServices.map((s) => ({ service_id: s.service_id })),
+        })
+        const distributed = previewRes.data?.services || previewRes.data?.data?.services || []
+        distributed.forEach((ds) => {
+          const match = selectedServices.find((s) => s.service_id === ds.service_id)
+          if (match) match.distributed_price = ds.distributed_price
+        })
+      } catch {
+        // Continue without distributed prices
+      }
+
+      const totalStarPoints = selectedServices.reduce((sum, s) => sum + (s.star_points || 0), 0)
+
+      return {
+        cartItem: {
+          cart_id: crypto.randomUUID(),
+          item_type: 'package',
+          package_id: pkg.id,
+          item_name: pkg.name,
+          unit_price: packagePrice,
+          quantity: 1,
+          employee_ids: [],
+          employee_id: null,
+          discount_percent: 0,
+          star_points: totalStarPoints,
+          source_package_name: pkg.name,
+          source_individual_price: pkg.individual_price,
+          selected_services: selectedServices,
+          item_status: 'completed',
+        },
+        unallocated,
+        usedDefaultOrChoices,
+      }
+    }
+
+    // Flat package — no component services to assign
+    return {
+      cartItem: {
+        cart_id: crypto.randomUUID(),
+        item_type: 'package',
+        package_id: pkg.id,
+        item_name: pkg.name,
+        unit_price: packagePrice,
+        quantity: 1,
+        employee_ids: [],
+        employee_id: null,
+        discount_percent: 0,
+        source_package_name: pkg.name,
+        source_individual_price: pkg.individual_price,
+        selected_services: [],
+        item_status: 'completed',
+      },
+      unallocated: 0,
+      usedDefaultOrChoices: false,
+    }
+  }
+
   // Load a token: prefill the customer + push pre-selected services into the cart with auto-allocation.
   const loadTokenIntoBill = async (token) => {
     if (!token) return
@@ -396,9 +623,7 @@ function BillCreatePage() {
     setShowCustomerDropdown(false)
     setConsumedTokenId(token.id)
 
-    // Push token's services into cart (allocate per service).
-    // Packages are surfaced as a notice so the cashier can add them via the
-    // existing package flow (which handles OR-groups / per-service picks).
+    // Push token services and packages into cart (allocate employees from check-in queue).
     const tokenItems = token.services_requested || []
     if (tokenItems.length === 0) {
       toast.success(`Token ${token.token_number} loaded`)
@@ -407,25 +632,36 @@ function BillCreatePage() {
 
     const additions = []
     let unallocatedCount = 0
-    const pendingPackageNames = []
+    let packageOrDefaultCount = 0
+    const missingPackages = []
 
     for (const ts of tokenItems) {
       // Legacy shape: no `kind`, but `service_id` set → treat as service.
-      const kind = ts.kind || (ts.service_id ? 'service' : null)
+      const kind = ts.kind || (ts.service_id ? 'service' : ts.package_id ? 'package' : null)
+
       if (kind === 'package') {
-        pendingPackageNames.push(ts.name || ts.service_name || 'Package')
+        const rawPkg = packages.find((p) => p.package_id === ts.package_id)
+        if (!rawPkg) {
+          missingPackages.push(ts.name || ts.service_name || 'Package')
+          continue
+        }
+        try {
+          const { cartItem, unallocated, usedDefaultOrChoices } = await buildTokenPackageCartItem(rawPkg)
+          additions.push(cartItem)
+          unallocatedCount += unallocated
+          if (usedDefaultOrChoices) packageOrDefaultCount += 1
+        } catch {
+          missingPackages.push(ts.name || rawPkg.package_name || 'Package')
+        }
         continue
       }
+
       const svc = services.find((s) => s.service_id === ts.service_id)
       if (!svc) continue
       let empIds = []
       try {
-        const res = await allocationService.previewAllocation({
-          branchId: selectedBranch,
-          serviceIds: [svc.service_id],
-        })
-        const picked = res?.data?.[svc.service_id]
-        if (picked?.employee_id) empIds = [picked.employee_id]
+        const picked = await pickEmployeesFromQueue(svc.service_id, 1)
+        if (picked.length) empIds = picked
         else unallocatedCount += 1
       } catch {
         unallocatedCount += 1
@@ -448,23 +684,39 @@ function BillCreatePage() {
     }
     setCartItems((prev) => [...prev, ...additions])
 
+    const serviceCount = additions.filter((a) => a.item_type === 'service').length
+    const packageCount = additions.filter((a) => a.item_type === 'package').length
+
     if (additions.length > 0) {
-      toast.success(
-        unallocatedCount === 0
-          ? `Token ${token.token_number} loaded with ${additions.length} service(s)`
-          : `Token loaded — ${unallocatedCount} of ${additions.length} services need a manual employee pick`
-      )
+      const parts = []
+      if (serviceCount) parts.push(`${serviceCount} service${serviceCount === 1 ? '' : 's'}`)
+      if (packageCount) parts.push(`${packageCount} package${packageCount === 1 ? '' : 's'}`)
+      toast.success(`Token ${token.token_number} loaded with ${parts.join(' and ')}`)
+      if (unallocatedCount > 0) {
+        toast.warning(
+          `${unallocatedCount} item component${unallocatedCount === 1 ? '' : 's'} still need a manual employee pick`,
+          { duration: 5000 }
+        )
+      }
+      if (packageOrDefaultCount > 0) {
+        toast.info(
+          `${packageOrDefaultCount} package${packageOrDefaultCount === 1 ? '' : 's'} used default OR choices — review in cart if needed`,
+          { duration: 6000 }
+        )
+      }
+    } else if (missingPackages.length === 0) {
+      toast.success(`Token ${token.token_number} loaded`)
     }
-    if (pendingPackageNames.length > 0) {
+    if (missingPackages.length > 0) {
       toast.warning(
-        `Token includes ${pendingPackageNames.length} package(s) — add manually: ${pendingPackageNames.join(', ')}`,
+        `Could not load package(s): ${missingPackages.join(', ')} — add manually from Packages tab`,
         { duration: 6000 }
       )
     }
   }
 
   const handleLookupToken = async () => {
-    const number = tokenInput.trim()
+    const number = parseTokenQrPayload(tokenInput)
     if (!number) return
     if (!selectedBranch) {
       toast.error('Select a branch first')
@@ -629,24 +881,21 @@ function BillCreatePage() {
     } else if (selectedCategory === 'services') {
       let empIds = (componentEmployees[0] || []).filter(Boolean)
 
-      // Auto-allocate by skill if cashier didn't pick anyone manually.
-      // Allocation is best-effort: if no one is eligible, leave unassigned + warn.
+      // Auto-assign from check-in queue if cashier didn't pick anyone manually.
       if (empIds.length === 0 && selectedBranch) {
-        try {
-          const res = await allocationService.previewAllocation({
-            branchId: selectedBranch,
-            serviceIds: [selectedItemId],
-          })
-          const picked = res?.data?.[selectedItemId]
-          if (picked?.employee_id) {
-            empIds = [picked.employee_id]
-            toast.success(`Auto-assigned to ${picked.full_name || picked.employee_name}`)
-          } else {
-            toast.warning('No employee available with the required skill — please assign manually')
-          }
-        } catch (err) {
-          // Allocation failure shouldn't block adding to cart
-          console.warn('Allocation preview failed:', err)
+        const needCount = selectedItem?.is_multi_employee
+          ? Math.max(1, selectedItem?.employee_count || 1)
+          : 1
+        const picked = await pickEmployeesFromQueue(selectedItemId, needCount)
+        if (picked.length) {
+          empIds = picked
+          toast.success(
+            picked.length === 1
+              ? 'Auto-assigned from queue'
+              : `Auto-assigned ${picked.length} staff from queue`
+          )
+        } else {
+          toast.warning('No eligible employee in the check-in queue — assign manually')
         }
       }
 
@@ -662,6 +911,8 @@ function BillCreatePage() {
           employee_ids: empIds,
           employee_id: null,
           star_points: selectedItem?.star_points ?? 0,
+          tax_rate: selectedItem?.tax_rate ?? 0,
+          hsn_sac_code: selectedItem?.hsn_sac_code || null,
           discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
           discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
           is_multi_employee: selectedItem?.is_multi_employee ?? false,
@@ -670,6 +921,11 @@ function BillCreatePage() {
         },
       ])
     } else if (selectedCategory === 'products') {
+      const available = selectedItem?.stock ?? 0
+      if (itemQuantity > available) {
+        toast.error(`Insufficient stock (available: ${available})`)
+        return
+      }
       setCartItems([
         ...cartItems,
         {
@@ -681,6 +937,8 @@ function BillCreatePage() {
           quantity: itemQuantity,
           employee_ids: (componentEmployees[0] || []).filter(Boolean),
           employee_id: null,
+          tax_rate: selectedItem?.tax_rate ?? 0,
+          hsn_sac_code: selectedItem?.hsn_sac_code || null,
           discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
           discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
           item_status: 'completed',
@@ -1313,6 +1571,15 @@ function BillCreatePage() {
               </Tabs>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-4 space-y-4">
+              {selectedCategory === 'services' && selectedBranch && (
+                <EmployeeRotationPanel
+                  branchId={selectedBranch}
+                  serviceId={selectedItemId || undefined}
+                  serviceName={selectedItem?.name}
+                  heldEmployeeIds={heldEmployeeIds}
+                  compact={!selectedItemId}
+                />
+              )}
               {/* Barcode Scan Input — products only */}
               {selectedCategory === 'products' && (
                 <div>
@@ -1404,12 +1671,21 @@ function BillCreatePage() {
                             {selectedItem.star_points} stars
                           </span>
                         )}
+                        {(selectedItem.skills?.length ?? 0) > 0 && (
+                          <span className="inline-flex flex-wrap gap-1">
+                            {selectedItem.skills.map((sk) => (
+                              <Badge key={sk.id} variant="outline" className="text-[10px] font-normal py-0">
+                                {sk.name}
+                              </Badge>
+                            ))}
+                          </span>
+                        )}
                       </div>
                     )}
                     {selectedCategory === 'products' && (
                       <div className="text-sm text-gray-500">
                         {selectedItem.brand && `Brand: ${selectedItem.brand} | `}
-                        Stock: {selectedItem.stock ?? 'N/A'}
+                        Available at branch: {selectedItem.stock ?? 0}
                       </div>
                     )}
                     {selectedCategory === 'packages' && (
@@ -1772,6 +2048,12 @@ function BillCreatePage() {
                   {/* Employee selector for single service/product — multiple employees allowed for any item */}
                   {selectedCategory !== 'packages' && (
                     <div>
+                      {selectedCategory === 'services' && selectedItemId && (
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Leave blank to auto-assign the <strong>next in check-in queue</strong> (skips staff without required skills).
+                          Mark cart lines as <strong>Pending</strong> to hold assigned staff off the queue.
+                        </p>
+                      )}
                       <Label className="mb-1 block text-sm flex items-center gap-2">
                         Assign Employee(s) (optional)
                         {selectedCategory === 'services' && (selectedItem?.star_points ?? 0) > 0 && (
@@ -1830,6 +2112,17 @@ function BillCreatePage() {
                         >
                           <Plus className="h-4 w-4 mr-1" /> Add employee
                         </Button>
+                        {selectedCategory === 'services' && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => handleAddEmployeeFromQueue(0, selectedItemId)}
+                          >
+                            <Users className="h-4 w-4 mr-1" /> From queue
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2229,8 +2522,20 @@ function BillCreatePage() {
                       <span>-{formatCurrency(billDiscount)}</span>
                     </div>
                   )}
+                  {taxAmount > 0 && (
+                    <>
+                      <div className="flex justify-between text-xs text-gray-600">
+                        <span>Taxable value</span>
+                        <span>{formatCurrency(taxableSubtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span>GST</span>
+                        <span>{formatCurrency(taxAmount)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between font-bold text-base pt-1 border-t">
-                    <span>Total</span>
+                    <span>Grand Total</span>
                     <span className="text-primary">{formatCurrency(totalAmount)}</span>
                   </div>
                 </div>

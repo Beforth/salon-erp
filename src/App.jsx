@@ -12,8 +12,10 @@ import BillsPage from './pages/BillsPage'
 import BillCreatePage from './pages/BillCreatePage'
 import BillDetailPage from './pages/BillDetailPage'
 import ServicesPage from './pages/ServicesPage'
+import ServiceFormPage from './pages/ServiceFormPage'
 import PackagesPage from './pages/PackagesPage'
 import ProductsPage from './pages/ProductsPage'
+import ProductFormPage from './pages/ProductFormPage'
 import InventoryPage from './pages/InventoryPage'
 import StockTransfersPage from './pages/StockTransfersPage'
 import ReportsPage from './pages/ReportsPage'
@@ -43,6 +45,7 @@ import TokensPage from './pages/TokensPage'
 import SkusPage from './pages/SkusPage'
 import BarcodePrintPage from './pages/BarcodePrintPage'
 import WarehousesPage from './pages/WarehousesPage'
+import WarehouseCreatePage from './pages/WarehouseCreatePage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
@@ -105,8 +108,12 @@ function App() {
         <Route path="bills/new" element={<BillCreatePage />} />
         <Route path="bills/:id" element={<BillDetailPage />} />
         <Route path="services" element={<ServicesPage />} />
+        <Route path="services/new" element={<ServiceFormPage />} />
+        <Route path="services/:id/edit" element={<ServiceFormPage />} />
         <Route path="packages" element={<PackagesPage />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="products/new" element={<ProductFormPage />} />
+        <Route path="products/:id/edit" element={<ProductFormPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="inventory/transfers" element={<StockTransfersPage />} />
         <Route path="reports" element={<ReportsPage />} />
@@ -135,6 +142,7 @@ function App() {
         <Route path="skus" element={<SkusPage />} />
         <Route path="barcode-print" element={<BarcodePrintPage />} />
         <Route path="warehouses" element={<WarehousesPage />} />
+        <Route path="warehouses/new" element={<WarehouseCreatePage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

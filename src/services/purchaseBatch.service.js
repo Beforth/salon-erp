@@ -5,4 +5,5 @@ export const purchaseBatchService = {
   getBatchById: (id) => api.get(`/purchase-batches/${id}`),
   createBatch: (data) => api.post('/purchase-batches', data),
   recordPayment: (id, data) => api.post(`/purchase-batches/${id}/payment`, data),
+  receiveStock: (id) => api.post(`/purchase-batches/${id}/receive-stock`, {}),
 }

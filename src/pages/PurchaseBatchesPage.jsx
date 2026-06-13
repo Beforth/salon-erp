@@ -1,56 +1,107 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Loader2, Eye } from 'lucide-react'
+import {
+  Plus,
+  Loader2,
+  Eye,
+  PackagePlus,
+  Clock,
+  IndianRupee,
+  PackageCheck,
+  Filter,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { purchaseBatchService } from '@/services/purchaseBatch.service'
 import { supplierService } from '@/services/supplier.service'
+import { branchService } from '@/services/branch.service'
 
 export default function PurchaseBatchesPage() {
-  const { user } = useSelector((state) => state.auth)
   const navigate = useNavigate()
 
   const [page, setPage] = useState(1)
   const [selectedSupplier, setSelectedSupplier] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
   const { data: suppliersData } = useQuery({
-    queryKey: ['suppliers', { branch: user?.branchId }],
-    queryFn: () => supplierService.getSuppliers({ branch_id: user?.branchId, limit: 100 }),
+    queryKey: ['suppliers'],
+    queryFn: () => supplierService.getSuppliers({ limit: 100 }),
   })
   const suppliers = suppliersData?.data || []
 
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => branchService.getBranches({ is_active: 'true' }),
+  })
+  const branches = branchesData?.data || []
+
   const { data, isLoading } = useQuery({
-    queryKey: ['purchase-batches', { page, selectedSupplier, startDate, endDate, branch: user?.branchId }],
-    queryFn: () => purchaseBatchService.getBatches({
-      page,
-      limit: 20,
-      supplier_id: selectedSupplier || undefined,
-      branch_id: user?.branchId || undefined,
-      start_date: startDate || undefined,
-      end_date: endDate || undefined,
-    }),
+    queryKey: ['purchase-batches', { page, selectedSupplier, selectedBranch, startDate, endDate }],
+    queryFn: () =>
+      purchaseBatchService.getBatches({
+        page,
+        limit: 20,
+        supplier_id: selectedSupplier || undefined,
+        branch_id: selectedBranch || undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+      }),
   })
   const batches = data?.data || []
   const pagination = data?.pagination || {}
 
-  const totalPending = batches.reduce((sum, b) => sum + (b.pending_amount || 0), 0)
+  const summary = useMemo(() => {
+    return batches.reduce(
+      (acc, b) => {
+        acc.totalAmount += b.total_amount || 0
+        acc.pendingAmount += b.pending_amount || 0
+        if (!b.stock_received) acc.stockPending += 1
+        return acc
+      },
+      { totalAmount: 0, pendingAmount: 0, stockPending: 0 }
+    )
+  }, [batches])
+
+  const hasFilters = !!(startDate || endDate || selectedSupplier || selectedBranch)
+
+  const clearFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    setSelectedSupplier('')
+    setSelectedBranch('')
+    setPage(1)
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Purchase Batches</h1>
-          <p className="text-sm text-gray-500 mt-1">Track inventory purchases and payments</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Record supplier purchases, receive stock into inventory, and track payments.
+          </p>
         </div>
         <Button onClick={() => navigate('/purchase-batches/new')}>
           <Plus className="h-4 w-4 mr-2" />
@@ -58,92 +109,265 @@ export default function PurchaseBatchesPage() {
         </Button>
       </div>
 
-      {/* Filters */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-blue-50">
+                <PackagePlus className="h-5 w-5 text-blue-700" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">On this page</p>
+                <p className="text-2xl font-semibold">{batches.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={summary.stockPending > 0 ? 'border-amber-200' : ''}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-amber-50">
+                <Clock className="h-5 w-5 text-amber-700" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Stock not received</p>
+                <p className="text-2xl font-semibold">{summary.stockPending}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-red-50">
+                <IndianRupee className="h-5 w-5 text-red-700" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Pending payments (page)</p>
+                <p className="text-2xl font-semibold text-red-600">
+                  {formatCurrency(summary.pendingAmount)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
-        <CardContent className="py-3 px-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-500" />
+            <CardTitle className="text-base">Filters</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-1.5">
               <Label className="text-xs">Supplier</Label>
-              <Select value={selectedSupplier} onValueChange={(val) => { setSelectedSupplier(val === 'all' ? '' : val); setPage(1) }}>
-                <SelectTrigger className="w-[200px]">
+              <Select
+                value={selectedSupplier || 'all'}
+                onValueChange={(val) => {
+                  setSelectedSupplier(val === 'all' ? '' : val)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger>
                   <SelectValue placeholder="All suppliers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Suppliers</SelectItem>
+                  <SelectItem value="all">All suppliers</SelectItem>
                   {suppliers.map((s) => (
-                    <SelectItem key={s.supplier_id} value={s.supplier_id}>{s.name}</SelectItem>
+                    <SelectItem key={s.supplier_id} value={s.supplier_id}>
+                      {s.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-xs">From</Label>
-              <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1) }} className="w-[150px]" />
+            <div className="space-y-1.5">
+              <Label className="text-xs">Destination branch</Label>
+              <Select
+                value={selectedBranch || 'all'}
+                onValueChange={(val) => {
+                  setSelectedBranch(val === 'all' ? '' : val)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All branches</SelectItem>
+                  {branches.map((b) => (
+                    <SelectItem key={b.branch_id} value={b.branch_id}>
+                      {b.name}
+                      {b.is_warehouse ? ' (warehouse)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label className="text-xs">To</Label>
-              <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1) }} className="w-[150px]" />
+            <div className="space-y-1.5">
+              <Label className="text-xs">From date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value)
+                  setPage(1)
+                }}
+              />
             </div>
-            {(startDate || endDate || selectedSupplier) && (
-              <Button variant="ghost" size="sm" onClick={() => { setStartDate(''); setEndDate(''); setSelectedSupplier(''); setPage(1) }}>Clear</Button>
-            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">To date</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value)
+                  setPage(1)
+                }}
+              />
+            </div>
           </div>
+          {hasFilters && (
+            <div className="mt-3 flex justify-end">
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-12">
+            <div className="flex justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             </div>
           ) : batches.length === 0 ? (
-            <p className="text-center text-gray-500 py-12">No purchase batches found</p>
+            <div className="text-center py-16 px-4">
+              <PackagePlus className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-600 font-medium">No purchase batches found</p>
+              <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
+                {hasFilters
+                  ? 'Try clearing filters or widening the date range.'
+                  : 'Create your first purchase to receive stock from a supplier.'}
+              </p>
+              <Button className="mt-4" onClick={() => navigate('/purchase-batches/new')}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Purchase
+              </Button>
+            </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
-                    <TableHead className="text-right">Pending</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {batches.map((batch) => (
-                    <TableRow key={batch.batch_id} className="cursor-pointer hover:bg-gray-50" onClick={() => navigate(`/purchase-batches/${batch.batch_id}`)}>
-                      <TableCell>{formatDate(batch.purchase_date)}</TableCell>
-                      <TableCell className="font-medium">{batch.supplier?.name || '—'}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(batch.total_amount)}</TableCell>
-                      <TableCell className="text-right text-green-600">{formatCurrency(batch.paid_amount)}</TableCell>
-                      <TableCell className="text-right">
-                        {batch.pending_amount > 0 ? (
-                          <span className="text-red-600 font-semibold">{formatCurrency(batch.pending_amount)}</span>
-                        ) : (
-                          <Badge variant="default">Paid</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); navigate(`/purchase-batches/${batch.batch_id}`) }}>
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Branch</TableHead>
+                      <TableHead>Supplier</TableHead>
+                      <TableHead>Stock</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Paid</TableHead>
+                      <TableHead className="text-right">Pending</TableHead>
+                      <TableHead className="w-[52px]" />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex items-center justify-between px-4 py-3 border-t">
-                <div className="text-sm font-medium">
-                  Total Pending: <span className="text-red-600">{formatCurrency(totalPending)}</span>
-                </div>
+                  </TableHeader>
+                  <TableBody>
+                    {batches.map((batch) => (
+                      <TableRow
+                        key={batch.batch_id}
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => navigate(`/purchase-batches/${batch.batch_id}`)}
+                      >
+                        <TableCell className="whitespace-nowrap">
+                          {formatDateTime(batch.purchase_date)}
+                        </TableCell>
+                        <TableCell className="max-w-[140px] truncate" title={batch.branch_name}>
+                          {batch.branch_name || '—'}
+                        </TableCell>
+                        <TableCell className="font-medium max-w-[160px] truncate" title={batch.supplier?.name}>
+                          {batch.supplier?.name || '—'}
+                        </TableCell>
+                        <TableCell>
+                          {batch.stock_received ? (
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-0">
+                              <PackageCheck className="h-3 w-3 mr-1" />
+                              Received
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-amber-800 border-amber-300 bg-amber-50">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Awaiting
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
+                          {formatCurrency(batch.total_amount)}
+                        </TableCell>
+                        <TableCell className="text-right text-green-700 whitespace-nowrap">
+                          {formatCurrency(batch.paid_amount)}
+                        </TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
+                          {batch.pending_amount > 0 ? (
+                            <span className="text-red-600 font-semibold">
+                              {formatCurrency(batch.pending_amount)}
+                            </span>
+                          ) : (
+                            <Badge variant="secondary" className="font-normal">
+                              Paid
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(`/purchase-batches/${batch.batch_id}`)
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t bg-gray-50/80">
+                <p className="text-sm text-gray-600">
+                  Page total:{' '}
+                  <span className="font-semibold text-gray-900">
+                    {formatCurrency(summary.totalAmount)}
+                  </span>
+                </p>
                 {pagination.total_pages > 1 && (
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</Button>
-                    <span className="text-sm text-gray-500 px-2 self-center">Page {page} of {pagination.total_pages}</span>
-                    <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(page + 1)}>Next</Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={page <= 1}
+                      onClick={() => setPage(page - 1)}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-gray-500 tabular-nums">
+                      {page} / {pagination.total_pages}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={page >= pagination.total_pages}
+                      onClick={() => setPage(page + 1)}
+                    >
+                      Next
+                    </Button>
                   </div>
                 )}
               </div>

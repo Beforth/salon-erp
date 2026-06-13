@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { serviceService } from '@/services/service.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,16 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import ServiceModal from '@/components/modals/ServiceModal'
 import CategoryModal from '@/components/modals/CategoryModal'
 import { formatCurrency, cn } from '@/lib/utils'
 import { Plus, Search, Scissors, Loader2, Star, Pencil, FolderPlus, ChevronDown } from 'lucide-react'
 
 function ServicesPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [serviceModalOpen, setServiceModalOpen] = useState(false)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
-  const [editingService, setEditingService] = useState(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['services', { search }],
@@ -34,7 +33,6 @@ function ServicesPage() {
 
   const services = data?.data || []
 
-  // Group services by category
   const groupedServices = useMemo(() => {
     const categoryMap = new Map()
 
@@ -50,7 +48,6 @@ function ServicesPage() {
     return Array.from(categoryMap.values())
   }, [services])
 
-  // Collapsed/expanded state — all expanded by default
   const [collapsedCategories, setCollapsedCategories] = useState({})
 
   const toggleCategory = (categoryId) => {
@@ -60,41 +57,25 @@ function ServicesPage() {
     }))
   }
 
-  const handleAddService = () => {
-    setEditingService(null)
-    setServiceModalOpen(true)
-  }
-
-  const handleEditService = (service) => {
-    setEditingService(service)
-    setServiceModalOpen(true)
-  }
-
-  const handleAddCategory = () => {
-    setCategoryModalOpen(true)
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Services</h1>
           <p className="text-gray-500">Manage your service catalog</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleAddCategory}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setCategoryModalOpen(true)}>
             <FolderPlus className="h-4 w-4 mr-2" />
             Add Category
           </Button>
-          <Button onClick={handleAddService}>
+          <Button onClick={() => navigate('/services/new')}>
             <Plus className="h-4 w-4 mr-2" />
             Add Service
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardContent className="p-4">
           <div className="flex gap-4">
@@ -111,7 +92,6 @@ function ServicesPage() {
         </CardContent>
       </Card>
 
-      {/* Services — Grouped by Category */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -135,8 +115,9 @@ function ServicesPage() {
             <div className="text-center py-10 text-gray-500">
               <Scissors className="h-12 w-12 mx-auto mb-3 opacity-20" />
               <p>No services found.</p>
-              <Button className="mt-4" onClick={handleAddService}>
-                Add Your First Service
+              <Button className="mt-4" onClick={() => navigate('/services/new')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add your first service
               </Button>
             </div>
           ) : (
@@ -145,7 +126,6 @@ function ServicesPage() {
                 const isCollapsed = collapsedCategories[group.category_id]
                 return (
                   <div key={group.category_id} className="border rounded-lg overflow-hidden">
-                    {/* Category header */}
                     <button
                       type="button"
                       onClick={() => toggleCategory(group.category_id)}
@@ -165,7 +145,6 @@ function ServicesPage() {
                       </div>
                     </button>
 
-                    {/* Services table within category */}
                     {!isCollapsed && (
                       <Table>
                         <TableHeader>
@@ -215,7 +194,7 @@ function ServicesPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleEditService(service)}
+                                  onClick={() => navigate(`/services/${service.service_id}/edit`)}
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
@@ -233,12 +212,6 @@ function ServicesPage() {
         </CardContent>
       </Card>
 
-      {/* Modals */}
-      <ServiceModal
-        open={serviceModalOpen}
-        onOpenChange={setServiceModalOpen}
-        service={editingService}
-      />
       <CategoryModal
         open={categoryModalOpen}
         onOpenChange={setCategoryModalOpen}

@@ -94,7 +94,7 @@ const getNavItemsByRole = (role) => {
     {
       title: 'Catalog',
       icon: BookOpen,
-      roles: ['owner', 'developer', 'manager'],
+      roles: ['owner', 'developer', 'manager', 'cashier'],
       children: [
         { title: 'Services', href: '/services', icon: Scissors },
         { title: 'Packages', href: '/packages', icon: Package },
@@ -104,7 +104,7 @@ const getNavItemsByRole = (role) => {
     {
       title: 'Inventory',
       icon: BoxesIcon,
-      roles: ['owner', 'developer', 'manager'],
+      roles: ['owner', 'developer', 'manager', 'cashier'],
       children: [
         {
           title: 'SKUs',

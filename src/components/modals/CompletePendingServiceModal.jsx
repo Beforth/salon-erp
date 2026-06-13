@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { billService } from '@/services/bill.service'
 import { branchService } from '@/services/branch.service'
+import { rotationQueueService } from '@/services/rotationQueue.service'
+import EmployeeRotationPanel from '@/components/billing/EmployeeRotationPanel'
 import {
   Dialog,
   DialogContent,
@@ -14,15 +16,23 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatCurrency } from '@/lib/utils'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2, Check, Users } from 'lucide-react'
 import { toast } from 'sonner'
+import ServiceConsumptionPicker, {
+  buildContainerSelections,
+  isConsumptionComplete,
+} from '@/components/billing/ServiceConsumptionPicker'
 
 function CompletePendingServiceModal({ open, onOpenChange, item }) {
   const queryClient = useQueryClient()
   const { user } = useSelector((state) => state.auth)
   const [selectedEmployee, setSelectedEmployee] = useState('')
+  const [containerSelections, setContainerSelections] = useState({})
+  const [pickingQueue, setPickingQueue] = useState(false)
 
   const branchId = item?.branch_id || user?.branchId
+  const serviceId = item?.service_id || null
+
   const { data: employeesData } = useQuery({
     queryKey: ['branch-employees', branchId],
     queryFn: () => branchService.getBranchEmployees(branchId),
@@ -30,22 +40,88 @@ function CompletePendingServiceModal({ open, onOpenChange, item }) {
   })
   const employees = employeesData?.data || []
 
-  useEffect(() => {
-    if (open) {
-      setSelectedEmployee('')
+  const pickFromQueue = useCallback(async (exclude = []) => {
+    if (!branchId) return null
+    try {
+      const res = await rotationQueueService.pickNext({
+        branchId,
+        serviceId: serviceId || undefined,
+        exclude,
+        held: [],
+      })
+      const picked = res?.data ?? null
+      return picked?.employee_id ? picked : null
+    } catch (err) {
+      console.warn('Rotation queue pick failed:', err)
+      return null
     }
-  }, [open])
+  }, [branchId, serviceId])
+
+  useEffect(() => {
+    if (!open) return
+    setSelectedEmployee('')
+    setContainerSelections({})
+  }, [open, item?.item_id])
+
+  // Auto-assign next in check-in queue when modal opens
+  useEffect(() => {
+    if (!open || !branchId || !serviceId) return
+    let cancelled = false
+    ;(async () => {
+      setPickingQueue(true)
+      const row = await pickFromQueue()
+      if (!cancelled && row) {
+        setSelectedEmployee(row.employee_id)
+      }
+      if (!cancelled) setPickingQueue(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, branchId, serviceId, item?.item_id, pickFromQueue])
+
+  const handlePickFromQueue = async () => {
+    setPickingQueue(true)
+    const row = await pickFromQueue(selectedEmployee ? [selectedEmployee] : [])
+    setPickingQueue(false)
+    if (!row) {
+      toast.warning('No eligible employee in the check-in queue')
+      return
+    }
+    setSelectedEmployee(row.employee_id)
+    toast.success(`Assigned ${row.full_name} from queue`)
+  }
+
+  const { data: previewData } = useQuery({
+    queryKey: ['consumption-preview', item?.bill_id, item?.item_id],
+    queryFn: () =>
+      billService.getConsumptionPreview(item.bill_id, {
+        bill_item_ids: [item.item_id],
+      }),
+    enabled: open && !!item?.bill_id && !!item?.item_id,
+  })
+  const consumptionRequirements = previewData?.data?.requirements || previewData?.requirements || []
 
   const completeMutation = useMutation({
-    mutationFn: () =>
-      billService.completeBillItem(item.bill_id, item.item_id, {
-        employee_ids: [selectedEmployee],
-      }),
+    mutationFn: () => {
+      const payload = {}
+      if (selectedEmployee) {
+        payload.employee_ids = [selectedEmployee]
+      }
+      const containerSelectionsPayload = buildContainerSelections(containerSelections)
+      if (containerSelectionsPayload.length > 0) {
+        payload.container_selections = containerSelectionsPayload
+      }
+      return billService.completeBillItem(item.bill_id, item.item_id, payload)
+    },
     onSuccess: () => {
       toast.success('Service completed successfully!')
       queryClient.invalidateQueries({ queryKey: ['pending-services'] })
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['bill', String(item.bill_id)] })
+      queryClient.invalidateQueries({ queryKey: ['open-containers'] })
+      queryClient.invalidateQueries({ queryKey: ['rotation-queue'] })
+      queryClient.invalidateQueries({ queryKey: ['staff-performance'] })
       onOpenChange(false)
     },
     onError: (error) => {
@@ -57,7 +133,7 @@ function CompletePendingServiceModal({ open, onOpenChange, item }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Complete Pending Service</DialogTitle>
           <p className="text-sm text-gray-500">
@@ -76,14 +152,53 @@ function CompletePendingServiceModal({ open, onOpenChange, item }) {
             </p>
           </div>
 
+          {branchId && (
+            <EmployeeRotationPanel
+              branchId={branchId}
+              serviceId={serviceId || undefined}
+              serviceName={item.item_name}
+              compact
+            />
+          )}
+
+          <ServiceConsumptionPicker
+            billId={item.bill_id}
+            branchId={branchId}
+            billItemIds={item.item_id ? [item.item_id] : []}
+            selections={containerSelections}
+            onChange={setContainerSelections}
+            enabled={open}
+          />
+
           <div className="space-y-2">
-            <Label>Assign Employee *</Label>
+            <Label>Assign Employee</Label>
+            <p className="text-xs text-muted-foreground">
+              Auto-filled from the check-in queue. Change manually if needed — staff returns to queue tail after completion.
+            </p>
             <SearchableSelect
               options={employees.map((emp) => ({ value: emp.employee_id, label: emp.full_name }))}
               value={selectedEmployee}
               onChange={setSelectedEmployee}
-              placeholder="Select employee..."
+              placeholder={pickingQueue ? 'Picking from queue…' : 'Select employee…'}
+              disabled={pickingQueue}
             />
+            {serviceId && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={handlePickFromQueue}
+                disabled={pickingQueue}
+              >
+                {pickingQueue ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Users className="h-4 w-4 mr-2" />
+                )}
+                Pick next from queue
+              </Button>
+            )}
           </div>
         </div>
 
@@ -96,8 +211,17 @@ function CompletePendingServiceModal({ open, onOpenChange, item }) {
             Cancel
           </Button>
           <Button
-            onClick={() => completeMutation.mutate()}
-            disabled={completeMutation.isPending || !selectedEmployee}
+            onClick={() => {
+              if (
+                consumptionRequirements.length > 0 &&
+                !isConsumptionComplete(consumptionRequirements, containerSelections)
+              ) {
+                toast.error('Select open bottles for all backbar products')
+                return
+              }
+              completeMutation.mutate()
+            }}
+            disabled={completeMutation.isPending || pickingQueue}
           >
             {completeMutation.isPending ? (
               <>

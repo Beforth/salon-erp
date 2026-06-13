@@ -12,4 +12,17 @@ export const inventoryService = {
   createTransfer: (data) => api.post('/inventory/transfers', data),
 
   approveTransfer: (id) => api.post(`/inventory/transfers/${id}/approve`),
+
+  rejectTransfer: (id, data) => api.post(`/inventory/transfers/${id}/reject`, data),
+
+  cancelTransfer: (id, data) => api.post(`/inventory/transfers/${id}/cancel`, data),
+
+  getOpenContainers: (params) => api.get('/inventory/open-containers', { params }),
+
+  getOpenContainerByBarcode: (barcode, params) =>
+    api.get(`/inventory/open-containers/barcode/${encodeURIComponent(barcode)}`, { params }),
+
+  openContainer: (data) => api.post('/inventory/open-containers', data),
+
+  discardOpenContainer: (id) => api.post(`/inventory/open-containers/${id}/discard`),
 }

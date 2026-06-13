@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:start": "bash scripts/dev.sh start",
+    "dev:stop": "bash scripts/dev.sh stop",
+    "dev:restart": "bash scripts/dev.sh restart",
+    "dev:status": "bash scripts/dev.sh status",
+    "dev:logs": "bash scripts/dev.sh logs",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"

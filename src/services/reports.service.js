@@ -25,4 +25,9 @@ export const reportsService = {
   getWarehouseTransfersOut:(params) => api.get('/reports/warehouse/transfers-out', { params }),
   getBranchPL:             (params) => api.get('/reports/branch/pl', { params }),
   getStockValueSnapshot:   ()       => api.get('/reports/inventory/value-snapshot'),
+
+  getConsumptionUsageByService: (params) => api.get('/reports/consumption/usage-by-service', { params }),
+  getConsumptionWastage: (params) => api.get('/reports/consumption/wastage', { params }),
+  getBottleLifecycle: (params) => api.get('/reports/consumption/bottles', { params }),
+  getBottleLifecycleDetail: (id) => api.get(`/reports/consumption/bottles/${id}`),
 }

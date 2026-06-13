@@ -248,9 +248,14 @@ function buildReceiptHTML(bill) {
           <span>Discount:</span>
           <span>-${formatAmt(bill.discount_amount)}</span>
         </div>` : ''}
+        ${(bill.taxable_subtotal ?? 0) > 0 && bill.tax_amount > 0 ? `
+        <div class="row">
+          <span>Taxable:</span>
+          <span>${formatAmt(bill.taxable_subtotal)}</span>
+        </div>` : ''}
         ${bill.tax_amount > 0 ? `
         <div class="row">
-          <span>Tax:</span>
+          <span>GST:</span>
           <span>${formatAmt(bill.tax_amount)}</span>
         </div>` : ''}
       </div>

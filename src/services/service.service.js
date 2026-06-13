@@ -15,6 +15,8 @@ export const serviceService = {
 
   updateService: (id, data) => api.put(`/services/${id}`, data),
 
+  replaceServiceRecipes: (id, recipes) => api.put(`/services/${id}/recipes`, { recipes }),
+
   // Package Categories
   getPackageCategories: (params) => api.get('/packages/categories', { params }),
 

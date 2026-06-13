@@ -2,12 +2,19 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
-import { Plus, Printer, Ban, Loader2 } from 'lucide-react'
+import { Plus, Printer, Ban, Loader2, QrCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { tokenService } from '@/services/token.service'
 import { branchService } from '@/services/branch.service'
 import { printTokenSlip } from '@/components/TokenSlip'
+import TokenQrCode from '@/components/TokenQrCode'
 import CreateTokenModal from '@/components/modals/CreateTokenModal'
 
 const STATUS_FILTERS = [
@@ -39,6 +46,7 @@ export default function TokensPage() {
   const [statusFilter, setStatusFilter] = useState('open')
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedBranch, setSelectedBranch] = useState(userBranchId)
+  const [qrToken, setQrToken] = useState(null)
 
   // Owners/developers may not have a fixed branch — let them pick one.
   const { data: branchesData } = useQuery({
@@ -160,6 +168,15 @@ export default function TokensPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      onClick={() => setQrToken(t)}
+                      title="Show QR code"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => printTokenSlip(t)}
                       title="Print slip"
                     >
@@ -198,6 +215,27 @@ export default function TokensPage() {
         onOpenChange={setCreateOpen}
         branchId={selectedBranch}
       />
+
+      <Dialog open={!!qrToken} onOpenChange={(open) => { if (!open) setQrToken(null) }}>
+        <DialogContent className="sm:max-w-[360px]">
+          <DialogHeader>
+            <DialogTitle>Token QR — {qrToken?.token_number}</DialogTitle>
+          </DialogHeader>
+          {qrToken && (
+            <div className="flex flex-col items-center gap-3 py-2">
+              <TokenQrCode token={qrToken} size={200} />
+              <p className="text-sm font-medium">{qrToken.customer_name_snap}</p>
+              <p className="text-xs text-gray-500 text-center">
+                Scan at billing to load this token.
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={() => printTokenSlip(qrToken)}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print slip
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

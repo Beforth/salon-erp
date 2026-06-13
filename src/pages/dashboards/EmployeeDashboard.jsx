@@ -5,6 +5,7 @@ import { userService } from '@/services/user.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Scissors, Loader2, ChevronDown } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
 
 function EmployeeDashboard() {
   const { user } = useSelector((state) => state.auth)
