@@ -1157,9 +1157,11 @@ function StaffPerformancePage() {
                         <TableHead>Employee</TableHead>
                         <TableHead>Services</TableHead>
                         <TableHead>Stars</TableHead>
+                        {canSeeFinancials && showServiceEarningsCard && (
+                          <TableHead className="text-right">Service Earnings</TableHead>
+                        )}
                         {canSeeFinancials && (
                           <>
-                            <TableHead className="text-right">Service Earnings</TableHead>
                             <TableHead className="text-right">Product Sales</TableHead>
                             <TableHead className="text-right">Product Incentives</TableHead>
                             <TableHead className="text-right">Staff Incentive</TableHead>
@@ -1190,11 +1192,13 @@ function StaffPerformancePage() {
                               <span className="text-xs text-muted-foreground">/ {e.monthly_star_goal}</span>
                             </div>
                           </TableCell>
+                          {canSeeFinancials && showServiceEarningsCard && (
+                            <TableCell className="text-right font-bold">
+                              {formatCurrency(e.revenue_generated - (e.product_incentives || 0))}
+                            </TableCell>
+                          )}
                           {canSeeFinancials && (
                             <>
-                              <TableCell className="text-right font-bold">
-                                {formatCurrency(e.revenue_generated - (e.product_incentives || 0))}
-                              </TableCell>
                               <TableCell className="text-right">
                                 {e.product_sales ? formatCurrency(e.product_sales) : '—'}
                               </TableCell>
@@ -1227,11 +1231,11 @@ function StaffPerformancePage() {
                     <MultiBarChart
                       data={employees.slice(0, 15).map((e) => ({
                         employee_name: e.employee_name,
-                        service_earnings: e.revenue_generated - (e.product_incentives || 0),
+                        ...(showServiceEarningsCard ? { service_earnings: e.revenue_generated - (e.product_incentives || 0) } : {}),
                         product_sales: e.product_sales || 0,
                       }))}
                       bars={[
-                        { dataKey: 'service_earnings', name: 'Service Earnings', color: '#6366f1' },
+                        ...(showServiceEarningsCard ? [{ dataKey: 'service_earnings', name: 'Service Earnings', color: '#6366f1' }] : []),
                         { dataKey: 'product_sales', name: 'Product Sales', color: '#10b981' },
                       ]}
                       xKey="employee_name"
