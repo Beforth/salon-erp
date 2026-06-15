@@ -5,6 +5,19 @@ export function cn(...inputs) {
   return twMerge(clsx(inputs))
 }
 
+export function getYoutubeEmbedUrl(url) {
+  if (!url) return null
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return `https://www.youtube.com/embed/${m[1]}`
+  }
+  return null
+}
+
 export function formatCurrency(amount) {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

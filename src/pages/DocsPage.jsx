@@ -22,6 +22,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getYoutubeEmbedUrl } from '@/lib/utils'
 
 const emptyForm = { title: '', youtube_link: '', description: '' }
 
@@ -154,17 +155,30 @@ export default function DocsPage() {
                     {doc.description && (
                       <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{doc.description}</p>
                     )}
-                    {doc.youtube_link && (
-                      <a
-                        href={doc.youtube_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 mt-2"
-                      >
-                        <Youtube className="h-4 w-4" />
-                        Watch on YouTube
-                      </a>
-                    )}
+                    {doc.youtube_link && (() => {
+                      const embedUrl = getYoutubeEmbedUrl(doc.youtube_link)
+                      return embedUrl ? (
+                        <div className="mt-2 aspect-video">
+                          <iframe
+                            src={embedUrl}
+                            className="w-full h-full rounded-md"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            title={doc.title}
+                          />
+                        </div>
+                      ) : (
+                        <a
+                          href={doc.youtube_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 mt-2"
+                        >
+                          <Youtube className="h-4 w-4" />
+                          Watch on YouTube
+                        </a>
+                      )
+                    })()}
                   </div>
                   {isOwner && (
                     <div className="flex items-center gap-1 shrink-0">
