@@ -56,6 +56,7 @@ const initialFormData = {
   is_active: true,
   // Employee details
   employee_code: '',
+  biometric_id: '',
   joining_date: '',
   date_of_birth: '',
   address: '',
@@ -91,6 +92,7 @@ const PATCHABLE_FIELDS = [
   'additional_branches',
   'is_active',
   'employee_code',
+  'biometric_id',
   'joining_date',
   'date_of_birth',
   'address',
@@ -691,6 +693,15 @@ function StaffFormPage() {
                       value={formData.employee_code}
                       onChange={(e) => handleChange('employee_code', e.target.value)}
                       placeholder="EMP-001"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biometric_id">Biometric ID</Label>
+                    <Input
+                      id="biometric_id"
+                      value={formData.biometric_id}
+                      onChange={(e) => handleChange('biometric_id', e.target.value)}
+                      placeholder="00000004"
                     />
                   </div>
                   <div className="space-y-2">
