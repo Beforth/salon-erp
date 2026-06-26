@@ -244,7 +244,7 @@ function CashReconciliationPage() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className={`grid grid-cols-1 gap-4 ${canSeeRevenue ? 'md:grid-cols-5' : 'md:grid-cols-2'}`}>
+          <div className={`grid grid-cols-1 gap-4 ${canSeeRevenue ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
             {canSeeRevenue && (
               <Card className="bg-gray-50 border-gray-200">
                 <CardContent className="pt-6">
@@ -257,25 +257,6 @@ function CashReconciliationPage() {
                       <p className="text-2xl font-bold text-gray-700">
                         {formatCurrency(summary.opening_balance || 0)}
                       </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {canSeeRevenue && (
-              <Card className="bg-green-50 border-green-200">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-green-100 rounded-lg">
-                      <Receipt className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-green-600">Total Revenue</p>
-                      <p className="text-2xl font-bold text-green-700">
-                        {formatCurrency(summary.total_revenue)}
-                      </p>
-                      <p className="text-xs text-green-600">{summary.bills_count} bills</p>
                     </div>
                   </div>
                 </CardContent>
@@ -371,8 +352,9 @@ function CashReconciliationPage() {
                       other: Wallet,
                     }
                     const Icon = icons[mode] || Wallet
-                    const percentage = summary.total_revenue > 0
-                      ? ((amount / summary.total_revenue) * 100).toFixed(1)
+                    const totalPayments = Object.values(summary.payment_breakdown).reduce((a, b) => a + b, 0)
+                    const percentage = totalPayments > 0
+                      ? ((amount / totalPayments) * 100).toFixed(1)
                       : 0
 
                     return (

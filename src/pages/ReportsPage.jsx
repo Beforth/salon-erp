@@ -411,18 +411,7 @@ function ReportsPage() {
           ) : dailySales ? (
             <>
               {/* Summary Cards */}
-              <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500">Total Revenue</p>
-                        <p className="text-2xl font-bold">{formatCurrency(dailySales.summary.total_revenue)}</p>
-                      </div>
-                      <DollarSign className="h-8 w-8 text-green-500" />
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="grid gap-4 md:grid-cols-3">
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -519,23 +508,11 @@ function ReportsPage() {
           ) : monthly ? (
             <>
               {/* Summary */}
-              <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <p className="text-sm text-gray-500">Total Revenue</p>
-                    <p className="text-2xl font-bold">{formatCurrency(monthly.summary.total_revenue)}</p>
-                  </CardContent>
-                </Card>
+              <div className="grid gap-4 md:grid-cols-2">
                 <Card>
                   <CardContent className="p-6">
                     <p className="text-sm text-gray-500">Total Bills</p>
                     <p className="text-2xl font-bold">{monthly.summary.total_bills}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-6">
-                    <p className="text-sm text-gray-500">Avg Daily Revenue</p>
-                    <p className="text-2xl font-bold">{formatCurrency(monthly.summary.average_daily_revenue)}</p>
                   </CardContent>
                 </Card>
                 <Card>
@@ -555,9 +532,7 @@ function ReportsPage() {
                     filename="monthly_revenue"
                     title={`Monthly Revenue - ${selectedMonth}/${selectedYear}`}
                     summaryCards={[
-                      { label: 'Total Revenue', value: formatCurrency(monthly.summary.total_revenue) },
                       { label: 'Total Bills', value: monthly.summary.total_bills },
-                      { label: 'Avg Daily', value: formatCurrency(monthly.summary.average_daily_revenue) },
                     ]}
                   />
                 </CardHeader>
