@@ -28,6 +28,7 @@ export default function DocsFirstTimeModal() {
     queryKey: ['docs'],
     queryFn: () => docsService.getDocs(),
     enabled: open,
+    refetchOnWindowFocus: false,
   })
   const docs = data?.data || []
 

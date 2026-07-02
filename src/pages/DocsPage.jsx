@@ -38,6 +38,7 @@ export default function DocsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['docs'],
     queryFn: () => docsService.getDocs(),
+    refetchOnWindowFocus: false,
   })
   const docs = data?.data || []
 

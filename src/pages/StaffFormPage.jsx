@@ -256,6 +256,7 @@ function StaffFormPage() {
         additional_branches: (staff.additional_branches || []).map(b => b.branch_id),
         is_active: staff.is_active ?? true,
         employee_code: staff.employee_details?.employee_code || '',
+        biometric_id: staff.employee_details?.biometric_id || '',
         joining_date: staff.employee_details?.joining_date?.split('T')[0] || '',
         date_of_birth: staff.employee_details?.date_of_birth?.split('T')[0] || '',
         address: staff.employee_details?.address || '',
@@ -306,6 +307,7 @@ function StaffFormPage() {
     onSuccess: () => {
       toast.success('Staff member updated successfully')
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['user', id] })
       navigate('/staff')
     },
     onError: (error) => {
