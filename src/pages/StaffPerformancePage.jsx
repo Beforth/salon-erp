@@ -997,6 +997,7 @@ function StaffPerformancePage() {
                           <TableRow key={day.date}>
                             <TableCell className="font-medium whitespace-nowrap">
                               {new Date(day.date + 'T00:00:00').toLocaleDateString('en-IN', {
+                                timeZone: 'Asia/Kolkata',
                                 day: '2-digit',
                                 month: 'short',
                                 year: 'numeric',
@@ -1329,7 +1330,7 @@ function StaffPerformancePage() {
                                   <TableRow key={r.incentive_id}>
                                     <TableCell className="text-sm">{r.bill_number}</TableCell>
                                     <TableCell className="text-sm">
-                                      {r.bill_date ? new Date(r.bill_date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                                      {r.bill_date ? new Date(r.bill_date).toLocaleDateString('en-IN', { timeZone: 'UTC', day: '2-digit', month: 'short' }) : '—'}
                                     </TableCell>
                                     <TableCell>{r.product_name}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(r.sale_amount)}</TableCell>

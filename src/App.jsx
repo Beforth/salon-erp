@@ -36,6 +36,7 @@ import PurchaseBatchesPage from './pages/PurchaseBatchesPage'
 import PurchaseBatchCreatePage from './pages/PurchaseBatchCreatePage'
 import PurchaseBatchDetailPage from './pages/PurchaseBatchDetailPage'
 import BankDepositsPage from './pages/BankDepositsPage'
+import EmployeeStatusPage from './pages/EmployeeStatusPage'
 import VersionHistoryPage from './pages/VersionHistoryPage'
 import JobsPage from './pages/JobsPage'
 import MachinesPage from './pages/MachinesPage'
@@ -108,6 +109,7 @@ function App() {
         <Route path="bills" element={<BillsPage />} />
         <Route path="bills/new" element={<BillCreatePage />} />
         <Route path="bills/:id" element={<BillDetailPage />} />
+        <Route path="employee-status" element={<EmployeeStatusPage />} />
         <Route path="services" element={<ServicesPage />} />
         <Route path="services/new" element={<ServiceFormPage />} />
         <Route path="services/:id/edit" element={<ServiceFormPage />} />

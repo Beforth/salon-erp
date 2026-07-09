@@ -54,6 +54,7 @@ import { printThermalReceipt } from '@/components/ThermalReceipt'
 import GstInvoice, { printGstInvoiceElement } from '@/components/invoices/GstInvoice'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
 import CompletePendingServiceModal from '@/components/modals/CompletePendingServiceModal'
+import ConfirmDialog from '@/components/modals/ConfirmDialog'
 
 const statusColors = {
   completed: 'success',
@@ -91,6 +92,9 @@ function BillDetailPage() {
   const [reconfigPrice, setReconfigPrice] = useState('')
   const [editBookNumberOpen, setEditBookNumberOpen] = useState(false)
   const [editBookNumberValue, setEditBookNumberValue] = useState('')
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [completingItemId, setCompletingItemId] = useState(null)
 
   const deleteBillMutation = useMutation({
     mutationFn: () => billService.cancelBill(id),
@@ -137,6 +141,49 @@ function BillDetailPage() {
     },
     onError: (err) => {
       toast.error(err.response?.data?.error?.message || 'Failed to update bill')
+    },
+  })
+
+  const getItemEmployeeIds = (item) => {
+    const ids = []
+    if (item.employees?.length) {
+      for (const e of item.employees) {
+        if (e.employee_id) ids.push(e.employee_id)
+      }
+    } else if (item.employee?.id) {
+      ids.push(item.employee.id)
+    } else if (item.employee_id) {
+      ids.push(item.employee_id)
+    }
+    return ids
+  }
+
+  const completeItemMutation = useMutation({
+    mutationFn: ({ itemId, employeeIds }) =>
+      billService.completeBillItem(id, itemId, { employee_ids: employeeIds }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['bill', id], (old) => {
+        if (!old?.data?.items) return old
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            items: old.data.items.map((item) =>
+              item.item_id === data?.data?.item_id
+                ? { ...item, status: 'completed' }
+                : item
+            ),
+          },
+        }
+      })
+      queryClient.invalidateQueries({ queryKey: ['rotation-queue'] })
+      queryClient.invalidateQueries({ queryKey: ['pending-services'] })
+      setCompletingItemId(null)
+      toast.success('Service completed')
+    },
+    onError: (err) => {
+      setCompletingItemId(null)
+      toast.error(err.response?.data?.error?.message || 'Failed to complete service')
     },
   })
 
@@ -431,11 +478,7 @@ function BillDetailPage() {
               <Button
                 variant="outline"
                 className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                onClick={() => {
-                  if (window.confirm(`Cancel bill ${bill.bill_number}? This action cannot be undone.`)) {
-                    deleteBillMutation.mutate()
-                  }
-                }}
+                onClick={() => setCancelConfirmOpen(true)}
                 disabled={deleteBillMutation.isPending}
               >
                 <XCircle className="h-4 w-4 mr-2" />
@@ -468,11 +511,7 @@ function BillDetailPage() {
             <Button
               variant="outline"
               className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-              onClick={() => {
-                if (window.confirm(`Delete bill ${bill.bill_number}? This will cancel the bill.`)) {
-                  deleteBillMutation.mutate()
-                }
-              }}
+              onClick={() => setDeleteConfirmOpen(true)}
               disabled={deleteBillMutation.isPending}
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -680,12 +719,33 @@ function BillDetailPage() {
                               </TableCell>
                               <TableCell className="text-center">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Badge
-                                    variant={item.status === 'pending' ? 'warning' : 'success'}
-                                    className="text-xs capitalize"
-                                  >
-                                    {item.status || 'completed'}
-                                  </Badge>
+                                  {item.status === 'in_progress' ? (
+                                    <Badge
+                                      variant="default"
+                                      className={`text-xs capitalize ${completingItemId === item.item_id ? 'opacity-50' : 'cursor-pointer hover:bg-primary/80'}`}
+                                      onClick={() => {
+                                        if (completingItemId) return
+                                        const employeeIds = getItemEmployeeIds(item)
+                                        if (!employeeIds.length) {
+                                          toast.error('No employee assigned to this service')
+                                          return
+                                        }
+                                        setCompletingItemId(item.item_id)
+                                        completeItemMutation.mutate({ itemId: item.item_id, employeeIds })
+                                      }}
+                                    >
+                                      {completingItemId === item.item_id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : 'Started'}
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant={item.status === 'pending' ? 'warning' : 'success'}
+                                      className="text-xs capitalize"
+                                    >
+                                      {item.status || 'completed'}
+                                    </Badge>
+                                  )}
                                   {item.status === 'pending' && bill.status === 'completed' && (
                                     <Button
                                       size="sm"
@@ -759,12 +819,33 @@ function BillDetailPage() {
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <Badge
-                              variant={item.status === 'pending' ? 'warning' : 'success'}
-                              className="text-xs capitalize"
-                            >
-                              {item.status || 'completed'}
-                            </Badge>
+                            {item.status === 'in_progress' ? (
+                              <Badge
+                                variant="default"
+                                className={`text-xs capitalize ${completingItemId === item.item_id ? 'opacity-50' : 'cursor-pointer hover:bg-primary/80'}`}
+                                onClick={() => {
+                                  if (completingItemId) return
+                                  const employeeIds = getItemEmployeeIds(item)
+                                  if (!employeeIds.length) {
+                                    toast.error('No employee assigned to this service')
+                                    return
+                                  }
+                                  setCompletingItemId(item.item_id)
+                                  completeItemMutation.mutate({ itemId: item.item_id, employeeIds })
+                                }}
+                              >
+                                {completingItemId === item.item_id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : 'Started'}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant={item.status === 'pending' ? 'warning' : 'success'}
+                                className="text-xs capitalize"
+                              >
+                                {item.status || 'completed'}
+                              </Badge>
+                            )}
                             {item.status === 'pending' && bill.status === 'completed' && (
                               <Button
                                 size="sm"
@@ -1431,6 +1512,22 @@ function BillDetailPage() {
         open={completePendingItemModalOpen}
         onOpenChange={setCompletePendingItemModalOpen}
         item={selectedPendingItemForComplete}
+      />
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        title="Cancel Bill"
+        description={`Cancel bill ${bill?.bill_number}? This action cannot be undone.`}
+        confirmLabel="Cancel Bill"
+        onConfirm={() => { setCancelConfirmOpen(false); deleteBillMutation.mutate() }}
+      />
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Delete Bill"
+        description={`Delete bill ${bill?.bill_number}? This will cancel the bill and cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => { setDeleteConfirmOpen(false); deleteBillMutation.mutate() }}
       />
     </div>
   )

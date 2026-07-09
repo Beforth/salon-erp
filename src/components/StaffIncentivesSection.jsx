@@ -28,7 +28,7 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => ({
 }))
 
 const YEARS = (() => {
-  const now = new Date().getUTCFullYear()
+  const now = new Date().getFullYear()
   const out = []
   for (let y = now - 1; y <= now + 1; y += 1) out.push(y)
   return out
@@ -71,8 +71,8 @@ export default function StaffIncentivesSection({
 }) {
   const queryClient = useQueryClient()
   const today = new Date()
-  const [internalYear, setInternalYear] = useState(today.getUTCFullYear())
-  const [internalMonth, setInternalMonth] = useState(today.getUTCMonth() + 1)
+  const [internalYear, setInternalYear] = useState(today.getFullYear())
+  const [internalMonth, setInternalMonth] = useState(today.getMonth() + 1)
   const [internalBranchId, setInternalBranchId] = useState('')
   const [expanded, setExpanded] = useState({})
 

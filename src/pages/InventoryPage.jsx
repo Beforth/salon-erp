@@ -64,12 +64,13 @@ const emptyAdjustData = {
 
 function formatDate(value) {
   if (!value) return '-'
-  return new Date(value).toLocaleDateString()
+  return new Date(value).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })
 }
 
 function formatDateTime(value) {
   if (!value) return '—'
   return new Date(value).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: 'short',
     year: 'numeric',

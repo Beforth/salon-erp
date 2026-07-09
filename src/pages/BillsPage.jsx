@@ -47,6 +47,7 @@ import {
 import { toast } from 'sonner'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
 import CompletePendingServiceModal from '@/components/modals/CompletePendingServiceModal'
+import ConfirmDialog from '@/components/modals/ConfirmDialog'
 
 const statusColors = {
   completed: 'success',
@@ -118,6 +119,7 @@ function BillsPage() {
   const [pendingServicePage, setPendingServicePage] = useState(1)
   const [completePendingModalOpen, setCompletePendingModalOpen] = useState(false)
   const [selectedPendingItem, setSelectedPendingItem] = useState(null)
+  const [deleteConfirmBill, setDeleteConfirmBill] = useState(null)
 
   // Fetch branches for owner filter
   const { data: branchesData } = useQuery({
@@ -356,7 +358,7 @@ function BillsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {item.bill_date ? new Date(item.bill_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          {item.bill_date ? new Date(item.bill_date).toLocaleDateString('en-IN', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(item.total_price)}</TableCell>
                         {isOwner && <TableCell>{item.branch_name}</TableCell>}
@@ -641,11 +643,7 @@ function BillsPage() {
                           {bill.status !== 'cancelled' && (
                             <DropdownMenuItem
                               className="text-red-600 focus:text-red-600"
-                              onClick={() => {
-                                if (window.confirm(`Delete bill ${bill.bill_number}? This will cancel the bill.`)) {
-                                  deleteBillMutation.mutate(bill.bill_id)
-                                }
-                              }}
+                              onClick={() => setDeleteConfirmBill(bill)}
                               disabled={deleteBillMutation.isPending}
                             >
                               {bill.status === 'pending' ? (
@@ -713,6 +711,18 @@ function BillsPage() {
         open={completePendingModalOpen}
         onOpenChange={setCompletePendingModalOpen}
         item={selectedPendingItem}
+      />
+
+      {/* Cancel / Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteConfirmBill}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmBill(null) }}
+        title={deleteConfirmBill?.status === 'pending' ? 'Cancel Bill' : 'Delete Bill'}
+        description={`${deleteConfirmBill?.status === 'pending' ? 'Cancel' : 'Delete'} bill ${deleteConfirmBill?.bill_number}? This action cannot be undone.`}
+        confirmLabel={deleteConfirmBill?.status === 'pending' ? 'Cancel Bill' : 'Delete'}
+        variant="destructive"
+        loading={deleteBillMutation.isPending}
+        onConfirm={() => { deleteBillMutation.mutate(deleteConfirmBill?.bill_id); setDeleteConfirmBill(null) }}
       />
     </div>
   )

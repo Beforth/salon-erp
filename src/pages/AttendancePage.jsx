@@ -32,8 +32,8 @@ const STATUS_META = {
 function formatTimeStored(iso) {
   if (!iso) return '—'
   const d = new Date(iso)
-  const h = String(d.getUTCHours()).padStart(2, '0')
-  const m = String(d.getUTCMinutes()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
   return `${h}:${m}`
 }
 
@@ -120,7 +120,20 @@ export default function AttendancePage() {
     enabled: !!branchId && activeTab === 'today',
     refetchInterval: activeTab === 'today' ? 60_000 : undefined,
   })
-  const roster = rosterData?.data
+  const roster = useMemo(() => {
+    const data = rosterData?.data
+    if (!data) return data
+    const shouldExcludeSelf = ['manager', 'cashier'].includes(user?.role)
+    const isCashier = user?.role === 'cashier'
+    return {
+      ...data,
+      employees: (data.employees || []).filter((emp) => {
+        if (shouldExcludeSelf && emp.id === user?.id) return false
+        if (isCashier && emp.role === 'manager') return false
+        return true
+      }),
+    }
+  }, [rosterData?.data, user?.id, user?.role])
 
   // Monthly attendance query
   const { data: monthlyDataResponse, isLoading: monthlyLoading, refetch: refetchMonthly } = useQuery({
@@ -131,8 +144,15 @@ export default function AttendancePage() {
   const monthlyData = monthlyDataResponse?.data
 
   const employeesList = useMemo(() => {
-    return monthlyData?.employees || []
-  }, [monthlyData?.employees])
+    const list = monthlyData?.employees || []
+    const shouldExcludeSelf = ['manager', 'cashier'].includes(user?.role)
+    const isCashier = user?.role === 'cashier'
+    return list.filter((emp) => {
+      if (shouldExcludeSelf && emp.id === user?.id) return false
+      if (isCashier && emp.role === 'manager') return false
+      return true
+    })
+  }, [monthlyData?.employees, user?.id, user?.role])
 
   useEffect(() => {
     if (employeesList.length > 0) {
@@ -255,7 +275,9 @@ export default function AttendancePage() {
     }
 
     punchMutation.mutate({
-      employee_code: employee.employee_code,
+      ...(employee.employee_code
+        ? { employee_code: employee.employee_code }
+        : { employee_id: employee.id }),
       machine_no: defaultMachineNo,
       punch_time: dateObj.toISOString(),
       punch_type: type,
@@ -433,7 +455,7 @@ export default function AttendancePage() {
           <h1 className="text-2xl font-semibold">Attendance Management</h1>
           <p className="text-sm text-muted-foreground font-medium">
             {activeTab === 'today' && roster?.branch?.name ? `${roster.branch.name} · ` : ''}
-            {activeTab === 'today' && roster?.shop_date ? `Shop date ${new Date(roster.shop_date).toISOString().split('T')[0]}` : 'Track shifts, floor status, and calendars'}
+            {activeTab === 'today' && roster?.shop_date ? `Shop date ${new Date(roster.shop_date).toLocaleDateString('en-CA')}` : 'Track shifts, floor status, and calendars'}
           </p>
         </div>
         <Button
@@ -521,11 +543,6 @@ export default function AttendancePage() {
                             <div className="font-medium">{emp.full_name}</div>
                             <div className="text-xs text-muted-foreground font-mono">
                               {emp.employee_code}
-                              {emp.has_flexible_timing && (
-                                <Badge variant="outline" className="ml-2 text-[10px] py-0">
-                                  <Zap className="h-3 w-3 mr-0.5" />flex
-                                </Badge>
-                              )}
                               {emp.shift_start && emp.shift_end && !emp.has_flexible_timing && (
                                 <span className="ml-2">shift {emp.shift_start}–{emp.shift_end}</span>
                               )}
@@ -975,7 +992,7 @@ export default function AttendancePage() {
         <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Roster Detail: {detailDate ? new Date(detailDate).toLocaleDateString('default', { dateStyle: 'long' }) : ''}
+              Roster Detail: {detailDate ? new Date(detailDate + 'T00:00:00').toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'long' }) : ''}
             </DialogTitle>
           </DialogHeader>
 
@@ -1011,11 +1028,6 @@ export default function AttendancePage() {
                         <div className="font-medium">{emp.full_name}</div>
                         <div className="text-xs text-muted-foreground font-mono">
                           {emp.employee_code}
-                          {emp.has_flexible_timing && (
-                            <Badge variant="outline" className="ml-2 text-[10px] py-0">
-                              <Zap className="h-3 w-3 mr-0.5" />flex
-                            </Badge>
-                          )}
                           {emp.shift_start && emp.shift_end && !emp.has_flexible_timing && (
                             <span className="ml-2">shift {emp.shift_start}–{emp.shift_end}</span>
                           )}

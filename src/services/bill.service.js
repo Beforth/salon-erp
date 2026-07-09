@@ -18,4 +18,6 @@ export const billService = {
   completeBillItem: (billId, itemId, data) => api.post(`/bills/${billId}/items/${itemId}/complete`, data),
 
   getConsumptionPreview: (billId, data) => api.post(`/bills/${billId}/consumption-preview`, data),
+
+  getEmployeeStatus: (params) => api.get('/bills/employee-status', { params }),
 }

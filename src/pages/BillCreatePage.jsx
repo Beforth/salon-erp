@@ -144,8 +144,9 @@ function BillCreatePage() {
   // Cart
   const [cartItems, setCartItems] = useState([])
   const [cartCollapsed, setCartCollapsed] = useState(false)
+  const [queueOpen, setQueueOpen] = useState(false)
 
-  // Employees held by pending cart lines (not yet saved — removed from "next up")
+  // Employees held by cart lines being started now (removed from "next up"; pending stays ready)
   const heldEmployeeIds = useMemo(() => {
     const ids = new Set()
     const addIds = (list) => {
@@ -155,11 +156,10 @@ function BillCreatePage() {
     }
     for (const item of cartItems) {
       if (item.item_type === 'package') {
-        if (item.item_status === 'pending') addIds(item.employee_ids)
         for (const svc of item.selected_services || []) {
-          if (svc.item_status === 'pending') addIds(svc.employee_ids)
+          if (svc.item_status !== 'pending') addIds(svc.employee_ids)
         }
-      } else if (item.item_type === 'service' && item.item_status === 'pending') {
+      } else if (item.item_type === 'service' && item.item_status !== 'pending') {
         addIds(item.employee_ids)
       }
     }
@@ -449,7 +449,7 @@ function BillCreatePage() {
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       queryClient.invalidateQueries({ queryKey: ['customers'] })
-      queryClient.invalidateQueries({ queryKey: ['chairs'] })
+      queryClient.invalidateQueries({ queryKey: ['rotation-queue'] })
       const billId = response.data?.bill_id
       if (billId) {
         navigate(`/bills/${billId}`)
@@ -496,15 +496,7 @@ function BillCreatePage() {
     let usedDefaultOrChoices = hasGroups
 
     const assignEmployees = async (ps) => {
-      const needCount = ps.is_multi_employee ? Math.max(1, ps.employee_count || 1) : 1
-      try {
-        const empIds = await pickEmployeesFromQueue(ps.service_id, needCount)
-        if (empIds.length < needCount) unallocated += 1
-        return empIds
-      } catch {
-        unallocated += 1
-        return []
-      }
+      return []
     }
 
     if (standaloneServices.length > 0 || hasGroups) {
@@ -658,14 +650,7 @@ function BillCreatePage() {
 
       const svc = services.find((s) => s.service_id === ts.service_id)
       if (!svc) continue
-      let empIds = []
-      try {
-        const picked = await pickEmployeesFromQueue(svc.service_id, 1)
-        if (picked.length) empIds = picked
-        else unallocatedCount += 1
-      } catch {
-        unallocatedCount += 1
-      }
+      const empIds = []
       additions.push({
         cart_id: crypto.randomUUID(),
         item_type: 'service',
@@ -881,24 +866,6 @@ function BillCreatePage() {
     } else if (selectedCategory === 'services') {
       let empIds = (componentEmployees[0] || []).filter(Boolean)
 
-      // Auto-assign from check-in queue if cashier didn't pick anyone manually.
-      if (empIds.length === 0 && selectedBranch) {
-        const needCount = selectedItem?.is_multi_employee
-          ? Math.max(1, selectedItem?.employee_count || 1)
-          : 1
-        const picked = await pickEmployeesFromQueue(selectedItemId, needCount)
-        if (picked.length) {
-          empIds = picked
-          toast.success(
-            picked.length === 1
-              ? 'Auto-assigned from queue'
-              : `Auto-assigned ${picked.length} staff from queue`
-          )
-        } else {
-          toast.warning('No eligible employee in the check-in queue — assign manually')
-        }
-      }
-
       setCartItems([
         ...cartItems,
         {
@@ -1111,8 +1078,22 @@ function BillCreatePage() {
     }
   }
 
+  const getCartItemStatusLabel = (status) => {
+    if (status === 'pending') return 'Pending'
+    if (status === 'in_progress') return 'Started'
+    return 'Done'
+  }
+
+  const mapSubmitItemStatus = (itemStatus, { startService = false, itemType = 'service' } = {}) => {
+    if (itemStatus === 'pending') return 'pending'
+    if (itemType === 'product') return 'completed'
+    if (startService) return 'in_progress'
+    if (itemStatus === 'in_progress') return 'in_progress'
+    return 'completed'
+  }
+
   // Convert cart items into the API format at submit time
-  const buildSubmitItems = (items) => {
+  const buildSubmitItems = (items, { startService = false } = {}) => {
     return items.map((item) => {
       if (item.item_type === 'package') {
         const lineTotal = item.unit_price * item.quantity
@@ -1126,7 +1107,7 @@ function BillCreatePage() {
               : empIds.length === 1
                 ? { employee_id: empIds[0] }
                 : {}),
-            status: svc.item_status === 'pending' ? 'pending' : 'completed',
+            status: mapSubmitItemStatus(svc.item_status, { startService, itemType: 'service' }),
           }
         })
         return {
@@ -1139,7 +1120,7 @@ function BillCreatePage() {
             lineTotal > 0 ? parseFloat(((discount / lineTotal) * 100).toFixed(2)) : 0,
           selected_services: selectedServices,
           notes: item.source_package_name || null,
-          status: item.item_status === 'pending' ? 'pending' : 'completed',
+          status: mapSubmitItemStatus(item.item_status, { startService, itemType: 'package' }),
         }
       }
 
@@ -1163,7 +1144,7 @@ function BillCreatePage() {
               )
             : 0,
         notes: item.source_package_name || null,
-        status: item.item_status === 'pending' ? 'pending' : 'completed',
+        status: mapSubmitItemStatus(item.item_status, { startService, itemType: item.item_type }),
       }
     })
   }
@@ -1264,7 +1245,7 @@ function BillCreatePage() {
       bill_date: billDateTime,
       chair_id: selectedChair || undefined,
       book_number: bookNumber.trim() || undefined,
-      items: buildSubmitItems(cartItems),
+      items: buildSubmitItems(cartItems, { startService: true }),
       payments: [],
       discount_amount: parseFloat(billDiscount.toFixed(2)),
       discount_reason: discountReason,
@@ -1571,15 +1552,6 @@ function BillCreatePage() {
               </Tabs>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-4 space-y-4">
-              {selectedCategory === 'services' && selectedBranch && (
-                <EmployeeRotationPanel
-                  branchId={selectedBranch}
-                  serviceId={selectedItemId || undefined}
-                  serviceName={selectedItem?.name}
-                  heldEmployeeIds={heldEmployeeIds}
-                  compact={!selectedItemId}
-                />
-              )}
               {/* Barcode Scan Input — products only */}
               {selectedCategory === 'products' && (
                 <div>
@@ -1769,42 +1741,39 @@ function BillCreatePage() {
 
                   {/* Same employee for all services (packages only) */}
                   {selectedCategory === 'packages' && (selectedItem.services?.length > 0 || selectedItem.service_groups?.length > 0) && (
-                    <div className="flex items-center gap-3 p-2 bg-blue-50 rounded border border-blue-200">
-                      <label className="flex items-center gap-2 cursor-pointer text-sm">
-                        <input
-                          type="checkbox"
-                          checked={sameEmployeeForAll}
-                          onChange={(e) => {
-                            const checked = e.target.checked
-                            setSameEmployeeForAll(checked)
-                            if (!checked) {
-                              setGlobalEmployee('')
-                            }
-                          }}
-                          className="rounded border-gray-300"
-                        />
-                        <span className="text-blue-700 font-medium">Same employee for all services</span>
-                      </label>
-                      {sameEmployeeForAll && (
-                        <SearchableSelect
-                          className="flex-1 min-w-[150px]"
-                          options={employees.map((emp) => ({ value: emp.employee_id, label: emp.full_name }))}
-                          value={globalEmployee}
-                          onChange={(val) => {
-                            setGlobalEmployee(val)
-                            if (val) {
-                              // Apply to all component indices
-                              const totalComponents = (selectedItem.services?.length || 0) + (selectedItem.service_groups?.length || 0)
-                              const updated = {}
-                              for (let i = 0; i < totalComponents; i++) {
-                                updated[i] = [val]
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 p-2 bg-blue-50 rounded border border-blue-200">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={sameEmployeeForAll}
+                            onChange={(e) => {
+                              const checked = e.target.checked
+                              setSameEmployeeForAll(checked)
+                              if (!checked) setGlobalEmployee('')
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span className="text-blue-700 font-medium">Same employee for all services</span>
+                        </label>
+                        {sameEmployeeForAll && (
+                          <SearchableSelect
+                            className="flex-1 min-w-[150px]"
+                            options={employees.map((emp) => ({ value: emp.employee_id, label: emp.full_name }))}
+                            value={globalEmployee}
+                            onChange={(val) => {
+                              setGlobalEmployee(val)
+                              if (val) {
+                                const totalComponents = (selectedItem.services?.length || 0) + (selectedItem.service_groups?.length || 0)
+                                const updated = {}
+                                for (let i = 0; i < totalComponents; i++) updated[i] = [val]
+                                setComponentEmployees(updated)
                               }
-                              setComponentEmployees(updated)
-                            }
-                          }}
-                          placeholder="Select employee..."
-                        />
-                      )}
+                            }}
+                            placeholder="Select employee..."
+                          />
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1814,17 +1783,19 @@ function BillCreatePage() {
                       {selectedItem.services.map((ps, idx) => {
                         const slots = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
                         return (
-                          <div key={ps.service_id} className="flex items-center gap-2 p-1.5 bg-white rounded border flex-wrap">
-                            <span className="text-gray-700 text-xs font-medium truncate max-w-[140px]" title={ps.service_name}>
-                              {ps.service_name}
-                            </span>
-                            {getPackageServiceStarPoints(ps) > 0 && (
-                              <span className="inline-flex items-center text-amber-600 text-[10px] shrink-0">
-                                <Star className="h-2.5 w-2.5 fill-amber-500" />
-                                {getPackageServiceStarPoints(ps)}
+                          <div key={ps.service_id} className="flex items-start gap-2 p-1.5 bg-white rounded border flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-[130px]">
+                              <span className="text-gray-700 text-xs font-medium truncate max-w-[140px]" title={ps.service_name}>
+                                {ps.service_name}
                               </span>
-                            )}
-                            <span className="text-[10px] text-gray-400 shrink-0">x{ps.quantity} {formatCurrency(ps.service_price)}</span>
+                              {getPackageServiceStarPoints(ps) > 0 && (
+                                <span className="inline-flex items-center text-amber-600 text-[10px] shrink-0">
+                                  <Star className="h-2.5 w-2.5 fill-amber-500" />
+                                  {getPackageServiceStarPoints(ps)}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-gray-400 shrink-0">x{ps.quantity} {formatCurrency(ps.service_price)}</span>
+                            </div>
                             <div className="flex items-center gap-1 ml-auto flex-wrap">
                               {slots.map((_, slotIdx) => (
                                 <div key={slotIdx} className="flex items-center gap-0.5">
@@ -1863,7 +1834,7 @@ function BillCreatePage() {
                               <button
                                 type="button"
                                 className="h-6 w-6 flex items-center justify-center rounded border border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 shrink-0"
-                                title="Add employee"
+                                title="Add employee slot"
                                 onClick={() => {
                                   const current = (componentEmployees[idx] || []).length ? (componentEmployees[idx] || []) : ['']
                                   setComponentEmployees((prev) => ({ ...prev, [idx]: [...current, ''] }))
@@ -1871,6 +1842,17 @@ function BillCreatePage() {
                               >
                                 <Plus className="h-3 w-3" />
                               </button>
+                              {!sameEmployeeForAll && (
+                                <button
+                                  type="button"
+                                  className="h-6 px-1.5 flex items-center gap-0.5 rounded border border-primary/40 text-primary text-[10px] font-medium hover:bg-primary/10 shrink-0"
+                                  title={`Pick from queue for ${ps.service_name}`}
+                                  onClick={() => handleAddEmployeeFromQueue(idx, ps.service_id)}
+                                >
+                                  <Users className="h-2.5 w-2.5" />
+                                  Queue
+                                </button>
+                              )}
                             </div>
                           </div>
                         )
@@ -1965,6 +1947,17 @@ function BillCreatePage() {
                                       >
                                         <Plus className="h-3 w-3" />
                                       </button>
+                                      {!sameEmployeeForAll && (
+                                        <button
+                                          type="button"
+                                          className="h-6 px-1.5 flex items-center gap-0.5 rounded border border-primary/40 text-primary text-[10px] font-medium hover:bg-primary/10 shrink-0"
+                                          title={`Pick from queue for ${chosen.service_name}`}
+                                          onClick={() => handleAddEmployeeFromQueue(idx, chosen.service_id)}
+                                        >
+                                          <Users className="h-2.5 w-2.5" />
+                                          Queue
+                                        </button>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -2050,8 +2043,7 @@ function BillCreatePage() {
                     <div>
                       {selectedCategory === 'services' && selectedItemId && (
                         <p className="text-xs text-muted-foreground mb-2">
-                          Leave blank to auto-assign the <strong>next in check-in queue</strong> (skips staff without required skills).
-                          Mark cart lines as <strong>Pending</strong> to hold assigned staff off the queue.
+                          Select an employee manually or leave blank to add without assignment
                         </p>
                       )}
                       <Label className="mb-1 block text-sm flex items-center gap-2">
@@ -2127,12 +2119,54 @@ function BillCreatePage() {
                     </div>
                   )}
 
+                  {selectedCategory === 'packages' && selectedItem && (selectedItem.services?.length > 0 || selectedItem.service_groups?.length > 0) && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full"
+                      onClick={async () => {
+                        const standaloneServices = selectedItem.services || []
+                        const serviceGroups = selectedItem.service_groups || []
+                        const updated = { ...componentEmployees }
+                        let assigned = 0
+                        let failed = 0
+                        const globalExclude = []
+                        for (let i = 0; i < standaloneServices.length; i++) {
+                          const ps = standaloneServices[i]
+                          const current = (updated[i] || []).filter(Boolean)
+                          const row = await pickFromRotationQueue({ serviceId: ps.service_id, exclude: [...current, ...globalExclude] })
+                          if (row) { updated[i] = [...current, row.employee_id]; globalExclude.push(row.employee_id); assigned++ }
+                          else failed++
+                        }
+                        const standaloneLen = standaloneServices.length
+                        for (let gi = 0; gi < serviceGroups.length; gi++) {
+                          const idx = standaloneLen + gi
+                          const selectedId = (packageGroupSelections[selectedItemId] || [])[gi]
+                          const chosen = (serviceGroups[gi].services || []).find((s) => s.service_id === selectedId)
+                          if (!chosen) { failed++; continue }
+                          const current = (updated[idx] || []).filter(Boolean)
+                          const row = await pickFromRotationQueue({ serviceId: chosen.service_id, exclude: [...current, ...globalExclude] })
+                          if (row) { updated[idx] = [...current, row.employee_id]; globalExclude.push(row.employee_id); assigned++ }
+                          else failed++
+                        }
+                        setComponentEmployees(updated)
+                        if (assigned > 0) toast.success(`Assigned ${assigned} staff from queue`)
+                        if (failed > 0) toast.warning(`${failed} service(s) had no eligible staff in queue`)
+                      }}
+                    >
+                      <Users className="h-4 w-4 mr-1" /> From queue
+                    </Button>
+                  )}
+
                   <Button className="w-full" onClick={handleAddToCart}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add to Cart
                   </Button>
                 </div>
               )}
+
+
             </CardContent>
           </Card>
         </div>
@@ -2143,6 +2177,21 @@ function BillCreatePage() {
             cartCollapsed ? 'w-14' : 'w-[480px]'
           }`}
         >
+          {/* Check-in queue accordion — above cart, Services & Packages tabs only */}
+          {!cartCollapsed && selectedBranch && (selectedCategory === 'services' || selectedCategory === 'packages') && (
+            <div className="mb-2">
+              <EmployeeRotationPanel
+                branchId={selectedBranch}
+                serviceId={selectedCategory === 'services' ? (selectedItemId || undefined) : undefined}
+                serviceName={selectedCategory === 'services' ? selectedItem?.name : undefined}
+                heldEmployeeIds={heldEmployeeIds}
+                accordion
+                accordionOpen={queueOpen}
+                onAccordionToggle={() => setQueueOpen((o) => !o)}
+              />
+            </div>
+          )}
+
           <Card className="flex-1 overflow-hidden flex flex-col">
             {/* Sticky Cart Header */}
             <CardHeader className="pb-0 flex flex-row items-center gap-0 p-0 min-h-0 flex-shrink-0 border-b">
@@ -2345,7 +2394,7 @@ function BillCreatePage() {
                                             : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
                                         }`}
                                       >
-                                        {svc.item_status === 'pending' ? 'Pend' : 'Done'}
+                                        {getCartItemStatusLabel(svc.item_status)}
                                       </button>
                                     </div>
                                     <div className="flex items-center gap-1 mt-0.5 flex-wrap">
@@ -2403,7 +2452,7 @@ function BillCreatePage() {
                                   : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-amber-50'
                               }`}
                             >
-                              {item.item_status === 'pending' ? 'Pending' : 'Done'}
+                              {getCartItemStatusLabel(item.item_status)}
                             </button>
                           </div>
                           <div className="flex items-center gap-0.5 shrink-0">
@@ -2847,7 +2896,7 @@ function BillCreatePage() {
                                       : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-amber-50'
                                   }`}
                                 >
-                                  {svc.item_status === 'pending' ? 'Pending' : 'Done'}
+                                  {getCartItemStatusLabel(svc.item_status)}
                                 </button>
                               </div>
                               {slots.map((eid, slotIdx) => (

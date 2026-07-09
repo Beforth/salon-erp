@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDateStored } from '@/lib/utils'
 import { incentiveService } from '@/services/incentive.service'
 import { userService } from '@/services/user.service'
 import IncentiveConfigModal from '@/components/modals/IncentiveConfigModal'
@@ -267,7 +267,7 @@ export default function IncentivesPage() {
                           {(emp.records || []).map((r) => (
                             <TableRow key={r.incentive_id}>
                               <TableCell className="text-sm">{r.bill_number}</TableCell>
-                              <TableCell className="text-sm">{formatDate(r.bill_date)}</TableCell>
+                              <TableCell className="text-sm">{formatDateStored(r.bill_date)}</TableCell>
                               <TableCell>{r.product_name}</TableCell>
                               <TableCell className="text-right">{formatCurrency(r.sale_amount)}</TableCell>
                               <TableCell className="text-right">{r.percentage}%</TableCell>

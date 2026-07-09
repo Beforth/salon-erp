@@ -148,7 +148,7 @@ function CompletePendingServiceModal({ open, onOpenChange, item }) {
               <span className="text-sm text-gray-500">{formatCurrency(item.total_price)}</span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Billed on {item.bill_date ? new Date(item.bill_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+              Billed on {item.bill_date ? new Date(item.bill_date).toLocaleDateString('en-IN', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
             </p>
           </div>
 
