@@ -57,7 +57,7 @@ function CompleteBillModal({ open, onOpenChange, bill }) {
   useEffect(() => {
     if (open && bill) {
       setNotes('')
-      setPendingItemIds([])
+      setPendingItemIds(bill.items?.filter((i) => i.status === 'pending').map((i) => i.item_id) || [])
       setContainerSelections({})
       setPayments([{ payment_mode: 'cash', amount: totalAmount > 0 ? totalAmount.toFixed(2) : '' }])
     }

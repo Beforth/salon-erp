@@ -38,7 +38,7 @@ function StatusBadge({ displayStatus }) {
   )
 }
 
-function QueueRow({ row, highlight = false }) {
+function QueueRow({ row, highlight = false, hideMeta = false }) {
   const displayStatus = row.display_status || row.status
   const skipped =
     row.status === 'available'
@@ -74,17 +74,19 @@ function QueueRow({ row, highlight = false }) {
             </Badge>
           )}
         </div>
-        <div className="text-[11px] text-gray-400 flex flex-wrap gap-x-2 items-center mt-0.5">
-          {row.check_in_at && (
-            <span className="inline-flex items-center gap-0.5">
-              <Clock className="h-2.5 w-2.5" />
-              Waiting {formatCheckIn(row.check_in_at)}
-            </span>
-          )}
-          {row.skill_names?.length > 0 && (
-            <span className="truncate">{row.skill_names.join(' · ')}</span>
-          )}
-        </div>
+        {!hideMeta && (
+          <div className="text-[11px] text-gray-400 flex flex-wrap gap-x-2 items-center mt-0.5">
+            {row.check_in_at && (
+              <span className="inline-flex items-center gap-0.5">
+                <Clock className="h-2.5 w-2.5" />
+                Waiting {formatCheckIn(row.check_in_at)}
+              </span>
+            )}
+            {row.skill_names?.length > 0 && (
+              <span className="truncate">{row.skill_names.join(' · ')}</span>
+            )}
+          </div>
+        )}
       </div>
 
       <StatusBadge displayStatus={displayStatus} />
@@ -110,6 +112,9 @@ export default function EmployeeRotationPanel({
   accordion = false,
   accordionOpen = false,
   onAccordionToggle = () => {},
+  floatExpand = false,
+  bare = false,
+  hideMeta = false,
 }) {
   const heldKey = heldEmployeeIds.join(',')
 
@@ -136,7 +141,7 @@ export default function EmployeeRotationPanel({
   /* ── ACCORDION MODE ─────────────────────────────────────── */
   if (accordion) {
     return (
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+      <div className={`rounded-lg border border-border bg-card shadow-sm ${floatExpand ? 'relative h-full' : 'overflow-hidden'}`}>
 
         {/* ── Header row ── */}
         <div className="flex items-center gap-2 px-3.5 pt-3 pb-1">
@@ -183,7 +188,7 @@ export default function EmployeeRotationPanel({
               Loading queue…
             </div>
           ) : nextUp ? (
-            <QueueRow row={nextUp} highlight />
+            <QueueRow row={nextUp} highlight hideMeta={hideMeta || floatExpand} />
           ) : queue.length > 0 ? (
             <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-start gap-2">
               <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
@@ -199,7 +204,7 @@ export default function EmployeeRotationPanel({
 
         {/* ── Expanded: rest of queue + summary + refresh ── */}
         {accordionOpen && (
-          <div className="border-t border-border px-3 py-2.5 space-y-2 bg-muted/30">
+          <div className={`border-t border-border px-3 py-2.5 space-y-2 ${floatExpand ? 'absolute left-0 right-0 top-full z-20 bg-card shadow-lg border border-border rounded-b-lg max-h-[20rem] overflow-y-auto' : 'bg-muted/30'}`}>
 
             {/* Rest of queue (skip the nextUp row already shown) */}
             {queue.length > 1 && (
@@ -208,7 +213,7 @@ export default function EmployeeRotationPanel({
                   .filter((r) => r.employee_id !== nextUp?.employee_id)
                   .slice(0, visibleLimit - 1)
                   .map((row) => (
-                    <QueueRow key={row.employee_id} row={row} />
+                    <QueueRow key={row.employee_id} row={row} hideMeta={hideMeta || floatExpand} />
                   ))
                 }
                 {queue.length > visibleLimit && (
@@ -276,7 +281,7 @@ export default function EmployeeRotationPanel({
   }
 
   return (
-    <div className={`rounded-lg border bg-card ${compact ? 'p-3' : 'p-4'} space-y-3`}>
+    <div className={`${bare ? (compact ? 'p-3' : 'p-4') : `rounded-lg border bg-card ${compact ? 'p-3' : 'p-4'}`} space-y-3`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground">
@@ -339,6 +344,7 @@ export default function EmployeeRotationPanel({
               key={row.employee_id}
               row={row}
               highlight={serviceId ? row.employee_id === nextUp?.employee_id : row.is_next}
+              hideMeta={hideMeta}
             />
           ))}
           {queue.length > visibleLimit && (

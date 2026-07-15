@@ -66,6 +66,7 @@ function EmployeeStatusPage() {
     .map((emp) => ({
       ...emp,
       assignments: emp.assignments.filter((a) => {
+        if (a.status === 'completed') return false
         if (!search) return true
         const q = search.toLowerCase()
         return (
@@ -81,11 +82,16 @@ function EmployeeStatusPage() {
   const completeItemMutation = useMutation({
     mutationFn: ({ billId, itemId, employeeIds }) =>
       billService.completeBillItem(billId, itemId, { employee_ids: employeeIds }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['employee-status', effectiveBranchId] })
       queryClient.invalidateQueries({ queryKey: ['rotation-queue'] })
+      queryClient.invalidateQueries({ queryKey: ['bills'] })
       setCompletingItemId(null)
-      toast.success('Service marked as completed')
+      if (data?.data?.bill_completed) {
+        toast.success(`Bill ${data.data.bill_number || ''} completed`)
+      } else {
+        toast.success('Service marked as completed')
+      }
     },
     onError: (err) => {
       setCompletingItemId(null)

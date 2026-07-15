@@ -43,10 +43,11 @@ import {
   XCircle,
   Filter,
   X,
+  Play,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
-import CompletePendingServiceModal from '@/components/modals/CompletePendingServiceModal'
+import StartServiceModal from '@/components/modals/StartServiceModal'
 import ConfirmDialog from '@/components/modals/ConfirmDialog'
 
 const statusColors = {
@@ -117,9 +118,10 @@ function BillsPage() {
   const [selectedBillForComplete, setSelectedBillForComplete] = useState(null)
   const [viewMode, setViewMode] = useState('bills') // 'bills' | 'pending-services'
   const [pendingServicePage, setPendingServicePage] = useState(1)
-  const [completePendingModalOpen, setCompletePendingModalOpen] = useState(false)
-  const [selectedPendingItem, setSelectedPendingItem] = useState(null)
+  const [startServiceModalOpen, setStartServiceModalOpen] = useState(false)
+  const [selectedStartItem, setSelectedStartItem] = useState(null)
   const [deleteConfirmBill, setDeleteConfirmBill] = useState(null)
+  const [completeConfirmItem, setCompleteConfirmItem] = useState(null)
 
   // Fetch branches for owner filter
   const { data: branchesData } = useQuery({
@@ -135,6 +137,21 @@ function BillsPage() {
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['chairs'] })
       toast.success('Bill cancelled')
+    },
+  })
+
+  const completeItemMutation = useMutation({
+    mutationFn: ({ billId, itemId, employeeIds }) =>
+      billService.completeBillItem(billId, itemId, { employee_ids: employeeIds }),
+    onSuccess: () => {
+      toast.success('Service completed successfully!')
+      queryClient.invalidateQueries({ queryKey: ['pending-services'] })
+      queryClient.invalidateQueries({ queryKey: ['bills'] })
+      queryClient.invalidateQueries({ queryKey: ['rotation-queue'] })
+      queryClient.invalidateQueries({ queryKey: ['staff-performance'] })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error?.message || 'Failed to complete service')
     },
   })
 
@@ -354,7 +371,11 @@ function BillsPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {item.item_name}
-                            <Badge variant="warning" className="text-[10px]">Pending</Badge>
+                            {item.status === 'in_progress' ? (
+                              <Badge variant="default" className="text-[10px]">In Progress</Badge>
+                            ) : (
+                              <Badge variant="warning" className="text-[10px]">Pending</Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -363,16 +384,27 @@ function BillsPage() {
                         <TableCell className="text-right">{formatCurrency(item.total_price)}</TableCell>
                         {isOwner && <TableCell>{item.branch_name}</TableCell>}
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelectedPendingItem(item)
-                              setCompletePendingModalOpen(true)
-                            }}
-                          >
-                            <Check className="h-3.5 w-3.5 mr-1" />
-                            Complete
-                          </Button>
+                          {item.status === 'pending' ? (
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedStartItem(item)
+                                setStartServiceModalOpen(true)
+                              }}
+                            >
+                              <Play className="h-3.5 w-3.5 mr-1" />
+                              Start Service
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="success"
+                              onClick={() => setCompleteConfirmItem(item)}
+                            >
+                              <Check className="h-3.5 w-3.5 mr-1" />
+                              Complete
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -578,7 +610,12 @@ function BillsPage() {
                 {bills.map((bill) => (
                   <TableRow key={bill.bill_id}>
                     <TableCell className="font-mono text-sm">
-                      {bill.bill_number}
+                      <span
+                        className="cursor-pointer hover:text-primary hover:underline"
+                        onClick={() => navigate(`/bills/${bill.bill_id}`)}
+                      >
+                        {bill.bill_number}
+                      </span>
                       {bill.book_number && (
                         <span className="text-muted-foreground font-normal ml-1">(No. {bill.book_number})</span>
                       )}
@@ -706,11 +743,11 @@ function BillsPage() {
       </>
       )}
 
-      {/* Complete Pending Service Modal */}
-      <CompletePendingServiceModal
-        open={completePendingModalOpen}
-        onOpenChange={setCompletePendingModalOpen}
-        item={selectedPendingItem}
+      {/* Start Service Modal */}
+      <StartServiceModal
+        open={startServiceModalOpen}
+        onOpenChange={setStartServiceModalOpen}
+        item={selectedStartItem}
       />
 
       {/* Cancel / Delete Confirmation Dialog */}
@@ -723,6 +760,24 @@ function BillsPage() {
         variant="destructive"
         loading={deleteBillMutation.isPending}
         onConfirm={() => { deleteBillMutation.mutate(deleteConfirmBill?.bill_id); setDeleteConfirmBill(null) }}
+      />
+
+      {/* Complete Service Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!completeConfirmItem}
+        onOpenChange={(open) => { if (!open) setCompleteConfirmItem(null) }}
+        title="Complete Service"
+        description={`Mark "${completeConfirmItem?.item_name}" as completed?`}
+        confirmLabel="Complete"
+        loading={completeItemMutation.isPending}
+        onConfirm={() => {
+          completeItemMutation.mutate({
+            billId: completeConfirmItem.bill_id,
+            itemId: completeConfirmItem.item_id,
+            employeeIds: [],
+          })
+          setCompleteConfirmItem(null)
+        }}
       />
     </div>
   )

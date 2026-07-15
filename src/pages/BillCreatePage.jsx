@@ -59,6 +59,7 @@ import {
 import { toast } from 'sonner'
 import CustomerModal from '@/components/modals/CustomerModal'
 import EmployeeRotationPanel from '@/components/billing/EmployeeRotationPanel'
+import ConfirmDialog from '@/components/modals/ConfirmDialog'
 import { UserPlus } from 'lucide-react'
 import { useSidebar } from '@/contexts/SidebarContext'
 
@@ -145,6 +146,9 @@ function BillCreatePage() {
   const [cartItems, setCartItems] = useState([])
   const [cartCollapsed, setCartCollapsed] = useState(false)
   const [queueOpen, setQueueOpen] = useState(false)
+  const [pendingCartItem, setPendingCartItem] = useState(null)
+  const [skillWarnOpen, setSkillWarnOpen] = useState(false)
+  const [skillWarnMsg, setSkillWarnMsg] = useState('')
 
   // Employees held by cart lines being started now (removed from "next up"; pending stays ready)
   const heldEmployeeIds = useMemo(() => {
@@ -173,7 +177,6 @@ function BillCreatePage() {
         branchId: selectedBranch,
         serviceId: serviceId || undefined,
         exclude,
-        held: heldEmployeeIds,
       })
       const picked = res?.data?.data ?? res?.data ?? null
       return picked?.employee_id ? picked : null
@@ -199,6 +202,74 @@ function BillCreatePage() {
     const svcId =
       serviceId
       || (selectedCategory === 'services' ? selectedItemId : null)
+
+    // Skill check: if cart already has employees, ensure at least one has the required skills
+    if (svcId) {
+      let requiredSkills = []
+      if (serviceId) {
+        const svc = services.find((s) => s.service_id === serviceId)
+        requiredSkills = svc?.skills || []
+      } else if (selectedItem) {
+        requiredSkills = selectedItem.skills || []
+      }
+
+      if (requiredSkills.length > 0) {
+        const requiredSkillIds = new Set(requiredSkills.map((s) => String(s.id)))
+
+        // Gather all unique employee IDs already assigned to cart items
+        const cartEmployeeIds = new Set()
+        for (const item of cartItems) {
+          if (item.item_type === 'service') {
+            for (const id of item.employee_ids || []) {
+              if (id) cartEmployeeIds.add(String(id))
+            }
+          } else if (item.item_type === 'package') {
+            for (const svc of item.selected_services || []) {
+              for (const id of svc.employee_ids || []) {
+                if (id) cartEmployeeIds.add(String(id))
+              }
+            }
+          }
+        }
+
+        if (cartEmployeeIds.size > 0) {
+          let hasMatch = false
+          const missingEmployees = []
+
+          for (const empId of cartEmployeeIds) {
+            const emp = employees.find((e) => String(e.employee_id) === empId)
+            if (emp) {
+              const empSkillIds = new Set((emp.skills || []).map((s) => String(s.id)))
+              const hasAll = [...requiredSkillIds].every((skillId) => empSkillIds.has(skillId))
+              if (hasAll) {
+                hasMatch = true
+                break
+              }
+              const missingNames = [...requiredSkillIds]
+                .filter((skillId) => !empSkillIds.has(skillId))
+                .map((skillId) => {
+                  const skill = requiredSkills.find((s) => String(s.id) === skillId)
+                  return skill?.name || skillId
+                })
+              missingEmployees.push({ name: emp.full_name, missing: missingNames })
+            }
+          }
+
+          if (!hasMatch && missingEmployees.length > 0) {
+            const parts = missingEmployees.map((e) => e.name)
+            const svcName = serviceId
+              ? (services.find((s) => s.service_id === serviceId)?.service_name || 'this service')
+              : (selectedItem?.name || 'this service')
+            setSkillWarnMsg(
+              `${parts.join(', ')} ${missingEmployees.length === 1 ? "doesn't" : "don't"} have the required skills for ${svcName}. The service can be added without an assigned employee and you can assign someone later from the bill details page.`
+            )
+            setSkillWarnOpen(true)
+            return
+          }
+        }
+      }
+    }
+
     const current = (componentEmployees[componentIndex] || []).filter(Boolean)
     const row = await pickFromRotationQueue({ serviceId: svcId, exclude: current })
     if (!row) {
@@ -866,27 +937,31 @@ function BillCreatePage() {
     } else if (selectedCategory === 'services') {
       let empIds = (componentEmployees[0] || []).filter(Boolean)
 
-      setCartItems([
-        ...cartItems,
-        {
-          cart_id: crypto.randomUUID(),
-          item_type: 'service',
-          service_id: selectedItemId,
-          item_name: selectedItem?.name || '',
-          unit_price: parseFloat(itemPrice),
-          quantity: itemQuantity,
-          employee_ids: empIds,
-          employee_id: null,
-          star_points: selectedItem?.star_points ?? 0,
-          tax_rate: selectedItem?.tax_rate ?? 0,
-          hsn_sac_code: selectedItem?.hsn_sac_code || null,
-          discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
-          discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
-          is_multi_employee: selectedItem?.is_multi_employee ?? false,
-          employee_count: selectedItem?.employee_count ?? null,
-          item_status: 'completed',
-        },
-      ])
+      const newItem = {
+        cart_id: crypto.randomUUID(),
+        item_type: 'service',
+        service_id: selectedItemId,
+        item_name: selectedItem?.name || '',
+        unit_price: parseFloat(itemPrice),
+        quantity: itemQuantity,
+        employee_ids: empIds,
+        employee_id: null,
+        star_points: selectedItem?.star_points ?? 0,
+        tax_rate: selectedItem?.tax_rate ?? 0,
+        hsn_sac_code: selectedItem?.hsn_sac_code || null,
+        discount_percent: parseFloat(addDiscountAmount) > 0 ? 0 : addDiscountPercent,
+        discount_amount_override: parseFloat(addDiscountAmount) > 0 ? parseFloat(addDiscountAmount) : undefined,
+        is_multi_employee: selectedItem?.is_multi_employee ?? false,
+        employee_count: selectedItem?.employee_count ?? null,
+        item_status: 'completed',
+      }
+
+      if (empIds.length === 0) {
+        setPendingCartItem(newItem)
+        return
+      } else {
+        setCartItems((prev) => [...prev, newItem])
+      }
     } else if (selectedCategory === 'products') {
       const available = selectedItem?.stock ?? 0
       if (itemQuantity > available) {
@@ -1107,7 +1182,7 @@ function BillCreatePage() {
               : empIds.length === 1
                 ? { employee_id: empIds[0] }
                 : {}),
-            status: mapSubmitItemStatus(svc.item_status, { startService, itemType: 'service' }),
+            status: startService ? 'pending' : mapSubmitItemStatus(svc.item_status, { startService: startService && empIds.length > 0, itemType: 'service' }),
           }
         })
         return {
@@ -1144,7 +1219,9 @@ function BillCreatePage() {
               )
             : 0,
         notes: item.source_package_name || null,
-        status: mapSubmitItemStatus(item.item_status, { startService, itemType: item.item_type }),
+            status: item.item_type === 'service' && startService
+          ? 'pending'
+          : mapSubmitItemStatus(item.item_status, { startService: startService && (item.employee_ids || []).filter(Boolean).length > 0, itemType: item.item_type }),
       }
     })
   }
@@ -2128,31 +2205,68 @@ function BillCreatePage() {
                       onClick={async () => {
                         const standaloneServices = selectedItem.services || []
                         const serviceGroups = selectedItem.service_groups || []
-                        const updated = { ...componentEmployees }
-                        let assigned = 0
-                        let failed = 0
-                        const globalExclude = []
-                        for (let i = 0; i < standaloneServices.length; i++) {
-                          const ps = standaloneServices[i]
-                          const current = (updated[i] || []).filter(Boolean)
-                          const row = await pickFromRotationQueue({ serviceId: ps.service_id, exclude: [...current, ...globalExclude] })
-                          if (row) { updated[i] = [...current, row.employee_id]; globalExclude.push(row.employee_id); assigned++ }
-                          else failed++
+
+                        const allPkgServices = []
+                        for (const ps of standaloneServices) {
+                          allPkgServices.push({ service_id: ps.service_id, service_name: ps.service_name, slot_type: 'standalone', slot_index: allPkgServices.length })
                         }
-                        const standaloneLen = standaloneServices.length
                         for (let gi = 0; gi < serviceGroups.length; gi++) {
-                          const idx = standaloneLen + gi
                           const selectedId = (packageGroupSelections[selectedItemId] || [])[gi]
                           const chosen = (serviceGroups[gi].services || []).find((s) => s.service_id === selectedId)
-                          if (!chosen) { failed++; continue }
-                          const current = (updated[idx] || []).filter(Boolean)
-                          const row = await pickFromRotationQueue({ serviceId: chosen.service_id, exclude: [...current, ...globalExclude] })
-                          if (row) { updated[idx] = [...current, row.employee_id]; globalExclude.push(row.employee_id); assigned++ }
-                          else failed++
+                          if (chosen) allPkgServices.push({ service_id: chosen.service_id, service_name: chosen.service_name, slot_type: 'group', slot_index: standaloneServices.length + gi })
                         }
+
+                        if (allPkgServices.length === 0) return
+
+                        const row = await pickFromRotationQueue({})
+                        if (!row) {
+                          toast.warning('No eligible employee in the check-in queue')
+                          return
+                        }
+
+                        const empSkillIds = new Set((row.skills || []).map((s) => String(s.id)))
+                        const known = []
+                        const unknown = []
+
+                        for (const svc of allPkgServices) {
+                          const svcData = services.find((s) => s.service_id === svc.service_id)
+                          const requiredSkills = svcData?.skills || []
+                          if (requiredSkills.length === 0) {
+                            known.push(svc)
+                          } else {
+                            const allMatch = requiredSkills.every((sk) => empSkillIds.has(String(sk.id)))
+                            if (allMatch) known.push(svc)
+                            else unknown.push(svc)
+                          }
+                        }
+
+                        const updated = { ...componentEmployees }
+                        for (const svc of known) {
+                          const idx = svc.slot_index
+                          const current = (updated[idx] || []).filter(Boolean)
+                          if (!current.includes(row.employee_id)) {
+                            updated[idx] = [...current, row.employee_id]
+                          }
+                        }
+
                         setComponentEmployees(updated)
-                        if (assigned > 0) toast.success(`Assigned ${assigned} staff from queue`)
-                        if (failed > 0) toast.warning(`${failed} service(s) had no eligible staff in queue`)
+
+                        if (unknown.length === 0) {
+                          toast.success(`Assigned ${row.full_name} to all ${known.length} service(s)`)
+                        } else if (known.length > 0) {
+                          toast.success(`Assigned ${row.full_name} to ${known.length} service(s)`)
+                          const unknownNames = unknown.map((s) => s.service_name).join(', ')
+                          setSkillWarnMsg(
+                            `${row.full_name} doesn't know: ${unknownNames}. You can assign someone later from the bill details page.`
+                          )
+                          setSkillWarnOpen(true)
+                        } else {
+                          const unknownNames = unknown.map((s) => s.service_name).join(', ')
+                          setSkillWarnMsg(
+                            `${row.full_name} doesn't know: ${unknownNames}. You can assign someone later from the bill details page.`
+                          )
+                          setSkillWarnOpen(true)
+                        }
                       }}
                     >
                       <Users className="h-4 w-4 mr-1" /> From queue
@@ -3172,6 +3286,37 @@ function BillCreatePage() {
         onCreated={(newCustomer) => {
           handleSelectCustomer(newCustomer)
         }}
+      />
+
+      <ConfirmDialog
+        open={!!pendingCartItem}
+        onOpenChange={(open) => { if (!open) setPendingCartItem(null) }}
+        onConfirm={() => {
+          if (pendingCartItem) {
+            setCartItems((prev) => [...prev, pendingCartItem])
+            setPendingCartItem(null)
+            setSelectedItemId(null)
+            setItemPrice('')
+            setItemQuantity(1)
+            setAddDiscountPercent(0)
+            setAddDiscountAmount('')
+            setComponentEmployees({})
+            setSameEmployeeForAll(false)
+            setGlobalEmployee('')
+          }
+        }}
+        title="No Employee Assigned"
+        description="No employee has been assigned to this service. Do you want to proceed?"
+        confirmLabel="Yes, proceed"
+      />
+
+      <ConfirmDialog
+        open={skillWarnOpen}
+        onOpenChange={setSkillWarnOpen}
+        confirmLabel="OK"
+        onConfirm={() => setSkillWarnOpen(false)}
+        title="Insufficient Skills"
+        description={skillWarnMsg}
       />
 
     </div>
