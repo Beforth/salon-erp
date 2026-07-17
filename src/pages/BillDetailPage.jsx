@@ -726,16 +726,18 @@ function BillDetailPage() {
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
                                     {(item.employees?.length > 0 ? item.employees : item.employee?.employee_id ? [{ employee_id: item.employee.employee_id, full_name: item.employee.full_name }] : []).map((emp) => (
-                                      <span key={emp.employee_id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                                      <span key={emp.employee_id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${emp.completed_at ? 'bg-green-100 text-green-800' : 'bg-primary text-primary-foreground'}`}>
                                         {emp.full_name}
-                                        <button
-                                          type="button"
-                                          className="hover:text-primary-foreground/70"
-                                          onClick={() => unassignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: emp.employee_id })}
-                                          disabled={unassignEmployeeMutation.isPending}
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </button>
+                                        {!emp.completed_at && (
+                                          <button
+                                            type="button"
+                                            className="hover:text-primary-foreground/70"
+                                            onClick={() => unassignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: emp.employee_id })}
+                                            disabled={unassignEmployeeMutation.isPending}
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        )}
                                       </span>
                                     ))}
                                     </div>
@@ -884,16 +886,18 @@ function BillDetailPage() {
                             <div className="flex items-center gap-1.5">
                               <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
                               {(item.employees?.length > 0 ? item.employees : item.employee?.employee_id ? [{ employee_id: item.employee.employee_id, full_name: item.employee.full_name }] : []).map((emp) => (
-                                <span key={emp.employee_id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                                <span key={emp.employee_id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${emp.completed_at ? 'bg-green-100 text-green-800' : 'bg-primary text-primary-foreground'}`}>
                                   {emp.full_name}
-                                  <button
-                                    type="button"
-                                    className="hover:text-primary-foreground/70"
-                                    onClick={() => unassignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: emp.employee_id })}
-                                    disabled={unassignEmployeeMutation.isPending}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
+                                  {!emp.completed_at && (
+                                    <button
+                                      type="button"
+                                      className="hover:text-primary-foreground/70"
+                                      onClick={() => unassignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: emp.employee_id })}
+                                      disabled={unassignEmployeeMutation.isPending}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  )}
                                 </span>
                               ))}
                               </div>
