@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -31,11 +31,55 @@ const STATUS_META = {
 
 function formatTimeStored(iso) {
   if (!iso) return '—'
+  // Prefer wall-clock digits (IST-as-UTC naive ISO) over browser-local parsing
+  const m = String(iso).match(/(\d{2}):(\d{2})/)
+  if (m) return `${m[1]}:${m[2]}`
   const d = new Date(iso)
-  const h = String(d.getHours()).padStart(2, '0')
-  const m = String(d.getMinutes()).padStart(2, '0')
-  return `${h}:${m}`
+  if (Number.isNaN(d.getTime())) return '—'
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
+function parseHHMMToMinutes(value) {
+  if (!value || !/^\d{1,2}:\d{2}/.test(String(value))) return null
+  const [h, m] = String(value).slice(0, 5).split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+  return h * 60 + m
+}
+
+function parseCheckInMinutes(iso) {
+  if (!iso) return null
+  const m = String(iso).match(/[T ](\d{2}):(\d{2})/)
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+
+/** Format late_penalty_hours as minutes/hours after grace (e.g. 0.02 → 1m, 1.5 → 1h 30m). */
+function formatLate(hours) {
+  const h = typeof hours === 'number' ? hours : parseFloat(hours)
+  if (!Number.isFinite(h) || h <= 0) return null
+  const totalMin = Math.round(h * 60)
+  if (totalMin < 60) return `${totalMin}m`
+  const hrs = Math.floor(totalMin / 60)
+  const mins = totalMin % 60
+  return mins ? `${hrs}h ${mins}m` : `${hrs}h`
+}
+
+/**
+ * Always derive late label from check-in vs shift start (minutes after start).
+ * Example: start 10:28, check-in 10:29 → 1m. Independent of checkout.
+ */
+function getLateLabel(emp) {
+  if (!emp?.check_in || emp.has_flexible_timing) return null
+  const startMin = parseHHMMToMinutes(emp.shift_start)
+  const inMin = parseCheckInMinutes(emp.check_in)
+  if (startMin == null || inMin == null) return formatLate(emp.late_penalty_hours)
+
+  const lateMin = inMin - startMin
+  if (lateMin <= 0) return null
+  return formatLate(lateMin / 60)
+}
+
+const toYearMonth = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
 export default function AttendancePage() {
   const { user } = useSelector((state) => state.auth)
@@ -54,7 +98,7 @@ export default function AttendancePage() {
 
   // Calendar states
   const [activeTab, setActiveTab] = useState('today')
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
+  const [selectedMonth, setSelectedMonth] = useState(toYearMonth(new Date())) // YYYY-MM
   const [calendarSubTab, setCalendarSubTab] = useState('grid')
   const [detailDate, setDetailDate] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -241,7 +285,30 @@ export default function AttendancePage() {
 
   const getLocalDatetimeString = (date = new Date()) => {
     const tzOffset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16)
+  }
+
+  /** Shop date YYYY-MM-DD without UTC day-shift. */
+  const getShopDateStr = () => {
+    if (detailDate) return detailDate
+    const raw = roster?.shop_date
+    if (typeof raw === 'string' && raw.length >= 10) return raw.slice(0, 10)
+    if (raw) {
+      const d = new Date(raw)
+      if (!Number.isNaN(d.getTime())) {
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+      }
+    }
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  }
+
+  /**
+   * datetime-local value is already the wall-clock the user sees.
+   * Send without timezone so backend treats it as IST (normalizePunchTime).
+   */
+  const toIstPunchPayload = (datetimeLocal) => {
+    if (!datetimeLocal) return null
+    return datetimeLocal.length === 16 ? `${datetimeLocal}:00` : datetimeLocal
   }
 
   const handlePunch = async (emp, punchType) => {
@@ -292,11 +359,12 @@ export default function AttendancePage() {
 
   const updateTimesMutation = useMutation({
     mutationFn: (data) => attendanceService.updateTimes(data),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Punch times updated successfully')
-      queryClient.invalidateQueries({ queryKey: ['attendance-today'] })
-      queryClient.invalidateQueries({ queryKey: ['attendance-detail'] })
-      queryClient.invalidateQueries({ queryKey: ['attendance-monthly'] })
+      await queryClient.invalidateQueries({ queryKey: ['attendance-today'] })
+      await queryClient.invalidateQueries({ queryKey: ['attendance-detail'] })
+      await queryClient.invalidateQueries({ queryKey: ['attendance-monthly'] })
+      await queryClient.refetchQueries({ queryKey: ['attendance-today'] })
       setEditTimesModal(null)
     },
     onError: (e) => toast.error(e.response?.data?.error?.message || 'Failed to update punch times'),
@@ -304,22 +372,24 @@ export default function AttendancePage() {
 
   const openEditTimesModal = (emp) => {
     setEditTimesModal(emp)
-    setEditCheckIn(emp.check_in ? getLocalDatetimeString(new Date(emp.check_in)) : '')
-    setEditCheckOut(emp.check_out ? getLocalDatetimeString(new Date(emp.check_out)) : '')
+    // check_in/out from API are IST wall-clock (naive). Keep digits as-is for datetime-local.
+    const toLocalInput = (iso) => {
+      if (!iso) return ''
+      const m = String(iso).match(/(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/)
+      return m ? `${m[1]}T${m[2]}` : ''
+    }
+    setEditCheckIn(toLocalInput(emp.check_in))
+    setEditCheckOut(toLocalInput(emp.check_out))
   }
 
   const submitUpdateTimes = () => {
     if (!editTimesModal) return
-    
-    const checkInIso = editCheckIn ? new Date(editCheckIn).toISOString() : null
-    const checkOutIso = editCheckOut ? new Date(editCheckOut).toISOString() : null
-    const targetDate = detailDate || (roster?.shop_date ? new Date(roster.shop_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
 
     updateTimesMutation.mutate({
       employee_id: editTimesModal.employee_details_id || editTimesModal.id,
-      attendance_date: targetDate,
-      check_in: checkInIso,
-      check_out: editCheckOut ? checkOutIso : null,
+      attendance_date: getShopDateStr(),
+      check_in: toIstPunchPayload(editCheckIn),
+      check_out: editCheckOut ? toIstPunchPayload(editCheckOut) : null,
     })
   }
 
@@ -348,13 +418,13 @@ export default function AttendancePage() {
   const handlePrevMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number)
     const prev = new Date(year, month - 2, 1)
-    setSelectedMonth(prev.toISOString().slice(0, 7))
+    setSelectedMonth(toYearMonth(prev))
   }
 
   const handleNextMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number)
     const next = new Date(year, month, 1)
-    setSelectedMonth(next.toISOString().slice(0, 7))
+    setSelectedMonth(toYearMonth(next))
   }
 
   const calendarCells = useMemo(() => {
@@ -486,16 +556,12 @@ export default function AttendancePage() {
             <CardContent className="pt-6 flex flex-wrap gap-4 items-end">
               <div className="flex-1 min-w-[200px] max-w-sm">
                 <Label className="text-xs mb-1 block">Branch</Label>
-                <Select value={branchId} onValueChange={setBranchId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((b) => (
-                      <SelectItem key={b.branch_id} value={b.branch_id}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={branches.map((b) => ({ value: b.branch_id, label: b.name }))}
+                  value={branchId}
+                  onChange={setBranchId}
+                  placeholder="Select branch"
+                />
               </div>
               {!defaultMachineNo && branchId && (
                 <p className="text-xs text-amber-600">
@@ -558,8 +624,8 @@ export default function AttendancePage() {
                           <TableCell>{emp.total_break_minutes}m</TableCell>
                           <TableCell>{emp.working_hours != null ? `${emp.working_hours}h` : '—'}</TableCell>
                           <TableCell>
-                            {Number(emp.late_penalty_hours) > 0
-                              ? <span className="text-destructive">{emp.late_penalty_hours}h</span>
+                            {getLateLabel(emp)
+                              ? <span className="text-destructive font-medium">{getLateLabel(emp)}</span>
                               : '—'}
                           </TableCell>
                           {canAct && (
@@ -648,33 +714,23 @@ export default function AttendancePage() {
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="min-w-[200px]">
                   <Label className="text-xs mb-1 block">Branch</Label>
-                  <Select value={branchId} onValueChange={setBranchId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {branches.map((b) => (
-                        <SelectItem key={b.branch_id} value={b.branch_id}>{b.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={branches.map((b) => ({ value: b.branch_id, label: b.name }))}
+                    value={branchId}
+                    onChange={setBranchId}
+                    placeholder="Select branch"
+                  />
                 </div>
 
                 {branchId && employeesList.length > 0 && (
                   <div className="min-w-[200px]">
                     <Label className="text-xs mb-1 block">Employee</Label>
-                    <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Employee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employeesList.map((emp) => (
-                          <SelectItem key={emp.employee_details_id} value={emp.employee_details_id}>
-                            {emp.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={employeesList.map((emp) => ({ value: emp.employee_details_id, label: emp.full_name }))}
+                      value={selectedEmployeeId}
+                      onChange={setSelectedEmployeeId}
+                      placeholder="Select Employee"
+                    />
                   </div>
                 )}
 
@@ -1043,8 +1099,8 @@ export default function AttendancePage() {
                       <TableCell>{emp.total_break_minutes}m</TableCell>
                       <TableCell>{emp.working_hours != null ? `${emp.working_hours}h` : '—'}</TableCell>
                       <TableCell>
-                        {Number(emp.late_penalty_hours) > 0
-                          ? <span className="text-destructive">{emp.late_penalty_hours}h</span>
+                        {getLateLabel(emp)
+                          ? <span className="text-destructive font-medium">{getLateLabel(emp)}</span>
                           : '—'}
                       </TableCell>
                       {canAct && isSelectedDateToday && (

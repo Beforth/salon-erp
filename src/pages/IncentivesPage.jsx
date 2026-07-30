@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatCurrency, formatDateStored } from '@/lib/utils'
 import { incentiveService } from '@/services/incentive.service'
 import { userService } from '@/services/user.service'
@@ -178,17 +178,16 @@ export default function IncentivesPage() {
                 </div>
                 <div>
                   <Label className="text-xs">Employee</Label>
-                  <Select value={selectedEmployee} onValueChange={(val) => setSelectedEmployee(val === 'all' ? '' : val)}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="All employees" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Employees</SelectItem>
-                      {employees.map((e) => (
-                        <SelectItem key={e.user_id} value={e.user_id}>{e.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={[
+                      { value: 'all', label: 'All Employees' },
+                      ...employees.map((e) => ({ value: e.user_id, label: e.full_name })),
+                    ]}
+                    value={selectedEmployee}
+                    onChange={(val) => setSelectedEmployee(val === 'all' ? '' : val)}
+                    placeholder="All employees"
+                    triggerClassName="w-[180px]"
+                  />
                 </div>
               </div>
             </CardContent>

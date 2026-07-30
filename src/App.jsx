@@ -20,6 +20,7 @@ import InventoryPage from './pages/InventoryPage'
 import StockTransfersPage from './pages/StockTransfersPage'
 import ReportsPage from './pages/ReportsPage'
 import BranchesPage from './pages/BranchesPage'
+import BranchFormPage from './pages/BranchFormPage'
 import StaffPage from './pages/StaffPage'
 import StaffFormPage from './pages/StaffFormPage'
 import StaffPerformancePage from './pages/StaffPerformancePage'
@@ -40,6 +41,8 @@ import EmployeeStatusPage from './pages/EmployeeStatusPage'
 import VersionHistoryPage from './pages/VersionHistoryPage'
 import JobsPage from './pages/JobsPage'
 import MachinesPage from './pages/MachinesPage'
+import ShiftPage from './pages/ShiftPage'
+import ShiftAssignmentsPage from './pages/ShiftAssignmentsPage'
 import AttendancePage from './pages/AttendancePage'
 import SkillsPage from './pages/SkillsPage'
 import TokensPage from './pages/TokensPage'
@@ -109,6 +112,8 @@ function App() {
         <Route path="bills" element={<BillsPage />} />
         <Route path="bills/new" element={<BillCreatePage />} />
         <Route path="bills/:id" element={<BillDetailPage />} />
+        <Route path="shifts" element={<ShiftPage />} />
+        <Route path="shifts/assignments/:date" element={<ShiftAssignmentsPage />} />
         <Route path="employee-status" element={<EmployeeStatusPage />} />
         <Route path="services" element={<ServicesPage />} />
         <Route path="services/new" element={<ServiceFormPage />} />
@@ -121,6 +126,8 @@ function App() {
         <Route path="inventory/transfers" element={<StockTransfersPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="branches" element={<BranchesPage />} />
+        <Route path="branches/new" element={<BranchFormPage />} />
+        <Route path="branches/:id/edit" element={<BranchFormPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="staff/new" element={<StaffFormPage />} />
         <Route path="staff/:id/edit" element={<StaffFormPage />} />

@@ -8,7 +8,7 @@ import { rotationQueueService } from '@/services/rotationQueue.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Separator } from '@/components/ui/separator'
 import {
   Table,
@@ -742,26 +742,18 @@ function BillDetailPage() {
                                     ))}
                                     </div>
                                     {getDropdownOptions(item).length > 0 && (
-                                    <Select
+                                    <SearchableSelect
                                       key={`${item.item_id}-${selectResetKey}`}
+                                      options={getDropdownOptions(item).map(emp => ({ value: emp.employee_id, label: emp.full_name }))}
                                       value=""
-                                      onValueChange={(empId) => {
+                                      onChange={(empId) => {
                                         setAssigningItemId(item.item_id)
                                         assignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: empId })
                                       }}
                                       disabled={assigningItemId === item.item_id}
-                                    >
-                                      <SelectTrigger className="h-7 w-auto min-w-[120px] px-2 gap-1">
-                                        <SelectValue placeholder="Select employee" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {getDropdownOptions(item).map((emp) => (
-                                          <SelectItem key={emp.employee_id} value={emp.employee_id}>
-                                            {emp.full_name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                      placeholder="Select employee"
+                                      triggerClassName="h-7 w-auto min-w-[120px] px-2 gap-1"
+                                    />
                                     )}
                                   </div>
                                 ) : (
@@ -780,25 +772,17 @@ function BillDetailPage() {
                                         ? <Loader2 className="h-3 w-3 animate-spin" />
                                         : 'From Queue'}
                                     </Button>
-                                    <Select
+                                    <SearchableSelect
                                       key={selectResetKey}
-                                      onValueChange={(empId) => {
+                                      options={getDropdownOptions(item).map(emp => ({ value: emp.employee_id, label: emp.full_name }))}
+                                      onChange={(empId) => {
                                         setAssigningItemId(item.item_id)
                                         assignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: empId })
                                       }}
                                       disabled={assigningItemId === item.item_id}
-                                    >
-                                      <SelectTrigger className="h-7 w-auto min-w-[160px] px-2 gap-1">
-                                        <SelectValue placeholder="Select employee" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {getDropdownOptions(item).map((emp) => (
-                                          <SelectItem key={emp.employee_id} value={emp.employee_id}>
-                                            {emp.full_name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                      placeholder="Select employee"
+                                      triggerClassName="h-7 w-auto min-w-[160px] px-2 gap-1"
+                                    />
                                   </div>
                                 )}
                               </TableCell>
@@ -902,26 +886,18 @@ function BillDetailPage() {
                               ))}
                               </div>
                               {getDropdownOptions(item).length > 0 && (
-                              <Select
+                              <SearchableSelect
                                 key={`${item.item_id}-${selectResetKey}`}
+                                options={getDropdownOptions(item).map(emp => ({ value: emp.employee_id, label: emp.full_name }))}
                                 value=""
-                                onValueChange={(empId) => {
+                                onChange={(empId) => {
                                   setAssigningItemId(item.item_id)
                                   assignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: empId })
                                 }}
                                 disabled={assigningItemId === item.item_id}
-                              >
-                                <SelectTrigger className="h-7 w-auto min-w-[120px] px-2 gap-1">
-                                  <SelectValue placeholder="Select employee" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getDropdownOptions(item).map((emp) => (
-                                    <SelectItem key={emp.employee_id} value={emp.employee_id}>
-                                      {emp.full_name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                placeholder="Select employee"
+                                triggerClassName="h-7 w-auto min-w-[120px] px-2 gap-1"
+                              />
                               )}
                             </div>
                           ) : (
@@ -940,25 +916,17 @@ function BillDetailPage() {
                                   ? <Loader2 className="h-3 w-3 animate-spin" />
                                   : 'From Queue'}
                               </Button>
-                              <Select
+                              <SearchableSelect
                                 key={selectResetKey}
-                                onValueChange={(empId) => {
+                                options={getDropdownOptions(item).map(emp => ({ value: emp.employee_id, label: emp.full_name }))}
+                                onChange={(empId) => {
                                   setAssigningItemId(item.item_id)
                                   assignEmployeeMutation.mutate({ itemId: item.item_id, employeeId: empId })
                                 }}
                                 disabled={assigningItemId === item.item_id}
-                              >
-                                <SelectTrigger className="h-7 w-auto min-w-[160px] px-2 gap-1">
-                                  <SelectValue placeholder="Select employee" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getDropdownOptions(item).map((emp) => (
-                                    <SelectItem key={emp.employee_id} value={emp.employee_id}>
-                                      {emp.full_name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                placeholder="Select employee"
+                                triggerClassName="h-7 w-auto min-w-[160px] px-2 gap-1"
+                              />
                             </div>
                           )}
                         </TableCell>
@@ -1391,18 +1359,13 @@ function BillDetailPage() {
             <div className="border border-dashed rounded-lg p-3 space-y-2">
               <p className="text-xs text-muted-foreground font-medium">Add Service</p>
               <div className="flex gap-2">
-                <Select value={editServiceSelect} onValueChange={setEditServiceSelect}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Select a service…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {servicesCatalog.map((svc) => (
-                      <SelectItem key={svc.service_id} value={svc.service_id}>
-                        {svc.service_name} — {formatCurrency(svc.price)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={editServiceSelect}
+                  onChange={setEditServiceSelect}
+                  placeholder="Select a service…"
+                  options={servicesCatalog.map(svc => ({ value: svc.service_id, label: `${svc.service_name} — ${formatCurrency(svc.price)}` }))}
+                  formatOption={(opt) => `${opt.label}`}
+                />
                 <Button
                   size="sm"
                   variant="outline"

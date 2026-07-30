@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatCurrency } from '@/lib/utils'
 import { Loader2, Play, Users } from 'lucide-react'
 import { toast } from 'sonner'
@@ -117,18 +117,13 @@ function StartServiceModal({ open, onOpenChange, item }) {
             <p className="text-xs text-muted-foreground">
               Select an employee from the dropdown or pick from the check-in queue.
             </p>
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={pickingQueue}>
-              <SelectTrigger>
-                <SelectValue placeholder={pickingQueue ? 'Picking from queue…' : 'Select employee…'} />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((emp) => (
-                  <SelectItem key={emp.employee_id} value={emp.employee_id}>
-                    {emp.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={employees.map(emp => ({ value: emp.employee_id, label: emp.full_name }))}
+              value={selectedEmployee}
+              onChange={setSelectedEmployee}
+              placeholder={pickingQueue ? 'Picking from queue…' : 'Select employee…'}
+              disabled={pickingQueue}
+            />
             {serviceId && (
               <Button
                 type="button"

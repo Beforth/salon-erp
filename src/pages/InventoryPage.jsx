@@ -45,13 +45,7 @@ import {
 import TakeInUseModal from '@/components/modals/TakeInUseModal'
 import BarcodeImage from '@/components/BarcodeImage'
 import { printOpenBottleLabel, DEFAULT_LABEL_SIZE } from '@/lib/barcodePrint'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { toast } from 'sonner'
 
 const emptyAdjustData = {
@@ -253,16 +247,13 @@ function InventoryPage() {
               Products in use
             </CardTitle>
             <div className="flex flex-wrap gap-2">
-              <Select value={inUseBranchId} onValueChange={setInUseBranchId}>
-                <SelectTrigger className="w-[200px] h-9">
-                  <SelectValue placeholder="Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((b) => (
-                    <SelectItem key={b.branch_id} value={b.branch_id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={branches.map(b => ({ value: b.branch_id, label: b.name }))}
+                value={inUseBranchId}
+                onChange={setInUseBranchId}
+                placeholder="Branch"
+                triggerClassName="w-[200px] h-9"
+              />
               <Button
                 size="sm"
                 onClick={() => setShowTakeInUseModal(true)}

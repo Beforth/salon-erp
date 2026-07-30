@@ -40,6 +40,7 @@ import {
   PanelLeftOpen,
   X,
   UserCheck,
+  Clock,
 } from 'lucide-react'
 
 const getNavItemsByRole = (role) => {
@@ -171,6 +172,12 @@ const getNavItemsByRole = (role) => {
       href: '/staff',
       icon: UserCog,
       roles: ['owner', 'developer', 'manager', 'cashier'],
+    },
+    {
+      title: 'Shift',
+      href: '/shifts',
+      icon: Clock,
+      roles: ['owner', 'developer', 'manager'],
     },
     {
       title: 'Attendance',

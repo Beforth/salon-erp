@@ -26,7 +26,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatCurrency, fuzzyMatch, fuzzyScore } from '@/lib/utils'
 import { computeBillTaxTotals } from '@/lib/gst'
@@ -1182,7 +1181,7 @@ function BillCreatePage() {
               : empIds.length === 1
                 ? { employee_id: empIds[0] }
                 : {}),
-            status: startService ? 'pending' : mapSubmitItemStatus(svc.item_status, { startService: startService && empIds.length > 0, itemType: 'service' }),
+            status: startService ? (empIds.length > 0 ? 'in_progress' : 'pending') : mapSubmitItemStatus(svc.item_status, { startService: startService && empIds.length > 0, itemType: 'service' }),
           }
         })
         return {
@@ -1220,8 +1219,8 @@ function BillCreatePage() {
             : 0,
         notes: item.source_package_name || null,
             status: item.item_type === 'service' && startService
-          ? 'pending'
-          : mapSubmitItemStatus(item.item_status, { startService: startService && (item.employee_ids || []).filter(Boolean).length > 0, itemType: item.item_type }),
+              ? (item.employee_ids?.filter(Boolean).length > 0 ? 'in_progress' : 'pending')
+              : mapSubmitItemStatus(item.item_status, { startService: startService && (item.employee_ids || []).filter(Boolean).length > 0, itemType: item.item_type }),
       }
     })
   }
@@ -2776,19 +2775,13 @@ function BillCreatePage() {
                           ))}
                         </div>
                         {payment.payment_mode === 'upi' && upiAccounts.length > 0 && (
-                          <Select
+                          <SearchableSelect
                             value={payment.upi_account_id || ''}
-                            onValueChange={(val) => handlePaymentChange(index, 'upi_account_id', val)}
-                          >
-                            <SelectTrigger className="h-8 text-sm">
-                              <SelectValue placeholder="Select UPI Account" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {upiAccounts.map((acc) => (
-                                <SelectItem key={acc.account_id} value={acc.account_id}>{acc.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            onChange={(val) => handlePaymentChange(index, 'upi_account_id', val)}
+                            placeholder="Select UPI Account"
+                            options={upiAccounts.map(acc => ({ value: acc.account_id, label: acc.name }))}
+                            triggerClassName="h-8 text-sm"
+                          />
                         )}
                         <div className="flex gap-1.5 items-center">
                           <div className="flex-1 relative">
