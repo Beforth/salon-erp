@@ -70,35 +70,41 @@ function buildTokenSlipHTML(token, qrDataUrl = null, packagesMap = {}) {
           @page { margin: 0; size: 80mm auto; }
           body {
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 13px;
             margin: 0;
             padding: 8px 6px;
-            width: 76mm;
+            width: 74mm;
           }
           .center { text-align: center; }
-          .branch { font-size: 11px; }
+          .branch { font-size: 13px; }
           .number {
-            font-size: 38px;
+            font-size: 22px;
             font-weight: 800;
             letter-spacing: 1px;
-            margin: 6px 0;
+            margin: 6px 0 2px;
+          }
+          .not-for-payment {
+            font-size: 13px;
+            font-weight: 700;
+            margin: 0 0 4px;
+            text-transform: uppercase;
           }
           .customer { font-size: 13px; margin: 4px 0 2px; }
-          .meta { font-size: 9px; color: #444; }
+          .meta { font-size: 13px; color: #444; }
           .services {
             margin-top: 8px;
             border-top: 1px dashed #888;
             padding-top: 6px;
             text-align: left;
-            font-size: 11px;
+            font-size: 13px;
           }
           .pkg-svc {
-            font-size: 10px;
+            font-size: 13px;
             color: #555;
           }
           .footer {
             margin-top: 10px;
-            font-size: 9px;
+            font-size: 13px;
             border-top: 1px dashed #888;
             padding-top: 4px;
           }
@@ -108,14 +114,14 @@ function buildTokenSlipHTML(token, qrDataUrl = null, packagesMap = {}) {
             border: 1px dashed #b45309;
             background: #fffbeb;
             color: #92400e;
-            font-size: 9px;
+            font-size: 13px;
             line-height: 1.35;
             text-align: center;
           }
           .qr {
             margin: 8px auto 4px;
-            width: 120px;
-            height: 120px;
+            width: 72px;
+            height: 72px;
             display: block;
           }
         </style>
@@ -123,6 +129,7 @@ function buildTokenSlipHTML(token, qrDataUrl = null, packagesMap = {}) {
       <body>
         <div class="center branch">${branchName}</div>
         <div class="center number">${token.token_number}</div>
+        <div class="center not-for-payment">Not for payment</div>
         ${qrDataUrl ? `<img class="qr" src="${qrDataUrl}" alt="Token QR" />` : ''}
         <div class="center customer">${customerLine}</div>
         <div class="center meta">${issuedAt}</div>
@@ -132,7 +139,7 @@ function buildTokenSlipHTML(token, qrDataUrl = null, packagesMap = {}) {
           Tokens are new — you may hit issues loading services or packages at billing.
           Sorry for the inconvenience; please ask staff for help if anything looks wrong.
         </div>
-        <div class="center footer">Scan QR or show this token at billing</div>
+        <div class="center footer">Show this token at billing</div>
       </body>
     </html>
   `
