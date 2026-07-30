@@ -2,12 +2,14 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext'
+import DocsFirstTimeModal from '@/components/DocsFirstTimeModal'
 
 function DashboardContent() {
   const { collapsed, openMobile } = useSidebar()
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <DocsFirstTimeModal />
       {/* Sidebar (handles both desktop & mobile drawer internally) */}
       <Sidebar />
 

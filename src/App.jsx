@@ -46,6 +46,7 @@ import SkusPage from './pages/SkusPage'
 import BarcodePrintPage from './pages/BarcodePrintPage'
 import WarehousesPage from './pages/WarehousesPage'
 import WarehouseCreatePage from './pages/WarehouseCreatePage'
+import DocsPage from './pages/DocsPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
@@ -143,6 +144,7 @@ function App() {
         <Route path="barcode-print" element={<BarcodePrintPage />} />
         <Route path="warehouses" element={<WarehousesPage />} />
         <Route path="warehouses/new" element={<WarehouseCreatePage />} />
+        <Route path="docs" element={<DocsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

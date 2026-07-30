@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  DollarSign,
   Users,
   Receipt,
   TrendingUp,
@@ -77,14 +76,6 @@ function OwnerDashboard() {
   }
 
   const statCards = stats ? [
-    {
-      name: 'Total Revenue',
-      value: formatCurrency(stats.monthlyRevenue),
-      change: formatChange(stats.revenueChange),
-      changeType: getChangeType(stats.revenueChange),
-      icon: DollarSign,
-      description: 'This month',
-    },
     {
       name: 'Total Bills',
       value: formatNumber(stats.monthlyBills),
@@ -282,13 +273,7 @@ function OwnerDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(stats.todaySummary.revenue)}
-                </p>
-                <p className="text-sm text-gray-600">Today's Revenue</p>
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <p className="text-2xl font-bold text-green-600">
                   {formatNumber(stats.todaySummary.billCount)}

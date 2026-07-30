@@ -1,5 +1,6 @@
 import { formatDateTimeStored } from '@/lib/utils'
 import { tokenQrToDataUrl } from '@/lib/tokenQr'
+import { serviceService } from '@/services/service.service'
 
 /** Mask a phone the same way the BE does for display: 98***43***. */
 function maskPhone(phone) {
@@ -9,7 +10,32 @@ function maskPhone(phone) {
   return `${p.substring(0, 2)}***${p.substring(5, 7)}***`
 }
 
-function buildTokenSlipHTML(token, qrDataUrl = null) {
+/**
+ * Build a map of package_id → service names[] from the packages API response.
+ */
+function buildPackageServicesMap(packages) {
+  const map = {}
+  for (const pkg of packages) {
+    const names = []
+    for (const s of pkg.services || []) {
+      names.push(s.service_name)
+    }
+    for (const g of pkg.service_groups || []) {
+      for (const s of g.services || []) {
+        names.push(s.service_name)
+        if (s.bonus_services) {
+          for (const bs of s.bonus_services) {
+            names.push(bs.service_name)
+          }
+        }
+      }
+    }
+    map[pkg.package_id] = names
+  }
+  return map
+}
+
+function buildTokenSlipHTML(token, qrDataUrl = null, packagesMap = {}) {
   const items = token.services_requested || []
   const branchName = token.branch?.name || ''
   const issuedAt = token.created_at ? formatDateTimeStored(token.created_at) : ''
@@ -21,8 +47,17 @@ function buildTokenSlipHTML(token, qrDataUrl = null) {
     const name = it.name || it.service_name || ''
     return it.kind === 'package' ? `[Pkg] ${name}` : name
   }
+  const renderItem = (it) => {
+    let html = `<div>• ${itemLabel(it)}</div>`
+    if (it.kind === 'package' && it.package_id && packagesMap[it.package_id]) {
+      for (const sn of packagesMap[it.package_id]) {
+        html += `<div class="pkg-svc">&nbsp;&nbsp;&nbsp;&nbsp;${sn}</div>`
+      }
+    }
+    return html
+  }
   const servicesHtml = items.length
-    ? `<div class="services">${items.map((it) => `<div>• ${itemLabel(it)}</div>`).join('')}</div>`
+    ? `<div class="services">${items.map(renderItem).join('')}</div>`
     : ''
 
   return `
@@ -56,6 +91,10 @@ function buildTokenSlipHTML(token, qrDataUrl = null) {
             padding-top: 6px;
             text-align: left;
             font-size: 11px;
+          }
+          .pkg-svc {
+            font-size: 10px;
+            color: #555;
           }
           .footer {
             margin-top: 10px;
@@ -101,7 +140,20 @@ function buildTokenSlipHTML(token, qrDataUrl = null) {
 
 export async function printTokenSlip(token) {
   const qrDataUrl = await tokenQrToDataUrl(token).catch(() => null)
-  const html = buildTokenSlipHTML(token, qrDataUrl)
+
+  // Fetch packages to resolve sub-services under package items
+  const pkgIds = (token.services_requested || [])
+    .filter((it) => it.kind === 'package' && it.package_id)
+    .map((it) => it.package_id)
+  let packagesMap = {}
+  if (pkgIds.length > 0) {
+    const res = await serviceService.getPackages({ is_active: 'true' }).catch(() => null)
+    if (res?.data) {
+      packagesMap = buildPackageServicesMap(res.data)
+    }
+  }
+
+  const html = buildTokenSlipHTML(token, qrDataUrl, packagesMap)
   const w = window.open('', '_blank')
   w.document.write(html)
   w.document.close()

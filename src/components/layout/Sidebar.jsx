@@ -201,6 +201,12 @@ const getNavItemsByRole = (role) => {
       icon: Cpu,
       roles: ['owner', 'developer'],
     },
+    {
+      title: 'Docs',
+      href: '/docs',
+      icon: BookOpen,
+      roles: ['owner', 'developer', 'manager', 'cashier', 'employee'],
+    },
   ]
 
   return allNavItems.filter((item) => item.roles.includes(role))
