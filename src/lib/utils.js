@@ -53,6 +53,17 @@ export function formatDateTime(date) {
   }).format(d)
 }
 
+export function formatTime(date) {
+  if (date == null || date === '') return '—'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d)
+}
+
 /** Bill dates are stored as IST (no timezone conversion). Show as-is using UTC components. */
 export function formatDateStored(date) {
   if (date == null || date === '') return '—'
