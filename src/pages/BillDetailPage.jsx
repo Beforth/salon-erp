@@ -176,8 +176,8 @@ function BillDetailPage() {
       for (const e of item.employees) {
         if (e.employee_id) ids.push(e.employee_id)
       }
-    } else if (item.employee?.id) {
-      ids.push(item.employee.id)
+    } else if (item.employee?.employee_id || item.employee?.id) {
+      ids.push(item.employee?.employee_id || item.employee?.id)
     } else if (item.employee_id) {
       ids.push(item.employee_id)
     }
@@ -788,33 +788,37 @@ function BillDetailPage() {
                               </TableCell>
                               <TableCell className="text-center">
                                 <div className="flex items-center justify-center gap-1">
-                                  {item.status === 'in_progress' || (item.status === 'pending' && getItemEmployeeIds(item).length > 0) ? (
-                                    <Badge
-                                      variant="default"
-                                      className={`text-xs capitalize ${completingItemId === item.item_id ? 'opacity-50' : 'cursor-pointer hover:bg-primary/80'}`}
-                                      onClick={() => {
-                                        if (completingItemId) return
-                                        const employeeIds = getItemEmployeeIds(item)
-                                        if (!employeeIds.length) {
-                                          toast.error('No employee assigned to this service')
-                                          return
-                                        }
-                                        setCompletingItemId(item.item_id)
-                                        completeItemMutation.mutate({ itemId: item.item_id, employeeIds })
-                                      }}
-                                    >
-                                      {completingItemId === item.item_id ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                      ) : 'Started'}
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant={item.status === 'pending' ? 'warning' : 'success'}
-                                      className="text-xs capitalize"
-                                    >
-                                      {item.status || 'completed'}
-                                    </Badge>
-                                  )}
+                                  {(() => {
+                                    const itemEmployeeCount = getItemEmployeeIds(item).length
+                                    const showStarted = itemEmployeeCount > 0 && (item.status === 'in_progress' || item.status === 'pending')
+                                    return showStarted ? (
+                                      <Badge
+                                        variant="default"
+                                        className={`text-xs capitalize ${completingItemId === item.item_id ? 'opacity-50' : 'cursor-pointer hover:bg-primary/80'}`}
+                                        onClick={() => {
+                                          if (completingItemId) return
+                                          const employeeIds = getItemEmployeeIds(item)
+                                          if (!employeeIds.length) {
+                                            toast.error('No employee assigned to this service')
+                                            return
+                                          }
+                                          setCompletingItemId(item.item_id)
+                                          completeItemMutation.mutate({ itemId: item.item_id, employeeIds })
+                                        }}
+                                      >
+                                        {completingItemId === item.item_id ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : 'Started'}
+                                      </Badge>
+                                    ) : (
+                                      <Badge
+                                        variant={itemEmployeeCount > 0 && item.status !== 'pending' ? 'success' : 'warning'}
+                                        className="text-xs capitalize"
+                                      >
+                                        {itemEmployeeCount > 0 ? (item.status || 'completed') : 'pending'}
+                                      </Badge>
+                                    )
+                                  })()}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -932,33 +936,37 @@ function BillDetailPage() {
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            {item.status === 'in_progress' || (item.status === 'pending' && getItemEmployeeIds(item).length > 0) ? (
-                              <Badge
-                                variant="default"
-                                className={`text-xs capitalize ${completingItemId === item.item_id ? 'opacity-50' : 'cursor-pointer hover:bg-primary/80'}`}
-                                onClick={() => {
-                                  if (completingItemId) return
-                                  const employeeIds = getItemEmployeeIds(item)
-                                  if (!employeeIds.length) {
-                                    toast.error('No employee assigned to this service')
-                                    return
-                                  }
-                                  setCompletingItemId(item.item_id)
-                                  completeItemMutation.mutate({ itemId: item.item_id, employeeIds })
-                                }}
-                              >
-                                {completingItemId === item.item_id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : 'Started'}
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant={item.status === 'pending' ? 'warning' : 'success'}
-                                className="text-xs capitalize"
-                              >
-                                {item.status || 'completed'}
-                              </Badge>
-                            )}
+                            {(() => {
+                              const itemEmployeeCount = getItemEmployeeIds(item).length
+                              const showStarted = itemEmployeeCount > 0 && (item.status === 'in_progress' || item.status === 'pending')
+                              return showStarted ? (
+                                <Badge
+                                  variant="default"
+                                  className={`text-xs capitalize ${completingItemId === item.item_id ? 'opacity-50' : 'cursor-pointer hover:bg-primary/80'}`}
+                                  onClick={() => {
+                                    if (completingItemId) return
+                                    const employeeIds = getItemEmployeeIds(item)
+                                    if (!employeeIds.length) {
+                                      toast.error('No employee assigned to this service')
+                                      return
+                                    }
+                                    setCompletingItemId(item.item_id)
+                                    completeItemMutation.mutate({ itemId: item.item_id, employeeIds })
+                                  }}
+                                >
+                                  {completingItemId === item.item_id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : 'Started'}
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant={itemEmployeeCount > 0 && item.status !== 'pending' ? 'success' : 'warning'}
+                                  className="text-xs capitalize"
+                                >
+                                  {itemEmployeeCount > 0 ? (item.status || 'completed') : 'pending'}
+                                </Badge>
+                              )
+                            })()}
                           </div>
                         </TableCell>
                       </TableRow>

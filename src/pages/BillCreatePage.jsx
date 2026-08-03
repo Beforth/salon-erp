@@ -269,8 +269,18 @@ function BillCreatePage() {
       }
     }
 
+    // Exclude every employee already picked for any component of this selection,
+    // plus employees already assigned to existing cart items, so the same person
+    // isn't re-picked for the next service from the queue.
     const current = (componentEmployees[componentIndex] || []).filter(Boolean)
-    const row = await pickFromRotationQueue({ serviceId: svcId, exclude: current })
+    const excludeAll = new Set()
+    for (const arr of Object.values(componentEmployees)) {
+      for (const id of arr || []) {
+        if (id) excludeAll.add(String(id))
+      }
+    }
+    for (const id of heldEmployeeIds) excludeAll.add(String(id))
+    const row = await pickFromRotationQueue({ serviceId: svcId, exclude: [...excludeAll] })
     if (!row) {
       toast.warning('No eligible employee in the check-in queue')
       return
