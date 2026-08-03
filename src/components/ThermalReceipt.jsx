@@ -207,7 +207,7 @@ function buildReceiptHTML(bill) {
           font-family: 'Courier New', monospace;
           font-size: 13px;
           font-weight: 700;
-          width: 76mm;
+          width: 74mm;
           padding: 2mm;
           color: #000;
           line-height: 1.3;
