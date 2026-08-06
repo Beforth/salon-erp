@@ -29,7 +29,7 @@ import {
   SearchableSelect,
 } from '@/components/ui/searchable-select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Clock, Loader2, Plus, Pencil, Power, PowerOff, Calendar, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { Clock, Loader2, Plus, Pencil, Power, PowerOff, Calendar, ChevronLeft, ChevronRight, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -221,6 +221,7 @@ function ShiftPage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [detailDate, setDetailDate] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [employeeSearch, setEmployeeSearch] = useState('')
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
@@ -246,6 +247,7 @@ function ShiftPage() {
     queryFn: () => userService.getUsers({
       role: 'employee,manager,cashier',
       branch_id: effectiveBranchId || undefined,
+      limit: 500,
     }),
   })
 
@@ -340,6 +342,10 @@ function ShiftPage() {
 
   const employeeOptions = employees
     .map((u) => ({ value: employeeId(u), label: u.full_name }))
+
+  const filteredEmployees = employeeSearch.trim()
+    ? employees.filter((emp) => emp.full_name?.toLowerCase().includes(employeeSearch.trim().toLowerCase()))
+    : employees
 
   return (
     <div className="space-y-6">
@@ -517,6 +523,7 @@ function ShiftPage() {
                       onClick={() => {
                         setDetailDate(cell.dateStr)
                         setShowDetailModal(true)
+                        setEmployeeSearch('')
                       }}
                       className={`min-h-[90px] border rounded-lg p-2 transition-all flex flex-col justify-between cursor-pointer ${
                         cell.isCurrentMonth
@@ -584,14 +591,27 @@ function ShiftPage() {
                   )}
                 </DialogTitle>
               </DialogHeader>
+              {detailDate && employees.length > 0 && (
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={employeeSearch}
+                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                    placeholder="Search employee name..."
+                    className="pl-8 h-9"
+                  />
+                </div>
+              )}
               <div className="space-y-2 max-h-[420px] overflow-y-auto">
                 {!detailDate ? (
                   <p className="text-muted-foreground">No date selected.</p>
                 ) : employees.length === 0 ? (
                   <p className="text-muted-foreground">No employees found.</p>
+                ) : filteredEmployees.length === 0 ? (
+                  <p className="text-muted-foreground">No employees match "{employeeSearch}".</p>
                 ) : (
                   (() => {
-                    return employees.map((emp) => {
+                    return filteredEmployees.map((emp) => {
                       const empId = employeeId(emp)
                       const existingAssignment = assignments.find(
                         (a) => a.employee_id === empId && a.shift_date === detailDate

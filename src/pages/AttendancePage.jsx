@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import {
   Loader2, Clock, Coffee, CheckCircle2, XCircle, UserMinus, Zap,
-  RefreshCw, Calendar, ChevronLeft, ChevronRight, List
+  RefreshCw, Calendar, ChevronLeft, ChevronRight, List, Search
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -103,6 +103,7 @@ export default function AttendancePage() {
   const [detailDate, setDetailDate] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
+  const [rosterSearch, setRosterSearch] = useState('')
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches', 'active', 'salon'],
@@ -178,6 +179,15 @@ export default function AttendancePage() {
       }),
     }
   }, [rosterData?.data, user?.id, user?.role])
+
+  const filteredRosterEmployees = useMemo(() => {
+    const list = roster?.employees || []
+    const q = rosterSearch.trim().toLowerCase()
+    if (!q) return list
+    return list.filter((emp) =>
+      emp.full_name?.toLowerCase().includes(q) || emp.employee_code?.toLowerCase().includes(q)
+    )
+  }, [roster?.employees, rosterSearch])
 
   // Monthly attendance query
   const { data: monthlyDataResponse, isLoading: monthlyLoading, refetch: refetchMonthly } = useQuery({
@@ -563,6 +573,18 @@ export default function AttendancePage() {
                   placeholder="Select branch"
                 />
               </div>
+              <div className="flex-1 min-w-[200px] max-w-sm">
+                <Label className="text-xs mb-1 block">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={rosterSearch}
+                    onChange={(e) => setRosterSearch(e.target.value)}
+                    placeholder="Search employee name or code..."
+                    className="pl-8"
+                  />
+                </div>
+              </div>
               {!defaultMachineNo && branchId && (
                 <p className="text-xs text-amber-600">
                   {ensureMachineMutation.isPending
@@ -585,6 +607,10 @@ export default function AttendancePage() {
                 <p className="text-sm text-muted-foreground text-center py-12">
                   No employees assigned to this branch.
                 </p>
+              ) : filteredRosterEmployees.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-12">
+                  No employees match "{rosterSearch}".
+                </p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -600,7 +626,7 @@ export default function AttendancePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {roster.employees.map((emp) => {
+                    {filteredRosterEmployees.map((emp) => {
                       const meta = STATUS_META[emp.current_status] || STATUS_META.not_arrived
                       const Icon = meta.icon
                       return (

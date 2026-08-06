@@ -34,7 +34,7 @@ function ShiftAssignmentsPage() {
 
   const { data: allUsersData } = useQuery({
     queryKey: ['users', { role: 'employee,manager,cashier' }],
-    queryFn: () => userService.getUsers({ role: 'employee,manager,cashier' }),
+    queryFn: () => userService.getUsers({ role: 'employee,manager,cashier', limit: 500 }),
   })
   const employees = allUsersData?.data || []
 
