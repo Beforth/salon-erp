@@ -89,7 +89,7 @@ export default function AttendanceApiKeysPanel() {
 
   const formatDate = (value) => {
     if (!value) return '—'
-    return new Date(value).toLocaleString()
+    return new Date(value).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
   }
 
   return (
