@@ -21,7 +21,7 @@ function CommandDialog({ open, onOpenChange, children, label = "Command palette"
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-[16%] z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border shadow-2xl outline-none animate-in fade-in-0 zoom-in-95"
+          className="fixed left-1/2 top-[16%] z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border shadow-2xl outline-none animate-pop"
         >
           <DialogPrimitive.Title className="sr-only">{label}</DialogPrimitive.Title>
           <Command loop {...props}>{children}</Command>
@@ -61,7 +61,7 @@ const CommandGroup = ({ className, ...props }) => (
 const CommandItem = ({ className, ...props }) => (
   <Cmdk.Item
     className={cn(
-      "flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-[13px] outline-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-muted-foreground",
+      "flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-[13px] outline-none data-[selected=true]:bg-secondary [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-muted-foreground",
       className
     )}
     {...props}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { Keyboard, LogOut, PanelLeft, Plus, Settings as SettingsIcon } from 'lucide-react'
+import { Keyboard, LogOut, PanelLeft, Plus, User as UserIcon, Settings as SettingsIcon } from 'lucide-react'
 import { logout } from '@/store/slices/authSlice'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { getNavItemsByRole } from '@/components/layout/Sidebar'
@@ -27,10 +27,12 @@ const GO_KEYS = {
   e: '/employee-status',
   s: '/staff',
   a: '/attendance',
+  m: '/my-attendance',
   r: '/reports',
   p: '/products',
   i: '/inventory',
   x: '/expenses',
+  y: '/payroll',
   h: '/shifts',
   v: '/services',
   k: '/maintenance',
@@ -59,8 +61,8 @@ const SHORTCUTS = [
 ]
 const GO_HELP = [
   ['d', 'Dashboard'], ['c', 'Customers'], ['b', 'Billing'], ['t', 'Tokens'], ['e', 'Employee status'],
-  ['s', 'Staff'], ['a', 'Attendance'], ['r', 'Reports'], ['p', 'Products'],
-  ['i', 'Stock levels'], ['x', 'Expenses'], ['h', 'Shifts'], ['v', 'Services'], ['k', 'Maintenance'],
+  ['s', 'Staff'], ['a', 'Attendance'], ['m', 'My attendance'], ['r', 'Reports'], ['p', 'Products'],
+  ['i', 'Stock levels'], ['x', 'Expenses'], ['y', 'Payroll'], ['h', 'Shifts'], ['v', 'Services'], ['k', 'Maintenance'],
 ]
 
 const isTypingTarget = (el) =>
@@ -181,7 +183,10 @@ export default function CommandCenter() {
                 <Plus /> New bill <Kbd className="ml-auto">n</Kbd>
               </CommandItem>
             )}
-                        <CommandItem value="action settings preferences" onSelect={() => go('/settings')}>
+            <CommandItem value="action profile account" onSelect={() => go('/profile')}>
+              <UserIcon /> My profile
+            </CommandItem>
+            <CommandItem value="action settings preferences" onSelect={() => go('/settings')}>
               <SettingsIcon /> Settings
             </CommandItem>
             <CommandItem value="action toggle sidebar collapse" onSelect={run(toggle)}>
