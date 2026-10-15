@@ -312,10 +312,20 @@ function StaffPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <BranchColorDot color={staff.branch?.color_code} />
                         {staff.branch?.name || (
                           <span className="text-gray-400">All Branches</span>
+                        )}
+                        {(staff.additional_branches || []).length > 0 && (
+                          <>
+                            <span className="text-gray-400 text-xs">+</span>
+                            <span className="text-xs text-muted-foreground bg-gray-100 px-1.5 py-0.5 rounded">
+                              {(staff.additional_branches || []).map((b, i) => (
+                                <span key={b.branch_id} className="mr-1 inline-block">{b.name}{i < (staff.additional_branches || []).length - 1 ? ',' : ''}</span>
+                              ))}
+                            </span>
+                          </>
                         )}
                       </div>
                     </TableCell>

@@ -15,6 +15,12 @@ export const userService = {
 
   updateStarGoal: (id, monthly_star_goal) => api.put(`/users/${id}/star-goal`, { monthly_star_goal }),
 
+  // Search employees by biometric ID (for autocomplete)
+  searchByBiometricId: (query) => api.get('/users/search/biometric', { params: { q: query } }),
+
+  // Attach existing employee to another branch
+  attachEmployeeToBranch: (userId, branchId) => api.post(`/users/${userId}/branches`, { branch_id: branchId }),
+
   // Employee services (limited data, no amounts)
   getMyServices: (params) => api.get('/users/me/services', { params }),
 
