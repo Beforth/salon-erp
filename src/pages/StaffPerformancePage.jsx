@@ -460,7 +460,9 @@ function StaffPerformancePage() {
                 {branchEmployees.map((emp) => (
                   <option key={emp.employee_id} value={emp.employee_id}>
                     {emp.full_name}
-                    {emp.employee_code ? ` (${emp.employee_code})` : ''}
+                    {emp.employee_code || emp.biometric_id
+                      ? ` (${[emp.employee_code, emp.biometric_id].filter(Boolean).join(' / ')})`
+                      : ''}
                   </option>
                 ))}
               </select>
