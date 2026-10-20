@@ -276,17 +276,13 @@ export default function AttendancePage() {
         machineNo = res?.data?.machine_no
         queryClient.invalidateQueries({ queryKey: ['machines', branchId] })
       } catch {
-        toast.error('Could not set up attendance machine for this branch')
-        return
+        // fallback
       }
-    }
-    if (!machineNo) {
-      toast.error('Register a machine for this branch before marking breaks manually')
-      return
     }
     const payload = {
       employee_code: emp.employee_code,
-      machine_no: machineNo,
+      machine_no: machineNo || defaultMachineNo || 'MANUAL',
+      branch_id: branchId,
       reason: type === 'start' ? 'Break start (cashier)' : 'Break end (cashier)',
     }
     if (type === 'start') breakStartMutation.mutate(payload)
@@ -329,22 +325,17 @@ export default function AttendancePage() {
         machineNo = res?.data?.machine_no
         queryClient.invalidateQueries({ queryKey: ['machines', branchId] })
       } catch {
-        toast.error('Could not set up attendance machine for this branch')
-        return
+        // fallback
       }
     }
-    if (!machineNo) {
-      toast.error('Register a machine for this branch before punching manually')
-      return
-    }
-    setPunchModal({ employee: emp, type: punchType })
+    setPunchModal({ employee: emp, type: punchType, machineNo: machineNo || defaultMachineNo || 'MANUAL' })
     setPunchDateTime(getLocalDatetimeString())
     setPunchReason(punchType === 'in' ? 'Manual check-in (cashier)' : 'Manual check-out (cashier)')
   }
 
   const submitPunch = () => {
     if (!punchModal) return
-    const { employee, type } = punchModal
+    const { employee, type, machineNo } = punchModal
     const dateObj = new Date(punchDateTime)
     if (isNaN(dateObj.getTime())) {
       toast.error('Invalid date and time selected')
@@ -355,7 +346,8 @@ export default function AttendancePage() {
       ...(employee.employee_code
         ? { employee_code: employee.employee_code }
         : { employee_id: employee.id }),
-      machine_no: defaultMachineNo,
+      machine_no: machineNo || defaultMachineNo || 'MANUAL',
+      branch_id: branchId,
       punch_time: dateObj.toISOString(),
       punch_type: type,
       source: 'manual',
@@ -397,6 +389,7 @@ export default function AttendancePage() {
 
     updateTimesMutation.mutate({
       employee_id: editTimesModal.employee_details_id || editTimesModal.id,
+      branch_id: branchId,
       attendance_date: getShopDateStr(),
       check_in: toIstPunchPayload(editCheckIn),
       check_out: editCheckOut ? toIstPunchPayload(editCheckOut) : null,

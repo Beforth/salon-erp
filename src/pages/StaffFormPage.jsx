@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
@@ -32,6 +32,8 @@ import {
   Sparkles,
   ChevronDown,
   ChevronRight,
+  Search,
+  UserCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -163,6 +165,66 @@ function StaffFormPage() {
   const [editingAssetId, setEditingAssetId] = useState(null)
   const [showTransactionLog, setShowTransactionLog] = useState(false)
 
+  // Biometric ID search state
+  const [biometricSearchQuery, setBiometricSearchQuery] = useState('')
+  const [biometricSuggestions, setBiometricSuggestions] = useState([])
+  const [showBiometricSuggestions, setShowBiometricSuggestions] = useState(false)
+  const [selectedBiometricSuggestion, setSelectedBiometricSuggestion] = useState(null)
+  const biometricInputRef = useRef(null)
+
+  const searchBiometricId = async (query) => {
+    if (!query || query.length < 2) {
+      setBiometricSuggestions([])
+      return
+    }
+    try {
+      const response = await userService.searchByBiometricId(query)
+      setBiometricSuggestions(response.data || [])
+    } catch (error) {
+      console.error('Biometric search failed:', error)
+      setBiometricSuggestions([])
+    }
+  }
+
+  const handleBiometricChange = (value) => {
+    setFormData((prev) => ({ ...prev, biometric_id: value }))
+    setBiometricSearchQuery(value)
+    if (value.length >= 2) {
+      searchBiometricId(value)
+      setShowBiometricSuggestions(true)
+    } else {
+      setBiometricSuggestions([])
+      setShowBiometricSuggestions(false)
+    }
+  }
+
+  const selectBiometricSuggestion = (suggestion) => {
+    setFormData((prev) => ({ ...prev, biometric_id: suggestion.biometricId }))
+    setBiometricSearchQuery(suggestion.biometricId)
+    setSelectedBiometricSuggestion(suggestion)
+    setShowBiometricSuggestions(false)
+    setTimeout(() => {
+      if (biometricInputRef.current) {
+        biometricInputRef.current.focus()
+      }
+    }, 0)
+  }
+
+  const clearBiometricSelection = () => {
+    setSelectedBiometricSuggestion(null)
+  }
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (biometricInputRef.current && !biometricInputRef.current.contains(event.target)) {
+        setShowBiometricSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // Fetch user data when editing
   const { data: userData, isLoading: isLoadingUser } = useQuery({
     queryKey: ['user', id],
@@ -285,6 +347,21 @@ function StaffFormPage() {
 
   // --- Mutations ---
 
+  const [mergeConfirm, setMergeConfirm] = useState({ show: false, existingUser: null, currentBranchId: null })
+
+  const attachBranchMutation = useMutation({
+    mutationFn: ({ userId, branchId }) => userService.attachEmployeeToBranch(userId, branchId),
+    onSuccess: () => {
+      toast.success('Employee linked to branch successfully')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setMergeConfirm({ show: false, existingUser: null, currentBranchId: null })
+      navigate('/staff')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error?.message || 'Failed to link employee')
+    },
+  })
+
   const createMutation = useMutation({
     mutationFn: userService.createUser,
     onSuccess: (response) => {
@@ -298,7 +375,16 @@ function StaffFormPage() {
       }
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to create staff member')
+      const errData = error.response?.data?.error
+      if (errData?.code === 'BIOMETRIC_EXISTS' && errData?.details) {
+        setMergeConfirm({
+          show: true,
+          existingUser: errData.details,
+          currentBranchId: formData.branch_id,
+        })
+      } else {
+        toast.error(errData?.message || 'Failed to create staff member')
+      }
     },
   })
 
@@ -311,7 +397,16 @@ function StaffFormPage() {
       navigate('/staff')
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to update staff member')
+      const errData = error.response?.data?.error
+      if (errData?.code === 'BIOMETRIC_EXISTS' && errData?.details) {
+        setMergeConfirm({
+          show: true,
+          existingUser: errData.details,
+          currentBranchId: formData.branch_id,
+        })
+      } else {
+        toast.error(errData?.message || 'Failed to update staff member')
+      }
     },
   })
 
@@ -462,6 +557,20 @@ function StaffFormPage() {
     }
   }
 
+  // --- Merge Confirmation Dialog ---
+  const handleMergeConfirm = () => {
+    if (mergeConfirm.existingUser && mergeConfirm.currentBranchId) {
+      attachBranchMutation.mutate({
+        userId: mergeConfirm.existingUser.existing_user_id,
+        branchId: mergeConfirm.currentBranchId,
+      })
+    }
+  }
+
+  const handleMergeCancel = () => {
+    setMergeConfirm({ show: false, existingUser: null, currentBranchId: null })
+  }
+
   // --- Loading state ---
 
   if (isEditing && isLoadingUser) {
@@ -475,7 +584,38 @@ function StaffFormPage() {
   // --- Render ---
 
   return (
-    <div className="space-y-6">
+    <>
+      {mergeConfirm.show && mergeConfirm.existingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={handleMergeCancel}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-yellow-100 rounded-full text-yellow-600">
+                <User className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-semibold">Biometric ID Already Exists</h3>
+            </div>
+            <p className="text-muted-foreground mb-4">
+              An employee with this Biometric ID already exists in another branch.
+            </p>
+            <div className="bg-gray-50 rounded-md p-4 mb-4">
+              <p className="font-medium text-sm">Existing Employee:</p>
+              <p className="text-sm">{mergeConfirm.existingUser.existing_name}</p>
+              <p className="text-xs text-muted-foreground">Branch: {mergeConfirm.existingUser.existing_branch?.name || mergeConfirm.existingUser.existing_branch_id}</p>
+              <p className="text-xs text-muted-foreground font-mono">Biometric ID: {formData.biometric_id}</p>
+            </div>
+            <p className="text-sm text-muted-foreground mb-6">
+              Do you want to identify this employee as the same person and link them to the current branch?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={handleMergeCancel}>Cancel</Button>
+              <Button onClick={handleMergeConfirm} disabled={attachBranchMutation.isPending}>
+                {attachBranchMutation.isPending ? 'Linking...' : 'Yes, Merge'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="space-y-6">
       {/* Breadcrumb Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/staff')}>
@@ -697,14 +837,65 @@ function StaffFormPage() {
                       placeholder="EMP-001"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative">
                     <Label htmlFor="biometric_id">Biometric ID</Label>
-                    <Input
-                      id="biometric_id"
-                      value={formData.biometric_id}
-                      onChange={(e) => handleChange('biometric_id', e.target.value)}
-                      placeholder="00000004"
-                    />
+                    <div className="relative">
+                      <Input
+                        ref={biometricInputRef}
+                        id="biometric_id"
+                        value={formData.biometric_id}
+                        onChange={(e) => handleBiometricChange(e.target.value)}
+                        onFocus={() => biometricSearchQuery.length >= 2 && setShowBiometricSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowBiometricSuggestions(false), 200)}
+                        placeholder="00000004"
+                      />
+                      {selectedBiometricSuggestion && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600" title="Matched existing employee">
+                          <UserCheck className="h-4 w-4" />
+                        </div>
+                      )}
+                    </div>
+                    {showBiometricSuggestions && biometricSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 max-h-60 overflow-auto bg-white border border-border rounded-md shadow-lg">
+                        {biometricSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.userId}
+                            type="button"
+                            className="w-full px-3 py-2 text-left hover:bg-accent focus:bg-accent focus:outline-none flex items-center justify-between gap-2"
+                            onClick={() => selectBiometricSuggestion(suggestion)}
+                          >
+                            <div>
+                              <p className="font-medium text-sm">{suggestion.fullName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {suggestion.employeeCode} • {suggestion.branch?.name || 'No Branch'}
+                              </p>
+                            </div>
+                            <span className="text-xs text-muted-foreground font-mono">{suggestion.biometricId}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {showBiometricSuggestions && biometricSuggestions.length === 0 && biometricSearchQuery.length >= 2 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-border rounded-md shadow-lg px-3 py-2 text-sm text-muted-foreground">
+                        No matching biometric IDs found
+                      </div>
+                    )}
+                    {selectedBiometricSuggestion && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-green-800">
+                          <UserCheck className="h-4 w-4" />
+                          <span>
+                            Matched: <strong>{selectedBiometricSuggestion.fullName}</strong> ({selectedBiometricSuggestion.employeeCode}) at {selectedBiometricSuggestion.branch?.name || 'Unknown Branch'}
+                          </span>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={clearBiometricSelection}>
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Type to search existing biometric IDs. Select to link this employee record.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="joining_date">Joining Date</Label>
@@ -1239,7 +1430,8 @@ function StaffFormPage() {
         </div>
       </form>
     </div>
-  )
+  </>
+)
 }
 
 export default StaffFormPage
