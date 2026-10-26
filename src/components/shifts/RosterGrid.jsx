@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { useEffect } from 'react'
+import { ChevronLeft, ChevronRight, Copy, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { shiftService } from '@/services/shift.service'
 import { userService } from '@/services/user.service'
@@ -39,6 +40,9 @@ export default function RosterGrid({ branchId }) {
   const [sel, setSel] = useState({ r: 0, c: 0 }) // other corner of the selection
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const [onlyScheduled, setOnlyScheduled] = useState(false)
+  const [brush, setBrush] = useState(null) // shift id | 'clear' | null — click or drag cells to paint it
+  const dragging = useRef(false)
 
   const dates = useMemo(() => buildRange(anchor, view), [anchor, view])
   const months = useMemo(() => monthsOf(dates), [dates])
@@ -56,11 +60,6 @@ export default function RosterGrid({ branchId }) {
   })
   // Only staff with an employee profile can be scheduled (the API rejects managers/cashiers without one).
   const allEmployees = useMemo(() => (usersData?.data || []).filter((u) => u.employee_details), [usersData])
-  const employees = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return q ? allEmployees.filter((e) => e.full_name?.toLowerCase().includes(q)) : allEmployees
-  }, [allEmployees, search])
-  const rowIds = useMemo(() => employees.map(employeeId), [employees])
 
   const assignmentQueries = useQueries({
     queries: months.map((m) => ({
@@ -75,6 +74,13 @@ export default function RosterGrid({ branchId }) {
   )
   const lookupMap = useMemo(() => new Map(assignments.map((a) => [`${a.employee_id}|${a.shift_date}`, a])), [assignments])
   const lookup = useCallback((emp, date) => lookupMap.get(`${emp}|${date}`), [lookupMap])
+  const employees = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    let list = q ? allEmployees.filter((e) => e.full_name?.toLowerCase().includes(q)) : allEmployees
+    if (onlyScheduled) list = list.filter((e) => dates.some((d) => lookupMap.has(`${employeeId(e)}|${d}`)))
+    return list
+  }, [allEmployees, search, onlyScheduled, dates, lookupMap])
+  const rowIds = useMemo(() => employees.map(employeeId), [employees])
 
   const selection = rect(cursor, sel)
   const rows = rowIds.length
@@ -134,6 +140,21 @@ export default function RosterGrid({ branchId }) {
     return cells
   }
 
+  const brushRef = useRef(null)
+  brushRef.current = brush
+  const applyRef = useRef(null)
+  const selRef = useRef(null)
+  useEffect(() => {
+    const up = () => {
+      if (!dragging.current) return
+      dragging.current = false
+      const b = brushRef.current
+      if (b) applyRef.current?.(selRef.current(b === 'clear' ? null : b))
+    }
+    window.addEventListener('mouseup', up)
+    return () => window.removeEventListener('mouseup', up)
+  }, [])
+
   const onKeyDown = (e) => {
     if (!rows) return
     const k = e.key
@@ -174,6 +195,9 @@ export default function RosterGrid({ branchId }) {
     if (handled) e.preventDefault()
   }
 
+  applyRef.current = apply
+  selRef.current = selectedCells
+
   const coverage = useMemo(
     () => dates.map((d) => rowIds.filter((id) => lookup(id, d)).length),
     [dates, rowIds, lookup]
@@ -186,6 +210,73 @@ export default function RosterGrid({ branchId }) {
   const title = view === 'month'
     ? fromDateStr(anchor).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
     : `${fromDateStr(dates[0]).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${fromDateStr(dates[6]).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+
+  const renderImage = () => {
+    const week = view === 'week'
+    const list = employees.filter((e) => dates.some((d) => lookup(employeeId(e), d)))
+    const nRows = list.length
+    const cw = week ? 130 : 66, rh = week ? 46 : 36, nameW = 190, top = 118, scale = 2
+    const W = nameW + cw * cols + 24, H = top + rh * nRows + 24
+    const cv = document.createElement('canvas')
+    cv.width = W * scale; cv.height = H * scale
+    const g = cv.getContext('2d')
+    g.scale(scale, scale)
+    const font = (w, px) => { g.font = `${w} ${px}px Inter, system-ui, sans-serif` }
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H)
+    g.fillStyle = '#111827'; font(700, 20); g.textBaseline = 'middle'
+    g.fillText(`Shift schedule · ${title}`, 12, 24)
+    let lx = 12
+    font(500, 13)
+    shifts.forEach((s) => {
+      const label = `${s.name} ${s.start_time}–${s.end_time}`
+      g.fillStyle = s.color_code; g.beginPath(); g.arc(lx + 6, 56, 6, 0, 7); g.fill()
+      g.fillStyle = '#374151'; g.fillText(label, lx + 18, 56)
+      lx += 18 + g.measureText(label).width + 20
+    })
+    const y0 = 80
+    g.fillStyle = '#f3f4f6'; g.fillRect(0, y0, W, top - y0 + 0)
+    g.fillStyle = '#6b7280'; font(600, 11); g.fillText('EMPLOYEE', 12, y0 + 19)
+    dates.forEach((d, c) => {
+      const dt = fromDateStr(d), x = nameW + c * cw
+      g.fillStyle = dt.getDay() === 0 ? '#dc2626' : '#111827'; g.textAlign = 'center'
+      font(600, 12); g.fillText(DAY[dt.getDay()], x + cw / 2, y0 + 12)
+      font(400, 11); g.fillText(`${dt.getDate()} ${dt.toLocaleDateString('en-IN', { month: 'short' })}`, x + cw / 2, y0 + 28)
+      g.textAlign = 'left'
+    })
+    g.strokeStyle = '#e5e7eb'
+    list.forEach((emp, r) => {
+      const id = employeeId(emp), y = top + r * rh
+      g.fillStyle = '#111827'; font(500, 13); g.fillText(emp.full_name.slice(0, 22), 12, y + rh / 2)
+      g.beginPath(); g.moveTo(0, y + rh); g.lineTo(W, y + rh); g.stroke()
+      dates.forEach((d, c) => {
+        const a = lookup(id, d), sh = a && shiftById.get(a.shift_id), x = nameW + c * cw
+        if (!sh) return
+        g.fillStyle = sh.color_code; g.beginPath(); g.roundRect(x + 3, y + 4, cw - 6, rh - 8, 5); g.fill()
+        g.fillStyle = '#fff'; g.textAlign = 'center'
+        if (week) { font(600, 12); g.fillText(sh.name, x + cw / 2, y + rh / 2 - 7); font(400, 10); g.fillText(`${sh.start_time}–${sh.end_time}`, x + cw / 2, y + rh / 2 + 8) }
+        else { font(600, 10); g.fillText(sh.name.slice(0, 8), x + cw / 2, y + rh / 2) }
+        g.textAlign = 'left'
+      })
+    })
+    return cv
+  }
+  const exportImage = (mode) => {
+    if (!rows) return
+    if (!employees.some((e) => dates.some((d) => lookup(employeeId(e), d)))) { toast.error('No shifts assigned in this period'); return }
+    renderImage().toBlob(async (blob) => {
+      if (!blob) return
+      if (mode === 'copy') {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          toast.success('Image copied — paste it in WhatsApp / chat')
+          return
+        } catch { toast.message('Copy not supported here — downloading instead') }
+      }
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob); a.download = `shift-schedule-${dates[0]}.png`; a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    })
+  }
 
   return (
     <div className="space-y-3">
@@ -201,7 +292,7 @@ export default function RosterGrid({ branchId }) {
             <button
               key={v}
               type="button"
-              onClick={() => { switchView(v); gridRef.current?.focus() }}
+              onClick={() => { switchView(v); gridRef.current?.focus({ preventScroll: true }) }}
               className={cn('rounded px-3 py-1 text-[13px] font-medium capitalize outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 view === v ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground')}
             >
@@ -212,25 +303,32 @@ export default function RosterGrid({ branchId }) {
         <input
           value={search}
           onChange={(e) => { setSearch(e.target.value); setCursor({ r: 0, c: cursor.c }); setSel({ r: 0, c: cursor.c }) }}
-          onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); gridRef.current?.focus() } }}
+          onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); gridRef.current?.focus({ preventScroll: true }) } }}
           placeholder="Find employee…  (/)"
           aria-label="Find employee"
           className="h-9 w-48 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/15"
         />
+        <label className="flex cursor-pointer items-center gap-1.5 text-[13px]">
+          <input type="checkbox" checked={onlyScheduled} onChange={(e) => setOnlyScheduled(e.target.checked)} /> Only scheduled staff
+        </label>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>}
+          <Button variant="outline" size="sm" onClick={() => exportImage('copy')} disabled={!rows}><Copy className="mr-1.5 h-3.5 w-3.5" /> Copy image</Button>
+          <Button variant="outline" size="sm" onClick={() => exportImage('save')} disabled={!rows}><Download className="mr-1.5 h-3.5 w-3.5" /> Save image</Button>
         </div>
       </div>
 
-      {/* Legend = the number keys */}
+      {/* Brush: pick a shift, then click or drag over days to assign it */}
       <div className="flex flex-wrap items-center gap-2" aria-label="Shift keys">
+        <span className="text-xs font-medium text-muted-foreground">Pick a shift, then click or drag on the days:</span>
         {shifts.length === 0 && <p className="text-sm text-muted-foreground">Create a shift in the “Shifts” tab first.</p>}
         {shifts.map((s, i) => (
           <button
             key={s.id}
             type="button"
-            onClick={() => { apply(selectedCells(s.id)); gridRef.current?.focus() }}
-            className="inline-flex items-center gap-2 rounded-md border bg-card px-2.5 py-1 text-[13px] outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={() => { setBrush(brush === s.id ? null : s.id); gridRef.current?.focus({ preventScroll: true }) }}
+            className={cn('inline-flex items-center gap-2 rounded-md border bg-card px-2.5 py-1 text-[13px] outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50',
+              brush === s.id && 'ring-2 ring-primary')}
           >
             <Kbd>{i + 1}</Kbd>
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color_code }} />
@@ -240,11 +338,13 @@ export default function RosterGrid({ branchId }) {
         ))}
         <button
           type="button"
-          onClick={() => { apply(selectedCells(null)); gridRef.current?.focus() }}
-          className="inline-flex items-center gap-2 rounded-md border border-dashed px-2.5 py-1 text-[13px] text-muted-foreground outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50"
+          onClick={() => { setBrush(brush === 'clear' ? null : 'clear'); gridRef.current?.focus({ preventScroll: true }) }}
+          className={cn('inline-flex items-center gap-2 rounded-md border border-dashed px-2.5 py-1 text-[13px] text-muted-foreground outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50',
+            brush === 'clear' && 'ring-2 ring-primary')}
         >
           <Kbd>Del</Kbd> Clear
         </button>
+        {brush && <button type="button" onClick={() => setBrush(null)} className="text-xs text-primary underline">Stop painting</button>}
       </div>
 
       {emptyCount > 0 && (
@@ -254,7 +354,7 @@ export default function RosterGrid({ branchId }) {
       )}
 
       {/* Grid */}
-      <div className="overflow-auto rounded-xl border bg-card">
+      <div className="max-h-[calc(100vh-300px)] min-h-[280px] overflow-auto rounded-xl border bg-card">
         {usersLoading ? (
           <div className="grid place-items-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : !rows ? (
@@ -266,15 +366,16 @@ export default function RosterGrid({ branchId }) {
             tabIndex={0}
             aria-label="Shift roster. Arrow keys move, number keys set a shift, Delete clears."
             onKeyDown={onKeyDown}
-            className="min-w-max outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            style={{ minWidth: 150 + cols * 84 }}
+            className="select-none outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             <div role="row" className="sticky top-0 z-10 flex border-b bg-secondary/80 backdrop-blur">
-              <div className="sticky left-0 z-20 w-44 shrink-0 bg-secondary px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Employee</div>
+              <div className="sticky left-0 z-20 w-40 shrink-0 bg-secondary px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Employee</div>
               {dates.map((d, c) => {
                 const dt = fromDateStr(d)
                 const weekend = dt.getDay() === 0
                 return (
-                  <div key={d} role="columnheader" className={cn('w-24 shrink-0 px-2 py-2 text-center text-xs', d === today && 'text-primary font-semibold', weekend && 'text-destructive', c === cursor.c && 'bg-accent')}>
+                  <div key={d} role="columnheader" onMouseDown={() => { setCursor({ r: 0, c }); setSel({ r: rows - 1, c }); gridRef.current?.focus({ preventScroll: true }) }} className={cn('min-w-[84px] flex-1 cursor-pointer px-1 py-1.5 text-center text-xs', d === today && 'text-primary font-semibold', weekend && 'text-destructive', c === cursor.c && 'bg-accent')}>
                     <div className="font-medium">{DAY[dt.getDay()]}</div>
                     <div className="text-[11px] opacity-80">{dt.getDate()} {dt.toLocaleDateString('en-IN', { month: 'short' })}</div>
                   </div>
@@ -286,9 +387,12 @@ export default function RosterGrid({ branchId }) {
               const id = employeeId(emp)
               return (
                 <div key={id} role="row" className="flex border-b last:border-b-0">
-                  <div className={cn('sticky left-0 z-10 w-44 shrink-0 truncate bg-card px-3 py-2 text-sm', r === cursor.r && 'bg-accent font-medium')}>
+                  <div
+                    onMouseDown={() => { setCursor({ r, c: 0 }); setSel({ r, c: cols - 1 }); gridRef.current?.focus({ preventScroll: true }) }}
+                    className={cn('sticky left-0 z-10 w-40 shrink-0 cursor-pointer truncate bg-card px-3 py-1.5 text-[13px] leading-tight', r === cursor.r && 'bg-accent font-medium')}
+                  >
                     {emp.full_name}
-                    <span className="block text-[11px] text-muted-foreground">{emp.employee_details?.employee_code || emp.role}</span>
+                    <span className="block text-[10px] text-muted-foreground">{emp.employee_details?.employee_code || emp.role}</span>
                   </div>
                   {dates.map((d, c) => {
                     const a = lookup(id, d)
@@ -302,20 +406,21 @@ export default function RosterGrid({ branchId }) {
                         aria-selected={selected}
                         onMouseDown={(e) => {
                           const n = { r, c }
-                          setCursor(n)
-                          if (!e.shiftKey) setSel(n)
-                          gridRef.current?.focus()
+                          if (e.shiftKey) setSel(n)
+                          else { setCursor(n); setSel(n) }
+                          dragging.current = true
+                          gridRef.current?.focus({ preventScroll: true })
                         }}
+                        onMouseEnter={(e) => { if (dragging.current && e.buttons === 1) setSel({ r, c }) }}
                         className={cn(
-                          'grid h-14 w-24 shrink-0 cursor-pointer place-items-center border-l px-1 text-center',
+                          'grid h-8 min-w-[84px] flex-1 cursor-pointer select-none place-items-center border-l px-1 text-center',
                           selected && 'bg-primary/10',
                           isCursor && 'outline outline-2 -outline-offset-2 outline-primary'
                         )}
                       >
                         {shift ? (
-                          <div className="w-full truncate rounded px-1.5 py-1 text-[11px] font-medium leading-tight text-white" style={{ backgroundColor: shift.color_code }}>
+                          <div className="w-full truncate rounded px-1.5 py-1 text-[11px] font-medium leading-none text-white" style={{ backgroundColor: shift.color_code }} title={`${shift.name} ${shift.start_time}–${shift.end_time}`}>
                             {shift.name}
-                            <span className="block text-[10px] font-normal opacity-90">{shift.start_time}–{shift.end_time}</span>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground/50">{d >= today ? '—' : ''}</span>
@@ -328,9 +433,9 @@ export default function RosterGrid({ branchId }) {
             })}
 
             <div role="row" className="flex border-t bg-secondary/50 text-[11px] text-muted-foreground">
-              <div className="sticky left-0 z-10 w-44 shrink-0 bg-secondary px-3 py-1.5">Scheduled</div>
+              <div className="sticky left-0 z-10 w-40 shrink-0 bg-secondary px-3 py-1">Scheduled</div>
               {coverage.map((n, c) => (
-                <div key={dates[c]} className={cn('w-24 shrink-0 py-1.5 text-center', n < rows && dates[c] >= today && 'text-warning font-medium')}>
+                <div key={dates[c]} className={cn('min-w-[84px] flex-1 py-1 text-center', n < rows && dates[c] >= today && 'text-warning font-medium')}>
                   {n}/{rows}
                 </div>
               ))}
