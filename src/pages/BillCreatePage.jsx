@@ -1576,7 +1576,7 @@ function BillCreatePage() {
     const fit = () => {
       const el = rootRef.current
       if (!el) return
-      if (isEdit || !window.matchMedia('(min-width: 1024px)').matches) {
+      if (!window.matchMedia('(min-width: 1024px)').matches) {
         el.style.height = ''
         return
       }
@@ -1666,9 +1666,9 @@ function BillCreatePage() {
     return handleAddEmployeeFromQueue(0, selectedItemId)
   }
 
-  // Billing fits the window (lists scroll inside); editing lets the page grow so no line is ever squeezed out of view.
-  const ovH = isEdit ? '' : 'lg:overflow-hidden'
-  const ovA = isEdit ? '' : 'lg:overflow-auto'
+  // Billing and editing both fit the window; the catalog and the cart scroll inside their own panels.
+  const ovH = 'lg:overflow-hidden'
+  const ovA = 'lg:overflow-auto'
   const hasLines = cartItems.length > 0 || keptPackageLines.length > 0
   const customerInputRef = useRef(null)
   const catalogSearchRef = useRef(null)
