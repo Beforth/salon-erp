@@ -3,6 +3,7 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext'
 import DocsFirstTimeModal from '@/components/DocsFirstTimeModal'
+import CommandCenter from './CommandCenter'
 
 function DashboardContent() {
   const { collapsed, openMobile } = useSidebar()
@@ -10,6 +11,7 @@ function DashboardContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       <DocsFirstTimeModal />
+      <CommandCenter />
       {/* Sidebar (handles both desktop & mobile drawer internally) */}
       <Sidebar />
 

@@ -79,13 +79,14 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
 
   // Detect Staff Advance category
   const selectedCategory = categories.find((c) => c.id === formData.category_id)
-  const isStaffRelated = selectedCategory?.name === 'Staff Advance' || selectedCategory?.name === 'Staff Salary'
+  const categoryName = selectedCategory?.name?.trim().toLowerCase() || ''
+  const isStaffRelated = categoryName.startsWith('staff advance') || categoryName.startsWith('staff salary')
   const isOtherCategory = ['other', 'others'].includes(selectedCategory?.name?.toLowerCase())
   const isOtherPaymentMode = formData.payment_mode === 'other'
 
   // Fetch employees when Staff Advance selected
   const branchIdForEmployees = formData.branch_id || user?.branchId
-  const { data: employeesData } = useQuery({
+  const { data: employeesData, isLoading: employeesLoading } = useQuery({
     queryKey: ['branch-employees', branchIdForEmployees],
     queryFn: () => branchService.getBranchEmployees(branchIdForEmployees),
     enabled: open && isStaffRelated && !!branchIdForEmployees,
@@ -202,6 +203,10 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
     }
     if (!formData.payment_mode) {
       toast.error('Payment mode is required')
+      return
+    }
+    if (isStaffRelated && !isEditing && !formData.employee_id) {
+      toast.error('Select the employee this is for')
       return
     }
     if (formData.payment_mode === 'upi' && !formData.upi_account_id) {
@@ -357,16 +362,29 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
             </div>
           )}
 
-          {/* Employee (only for Staff Advance) */}
+          {/* Employee (only for Staff Advance / Staff Salary) */}
           {isStaffRelated && (
             <div className="space-y-2">
-              <Label>Employee</Label>
+              <Label>Employee *</Label>
               <SearchableSelect
-                options={employees.map(emp => ({ value: emp.employee_id, label: emp.full_name }))}
+                options={employees.map(emp => ({
+                  value: emp.employee_id,
+                  label: emp.employee_code ? `${emp.full_name} (${emp.employee_code})` : emp.full_name,
+                }))}
                 value={formData.employee_id}
                 onChange={(value) => handleChange('employee_id', value)}
-                placeholder="Select employee..."
+                placeholder={
+                  !branchIdForEmployees
+                    ? 'Select a branch first...'
+                    : employeesLoading
+                      ? 'Loading employees...'
+                      : 'Select employee...'
+                }
+                disabled={!branchIdForEmployees}
               />
+              {branchIdForEmployees && !employeesLoading && employees.length === 0 && (
+                <p className="text-xs text-muted-foreground">No active employees found for this branch.</p>
+              )}
             </div>
           )}
 

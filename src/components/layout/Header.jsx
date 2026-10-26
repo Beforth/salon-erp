@@ -15,7 +15,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bell, Menu, LogOut, User, Settings, ArrowRightLeft, Users } from 'lucide-react'
+import { Bell, Menu, Search, LogOut, User, Settings, ArrowRightLeft, Users } from 'lucide-react'
+import { Kbd } from '@/components/ui/kbd'
+import { OPEN_PALETTE_EVENT } from '@/components/layout/CommandCenter'
 import EmployeeRotationPanel from '@/components/billing/EmployeeRotationPanel'
 
 function Header({ onMenuClick }) {
@@ -89,6 +91,20 @@ function Header({ onMenuClick }) {
               Branch: <span className="font-medium text-gray-900">{user.branch.name}</span>
             </span>
           )}
+        </div>
+
+        {/* Command palette trigger (Ctrl/Cmd+K) */}
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
+            className="flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground hover:bg-accent"
+            aria-label="Open command palette"
+          >
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">Search…</span>
+            <span className="hidden sm:flex gap-1"><Kbd>Ctrl</Kbd><Kbd>K</Kbd></span>
+          </button>
         </div>
 
         {/* Right side */}

@@ -20,7 +20,7 @@ export function SearchableSelect({
   compact = false,
   triggerClassName,
   formatOption,
-  portalTarget = document.body,
+  portalTarget,
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -28,6 +28,7 @@ export function SearchableSelect({
   const containerRef = useRef(null)
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
+  const targetRef = useRef(null)
 
   const selectedOption = options.find((o) => o.value === value)
 
@@ -46,7 +47,17 @@ export function SearchableSelect({
 
     const width = Math.max(rect.width, compact ? 220 : 240)
 
-    if (portalTarget === null) {
+    // Inside a Radix Dialog the menu must live in the dialog's DOM: the dialog
+    // traps focus (search box could not be typed in) and locks wheel scrolling
+    // outside itself (list could not be scrolled). The dialog is a transformed
+    // element, so `fixed` coordinates are relative to it, not the viewport.
+    const target =
+      portalTarget !== undefined
+        ? portalTarget
+        : el.closest('[role="dialog"]') || document.body
+    targetRef.current = target
+
+    if (target === null) {
       setMenuStyle({
         position: 'absolute',
         left: 0,
@@ -58,21 +69,30 @@ export function SearchableSelect({
           ? { bottom: `calc(100% + ${DROPDOWN_GAP}px)` }
           : { top: `calc(100% + ${DROPDOWN_GAP}px)` }),
       })
-    } else {
-      // pointerEvents: auto — Radix Dialog sets pointer-events:none on body;
-      // without this, a body-portaled menu is visible but not clickable.
-      setMenuStyle({
-        position: 'fixed',
-        left: rect.left,
-        width,
-        minWidth: width,
-        zIndex: 9999,
-        pointerEvents: 'auto',
-        ...(upward
-          ? { bottom: window.innerHeight - rect.top + DROPDOWN_GAP }
-          : { top: rect.bottom + DROPDOWN_GAP }),
-      })
+      return
     }
+
+    let originLeft = 0
+    let originTop = 0
+    let originBottom = window.innerHeight
+    if (target !== document.body) {
+      const tr = target.getBoundingClientRect()
+      originLeft = tr.left + target.clientLeft
+      originTop = tr.top + target.clientTop
+      originBottom = tr.top + target.clientTop + target.clientHeight
+    }
+    // pointerEvents: auto - Radix Dialog sets pointer-events:none on body.
+    setMenuStyle({
+      position: 'fixed',
+      left: rect.left - originLeft,
+      width,
+      minWidth: width,
+      zIndex: 9999,
+      pointerEvents: 'auto',
+      ...(upward
+        ? { bottom: originBottom - rect.top + DROPDOWN_GAP }
+        : { top: rect.bottom - originTop + DROPDOWN_GAP }),
+    })
   }, [compact, portalTarget])
 
   useLayoutEffect(() => {
@@ -140,6 +160,8 @@ export function SearchableSelect({
       style={menuStyle}
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
       className="rounded-md border border-input bg-background shadow-lg pointer-events-auto"
     >
       <div className={cn('flex items-center border-b', compact ? 'px-2 py-1.5' : 'px-3 py-2')}>
@@ -154,6 +176,15 @@ export function SearchableSelect({
           placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault(); e.stopPropagation()
+              setOpen(false); setSearch('')
+            } else if (e.key === 'Enter') {
+              e.preventDefault(); e.stopPropagation()
+              if (filtered[0]) handleSelect(filtered[0].value)
+            }
+          }}
         />
       </div>
       <div
@@ -225,8 +256,8 @@ export function SearchableSelect({
         </div>
       </button>
 
-      {typeof document !== 'undefined' && dropdown && portalTarget
-        ? createPortal(dropdown, portalTarget)
+      {typeof document !== 'undefined' && dropdown && targetRef.current
+        ? createPortal(dropdown, targetRef.current)
         : dropdown}
     </div>
   )

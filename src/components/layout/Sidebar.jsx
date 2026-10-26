@@ -43,7 +43,7 @@ import {
   Clock,
 } from 'lucide-react'
 
-const getNavItemsByRole = (role) => {
+export const getNavItemsByRole = (role) => {
   const allNavItems = [
     {
       title: 'Dashboard',
