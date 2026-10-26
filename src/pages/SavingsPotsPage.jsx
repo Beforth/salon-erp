@@ -303,8 +303,8 @@ export default function SavingsPotsPage() {
                         <Badge variant="outline">{personPots.length} pot{personPots.length !== 1 ? 's' : ''}</Badge>
                       </div>
                       <p className="text-sm text-gray-500">
-                        Total: {formatCurrency(totalBalance)}
-                        {person.branch_name && ` · ${person.branch_name}`}
+                        {isOwner && `Total: ${formatCurrency(totalBalance)}`}
+                        {person.branch_name && `${isOwner ? ' · ' : ''}${person.branch_name}`}
                       </p>
                     </div>
                   </div>
@@ -370,9 +370,11 @@ export default function SavingsPotsPage() {
                       <span className="font-semibold text-gray-500">Unassigned Pots</span>
                       <Badge variant="secondary">{unassignedPots.length} pot{unassignedPots.length !== 1 ? 's' : ''}</Badge>
                     </div>
-                    <p className="text-sm text-gray-400">
-                      Total: {formatCurrency(unassignedPots.reduce((sum, p) => sum + (p.balance || 0), 0))}
-                    </p>
+                    {isOwner && (
+                      <p className="text-sm text-gray-400">
+                        Total: {formatCurrency(unassignedPots.reduce((sum, p) => sum + (p.balance || 0), 0))}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

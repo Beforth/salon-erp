@@ -8,6 +8,7 @@ import MyAttendancePage from './pages/MyAttendancePage'
 import ProfilePage from './pages/ProfilePage'
 import DashboardLayout from './components/layout/DashboardLayout'
 import OwnerDashboard from './pages/dashboards/OwnerDashboard'
+import RoleRoute from './components/auth/RoleRoute'
 import ManagerDashboard from './pages/dashboards/ManagerDashboard'
 import CashierDashboard from './pages/dashboards/CashierDashboard'
 import EmployeeDashboard from './pages/dashboards/EmployeeDashboard'
@@ -59,6 +60,9 @@ import WarehousesPage from './pages/WarehousesPage'
 import WarehouseCreatePage from './pages/WarehouseCreatePage'
 import DocsPage from './pages/DocsPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+
+// Pages that carry money and incentive figures: owner only.
+const OWNER_ROLES = ['owner', 'developer']
 
 function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth)
@@ -140,14 +144,14 @@ function App() {
         <Route path="products/:id/edit" element={<ProductFormPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="inventory/transfers" element={<StockTransfersPage />} />
-        <Route path="reports" element={<ReportsPage />} />
+        <Route path="reports" element={<RoleRoute roles={OWNER_ROLES}><ReportsPage /></RoleRoute>} />
         <Route path="branches" element={<BranchesPage />} />
         <Route path="branches/new" element={<BranchFormPage />} />
         <Route path="branches/:id/edit" element={<BranchFormPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="staff/new" element={<StaffFormPage />} />
         <Route path="staff/:id/edit" element={<StaffFormPage />} />
-        <Route path="staff-performance" element={<StaffPerformancePage />} />
+        <Route path="staff-performance" element={<RoleRoute roles={OWNER_ROLES}><StaffPerformancePage /></RoleRoute>} />
         <Route path="payroll" element={<PayrollPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="cash-reconciliation" element={<CashReconciliationPage />} />
