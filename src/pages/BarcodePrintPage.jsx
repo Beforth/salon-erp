@@ -131,8 +131,6 @@ export default function BarcodePrintPage() {
                 margin: 0;
                 padding: 0;
                 width: ${mmW}mm;
-                height: ${mmH}mm;
-                overflow: hidden;
               }
               .lbl {
                 width: ${mmW}mm;
