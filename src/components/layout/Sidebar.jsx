@@ -302,7 +302,7 @@ function SidebarContent({ collapsed, expandedGroups, toggleGroup, navItems, user
             <div className="flex items-center gap-3">
               {mark}
               <div className="flex flex-col">
-                <span className="text-lg font-black tracking-tight text-primary">Magic Scissor</span>
+                <span className="text-lg font-black tracking-tight text-primary">Salon ERP</span>
                 <span className="-mt-0.5 text-[10px] font-medium text-muted-foreground">Salon Management · {CURRENT_VERSION}</span>
               </div>
             </div>

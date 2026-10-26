@@ -27,7 +27,6 @@ const STATUS_TABS = [
   { value: '', label: 'All', key: '1' },
   { value: 'pending', label: 'Pending', key: '2' },
   { value: 'completed', label: 'Completed', key: '3' },
-  { value: 'cancelled', label: 'Cancelled', key: '4' },
 ]
 const STATUS_STYLE = {
   completed: 'bg-emerald-100 text-emerald-700',
@@ -90,7 +89,9 @@ function BillsPage() {
   const [params, setParams] = useSearchParams()
 
   // ---- All filters live in the address bar: Back from a bill returns to exactly this view ----
+  // 'cancelled' is its own tab: it lists bills like the Bills tab does, but only cancelled ones.
   const view = params.get('view') === 'pending-services' ? 'pending-services' : 'bills'
+  const cancelledView = params.get('view') === 'cancelled'
   const status = params.get('status') || ''
   const from = params.get('from') || ''
   const to = params.get('to') || ''
@@ -120,7 +121,7 @@ function BillsPage() {
   const [sortBy, sortOrder] = [sort.replace(/_(asc|desc)$/, ''), sort.endsWith('_asc') ? 'asc' : 'desc']
   const today = istTodayStr()
   const activeChip = presetOf(from, to, today)
-  const hasFilters = !!(from || to || mode || branch || search || status)
+  const hasFilters = !!(from || to || mode || branch || search || (status && !cancelledView))
 
   const [sel, setSel] = useState(0)
   const [completeModal, setCompleteModal] = useState({ open: false, bill: null })
@@ -138,7 +139,10 @@ function BillsPage() {
   const branches = (branchesData?.data || []).filter((b) => b.is_salon !== false)
 
   const billsParams = {
-    page, limit: 20, search: search || undefined, status: status || undefined, start_date: from || undefined, end_date: to || undefined,
+    page, limit: 20, search: search || undefined,
+    status: cancelledView ? 'cancelled' : status || undefined,
+    exclude_cancelled: cancelledView ? undefined : 'true',
+    start_date: from || undefined, end_date: to || undefined,
     payment_mode: mode || undefined, branch_id: branch || undefined, sort_by: sortBy, sort_order: sortOrder,
   }
   const { data, isLoading, isFetching, error } = useQuery({
@@ -162,7 +166,7 @@ function BillsPage() {
 
   const rows = view === 'bills' ? bills : pendingItems
   const totalPages = view === 'bills' ? pagination.totalPages : pendingPagination.total_pages
-  useEffect(() => setSel(0), [view, page, status, from, to, mode, branch, search, sort, data, pendingData])
+  useEffect(() => setSel(0), [view, cancelledView, page, status, from, to, mode, branch, search, sort, data, pendingData])
 
   const cancelMutation = useMutation({
     mutationFn: (id) => billService.cancelBill(id),
@@ -212,7 +216,7 @@ function BillsPage() {
     }
   }
 
-  // ---- Keyboard: / search, j k move, Enter open, e edit, c complete, p print, x cancel, 1-4 status, t today ----
+  // ---- Keyboard: / search, j k move, Enter open, e edit, c complete, p print, x cancel, 1-3 status, t today ----
   const kb = useRef({})
   kb.current = { rows, sel, view, totalPages, page, canEdit, openComplete, printBill, setP }
   useEffect(() => {
@@ -247,7 +251,7 @@ function BillsPage() {
       else if (k === 'ArrowLeft' || k === 'PageUp') { if (h.page > 1) { stop(); h.setP({ page: String(h.page - 1) }, false) } }
       else if (k === 'b') { stop(); h.setP({ view: '' }) }
       else if (k === 's') { stop(); h.setP({ view: 'pending-services' }) }
-      else if (h.view === 'bills' && ['1', '2', '3', '4'].includes(k)) { stop(); h.setP({ status: STATUS_TABS[Number(k) - 1].value }) }
+      else if (h.view === 'bills' && !h.cancelledView && ['1', '2', '3'].includes(k)) { stop(); h.setP({ status: STATUS_TABS[Number(k) - 1].value }) }
       else if (h.view === 'bills' && k === 't') { stop(); const r = rangeFor('today'); h.setP({ from: r.from, to: r.to }) }
       else if (row && k === 'Enter') {
         stop()
@@ -275,7 +279,7 @@ function BillsPage() {
   const countOf = (value) => (summary ? (value === '' ? summary.count : summary.by_status?.[value]?.count ?? 0) : null)
   const clearAll = () => {
     setSearchText('')
-    setParams(new URLSearchParams(view === 'bills' ? '' : 'view=pending-services'), { replace: true })
+    setParams(new URLSearchParams(view !== 'bills' ? 'view=pending-services' : cancelledView ? 'view=cancelled' : ''), { replace: true })
   }
 
   const billRow = (b, i) => {
@@ -416,7 +420,7 @@ function BillsPage() {
       {/* View switch + summary */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="inline-flex rounded-lg border bg-muted/40 p-0.5" role="tablist" aria-label="View">
-          <button role="tab" aria-selected={view === 'bills'} onClick={() => setP({ view: '' })} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${view === 'bills' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+          <button role="tab" aria-selected={view === 'bills' && !cancelledView} onClick={() => setP({ view: '' })} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${view === 'bills' && !cancelledView ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
             <Receipt className="h-4 w-4" />Bills <Kbd className="hidden sm:inline-flex">b</Kbd>
           </button>
           <button role="tab" aria-selected={view === 'pending-services'} onClick={() => setP({ view: 'pending-services' })} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${view === 'pending-services' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
@@ -424,8 +428,11 @@ function BillsPage() {
             {pendingCount > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">{pendingCount}</span>}
             <Kbd className="hidden sm:inline-flex">s</Kbd>
           </button>
+          <button role="tab" aria-selected={cancelledView} onClick={() => setP({ view: 'cancelled' })} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${cancelledView ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+            <XCircle className="h-4 w-4" />Cancelled bills
+          </button>
         </div>
-        {view === 'bills' && summary && (
+        {view === 'bills' && !cancelledView && summary && (
           <div className="flex gap-4 text-sm">
             <span><b className="tabular-nums">{summary.count}</b> <span className="text-muted-foreground">bills</span></span>
             <span><b className="tabular-nums text-emerald-600">{formatCurrency(summary.revenue)}</b> <span className="text-muted-foreground">collected</span></span>
@@ -466,6 +473,7 @@ function BillsPage() {
         </div>
         {view === 'bills' && (
           <div className="flex flex-wrap items-center justify-between gap-2">
+            {!cancelledView ? (
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Status">
               {STATUS_TABS.map((t) => {
                 const n = countOf(t.value)
@@ -478,6 +486,7 @@ function BillsPage() {
                 )
               })}
             </div>
+            ) : <div />}
             <div className="flex flex-wrap items-center gap-1.5">
               {DATE_CHIPS.map((c) => (
                 <button key={c.id} type="button" aria-pressed={activeChip === c.id} onClick={() => { const r = rangeFor(c.id, today); setP({ from: r.from, to: r.to }) }} className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${activeChip === c.id ? 'border-primary bg-primary/10 text-primary' : 'bg-background text-muted-foreground hover:bg-accent'}`}>{c.label}</button>

@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'Magic Scissors Salon ERP',
+        name: 'Salon ERP',
         short_name: 'Salon ERP',
         description: 'Salon ERP — billing, staff and attendance',
         start_url: '/',

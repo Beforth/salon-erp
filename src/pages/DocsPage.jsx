@@ -120,7 +120,7 @@ export default function DocsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Docs & Guides</h1>
           <p className="text-gray-500">
-            Tutorials and documentation on how to use the Magic Scissor system
+            Tutorials and documentation on how to use the system
           </p>
         </div>
         {isOwner && (
