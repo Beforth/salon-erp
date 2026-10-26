@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 import { shiftService } from '@/services/shift.service'
 import { userService } from '@/services/user.service'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { SelectField } from '@/components/ui/select-field'
 import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 import {
@@ -41,6 +43,8 @@ export default function RosterGrid({ branchId }) {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [onlyScheduled, setOnlyScheduled] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulk, setBulk] = useState({ ids: [], shiftId: '', from: '', to: '', skipSun: false, q: '' })
   const [brush, setBrush] = useState(null) // shift id | 'clear' | null — click or drag cells to paint it
   const dragging = useRef(false)
 
@@ -130,6 +134,21 @@ export default function RosterGrid({ branchId }) {
     } else {
       toast.success(`${ops.length} day${ops.length > 1 ? 's' : ''} updated`)
     }
+  }
+
+  const bulkDates = (() => {
+    const out = []
+    if (!bulk.from || !bulk.to || bulk.to < bulk.from) return out
+    for (let d = bulk.from; d <= bulk.to && out.length < 400; d = addDays(d, 1)) {
+      if (bulk.skipSun && fromDateStr(d).getDay() === 0) continue
+      out.push(d)
+    }
+    return out
+  })()
+  const submitBulk = async () => {
+    const cells = bulk.ids.flatMap((id) => bulkDates.map((date) => ({ employeeId: id, date, shiftId: bulk.shiftId })))
+    await apply(cells)
+    setBulkOpen(false)
   }
 
   const selectedCells = (shiftId) => {
@@ -313,6 +332,7 @@ export default function RosterGrid({ branchId }) {
         </label>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>}
+          <Button size="sm" onClick={() => { setBulk((b) => ({ ...b, from: b.from || today, to: b.to || today, shiftId: b.shiftId || shifts[0]?.id || '' })); setBulkOpen(true) }}>Assign shift to dates</Button>
           <Button variant="outline" size="sm" onClick={() => exportImage('copy')} disabled={!rows}><Copy className="mr-1.5 h-3.5 w-3.5" /> Copy image</Button>
           <Button variant="outline" size="sm" onClick={() => exportImage('save')} disabled={!rows}><Download className="mr-1.5 h-3.5 w-3.5" /> Save image</Button>
         </div>
@@ -452,6 +472,49 @@ export default function RosterGrid({ branchId }) {
           </span>
         ))}
       </div>
+
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Assign shift to a date range</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm">Shift</div>
+            <SelectField value={bulk.shiftId} onChange={(e) => setBulk({ ...bulk, shiftId: e.target.value })}>
+              {shifts.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.start_time}–{s.end_time})</option>)}
+            </SelectField>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm">From<input type="date" value={bulk.from} onChange={(e) => setBulk({ ...bulk, from: e.target.value, to: bulk.to < e.target.value ? e.target.value : bulk.to })} className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm" /></label>
+              <label className="text-sm">To<input type="date" value={bulk.to} min={bulk.from} onChange={(e) => setBulk({ ...bulk, to: e.target.value })} className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm" /></label>
+            </div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bulk.skipSun} onChange={(e) => setBulk({ ...bulk, skipSun: e.target.checked })} /> Skip Sundays</label>
+            <div>
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span>Employees ({bulk.ids.length} selected)</span>
+                <span className="space-x-3 text-xs text-primary">
+                  <button type="button" onClick={() => setBulk({ ...bulk, ids: allEmployees.map(employeeId) })}>All</button>
+                  <button type="button" onClick={() => setBulk({ ...bulk, ids: [] })}>None</button>
+                </span>
+              </div>
+              <input value={bulk.q} onChange={(e) => setBulk({ ...bulk, q: e.target.value })} placeholder="Find employee…" className="mb-2 h-9 w-full rounded-md border border-input bg-background px-3 text-sm" />
+              <div className="max-h-56 overflow-y-auto rounded-md border">
+                {allEmployees.filter((e) => e.full_name?.toLowerCase().includes(bulk.q.trim().toLowerCase())).map((e) => {
+                  const id = employeeId(e)
+                  return (
+                    <label key={id} className="flex cursor-pointer items-center gap-2 border-b px-3 py-1.5 text-sm last:border-b-0 hover:bg-secondary">
+                      <input type="checkbox" checked={bulk.ids.includes(id)} onChange={() => setBulk({ ...bulk, ids: bulk.ids.includes(id) ? bulk.ids.filter((x) => x !== id) : [...bulk.ids, id] })} />
+                      {e.full_name} <span className="text-xs text-muted-foreground">{e.employee_details?.employee_code}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{bulk.ids.length} employee(s) × {bulkDates.length} day(s) = {bulk.ids.length * bulkDates.length} assignments. Existing shifts on those days are replaced.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkOpen(false)}>Cancel</Button>
+            <Button onClick={submitBulk} disabled={saving || !bulk.shiftId || !bulk.ids.length || !bulkDates.length}>Assign</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
