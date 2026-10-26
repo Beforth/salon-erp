@@ -26,7 +26,7 @@ export default function StaffReport({ from, to, branchId }) {
       </div>
       <Panel
         title="Team leaderboard"
-        subtitle="Completed services credited to each employee. Late fines, attendance and salary live in Staff Performance and Payroll."
+        subtitle="Completed services credited to each employee. Late fines and attendance live in Staff Performance."
         action={
           <div className="flex items-center gap-2">
             <Link to="/staff-performance" className="text-xs font-medium text-primary hover:underline">Open Staff Performance</Link>

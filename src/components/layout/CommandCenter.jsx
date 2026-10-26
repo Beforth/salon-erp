@@ -32,7 +32,6 @@ const GO_KEYS = {
   p: '/products',
   i: '/inventory',
   x: '/expenses',
-  y: '/payroll',
   h: '/shifts',
   v: '/services',
   k: '/maintenance',
@@ -63,7 +62,7 @@ const SHORTCUTS = [
 const GO_HELP = [
   ['d', 'Dashboard'], ['c', 'Customers'], ['b', 'Billing'], ['t', 'Tokens'], ['e', 'Employee status'],
   ['s', 'Staff'], ['a', 'Attendance'], ['m', 'My attendance'], ['r', 'Reports'], ['p', 'Products'],
-  ['i', 'Stock levels'], ['x', 'Expenses'], ['y', 'Payroll'], ['h', 'Shifts'], ['v', 'Services'], ['k', 'Maintenance'],
+  ['i', 'Stock levels'], ['x', 'Expenses'], ['h', 'Shifts'], ['v', 'Services'], ['k', 'Maintenance'],
 ]
 
 const isTypingTarget = (el) =>

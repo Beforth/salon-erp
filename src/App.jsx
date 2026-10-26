@@ -31,7 +31,6 @@ import BranchFormPage from './pages/BranchFormPage'
 import StaffPage from './pages/StaffPage'
 import StaffFormPage from './pages/StaffFormPage'
 import StaffPerformancePage from './pages/StaffPerformancePage'
-import PayrollPage from './pages/PayrollPage'
 import SettingsPage from './pages/SettingsPage'
 import CashReconciliationPage from './pages/CashReconciliationPage'
 import ExpensesPage from './pages/ExpensesPage'
@@ -152,7 +151,6 @@ function App() {
         <Route path="staff/new" element={<StaffFormPage />} />
         <Route path="staff/:id/edit" element={<StaffFormPage />} />
         <Route path="staff-performance" element={<RoleRoute roles={OWNER_ROLES}><StaffPerformancePage /></RoleRoute>} />
-        <Route path="payroll" element={<PayrollPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="cash-reconciliation" element={<CashReconciliationPage />} />
         <Route path="expenses" element={<ExpensesPage />} />

@@ -508,32 +508,6 @@ function ThisMonthCard() {
 
 // ─── Pay Card ─────────────────────────────────────────────────────────────────
 
-function PayCard() {
-  return (
-    <div className="glass-card rounded-xl p-5 flex flex-col gap-3">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
-          <IndianRupee className="h-5 w-5" />
-        </div>
-        <div>
-          <span className="text-sm font-bold text-foreground">Pay & Earnings</span>
-          <p className="text-xs text-muted-foreground">Monthly payroll</p>
-        </div>
-      </div>
-      <p className="text-sm text-muted-foreground leading-relaxed">
-        Your payslip is processed monthly by your salon admin.
-      </p>
-      <div className="mt-auto pt-2">
-        <div className="h-px bg-slate-100 mb-3" />
-        <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-          <TrendingUp className="h-4 w-4" />
-          <span>Payroll processed monthly</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Quick Navigation Card ────────────────────────────────────────────────────
 
 function QuickNavCard() {
@@ -765,7 +739,6 @@ function EmployeeDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <HoursThisWeekCard userId={user?.id} />
         <ThisMonthCard />
-        <PayCard />
       </div>
 
       {/* ── Recent Services ───────────────────────────────────────────────── */}
