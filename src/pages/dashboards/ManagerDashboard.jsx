@@ -1,9 +1,7 @@
 import { useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import DashboardHero from '@/components/dashboard/DashboardHero'
-import InsightsPanel from '@/components/dashboard/InsightsPanel'
-import LowStockAlertsCard from '@/components/dashboard/LowStockAlertsCard'
+import SimpleDashboard from '@/components/dashboard/SimpleDashboard'
 
 function ManagerDashboard() {
   const { user } = useSelector((state) => state.auth)
@@ -17,17 +15,7 @@ function ManagerDashboard() {
     }
   }, [user, navigate])
 
-  return (
-    <div className="w-full space-y-5 sm:space-y-6">
-      <DashboardHero
-        name={user?.fullName?.split(' ')[0] || 'Manager'}
-        tag={user?.branch?.name || 'Branch'}
-        subtitle="Here is your branch at a glance."
-      />
-      <InsightsPanel />
-      <LowStockAlertsCard maxItems={4} />
-    </div>
-  )
+  return <SimpleDashboard fallbackName="Manager" />
 }
 
 export default ManagerDashboard
