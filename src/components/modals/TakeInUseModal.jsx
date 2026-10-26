@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 import BarcodeImage from '@/components/BarcodeImage'
 import { printOpenBottleLabel, DEFAULT_LABEL_SIZE } from '@/lib/barcodePrint'
 
-const emptyForm = { product_id: '', branch_id: '', notes: '' }
+const emptyForm = { product_id: '', branch_id: '', notes: '', unit_barcode: '' }
 
 function usageLabel(p) {
   const amt = p.consumption_amount ?? p.weight_value
@@ -44,6 +44,8 @@ export default function TakeInUseModal({
   const queryClient = useQueryClient()
   const [form, setForm] = useState({ ...emptyForm, branch_id: defaultBranchId })
   const [takenContainer, setTakenContainer] = useState(null)
+  const [unitInfo, setUnitInfo] = useState(null) // looked-up piece barcode
+  const [unitError, setUnitError] = useState('')
 
   useEffect(() => {
     if (open) {
@@ -99,8 +101,24 @@ export default function TakeInUseModal({
     },
   })
 
+  const lookupUnit = async () => {
+    const code = form.unit_barcode.trim()
+    setUnitInfo(null); setUnitError('')
+    if (!code) return
+    try {
+      const res = await inventoryService.getProductUnit(code)
+      const u = res?.data || res
+      if (u.status !== 'available') { setUnitError('This piece was already taken in use'); return }
+      setUnitInfo(u)
+      setForm((f) => ({ ...f, product_id: u.product_id, unit_barcode: u.barcode }))
+    } catch (e) {
+      setUnitError(e.response?.data?.error?.message || 'Barcode not found')
+    }
+  }
+
   const handleClose = (nextOpen) => {
     if (!nextOpen) {
+      setUnitInfo(null); setUnitError('')
       setTakenContainer(null)
       setForm({ ...emptyForm, branch_id: defaultBranchId })
     }
@@ -170,6 +188,7 @@ export default function TakeInUseModal({
                   product_id: form.product_id,
                   branch_id: form.branch_id,
                   notes: form.notes || undefined,
+                  unit_barcode: unitInfo ? unitInfo.barcode : undefined,
                 })
               }}
             >
@@ -177,11 +196,25 @@ export default function TakeInUseModal({
                 Removes 1 piece from this branch&apos;s stock. Available pieces are shown per product below.
               </p>
               <div className="space-y-2">
+                <Label>Scan or type piece barcode (optional)</Label>
+                <Input
+                  autoFocus
+                  value={form.unit_barcode}
+                  onChange={(e) => { setForm({ ...form, unit_barcode: e.target.value }); setUnitInfo(null); setUnitError('') }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookupUnit() } }}
+                  onBlur={lookupUnit}
+                  placeholder="e.g. 8901234567890-0007"
+                  className="font-mono"
+                />
+                {unitInfo && <p className="text-xs text-green-700">✓ {unitInfo.product_name} — this exact piece will be marked in use</p>}
+                {unitError && <p className="text-xs text-rose-600">{unitError}</p>}
+              </div>
+              <div className="space-y-2">
                 <Label>Branch</Label>
                 <SearchableSelect
                   options={branches.map(b => ({ value: b.branch_id, label: b.name }))}
                   value={form.branch_id}
-                  onChange={(v) => setForm({ ...form, branch_id: v, product_id: '' })}
+                  onChange={(v) => setForm({ ...form, branch_id: v, product_id: unitInfo ? unitInfo.product_id : '' })}
                   placeholder="Select branch"
                 />
               </div>

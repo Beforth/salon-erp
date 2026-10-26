@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
 import { productService } from '@/services/product.service'
+import { inventoryService } from '@/services/inventory.service'
 import { settingsService } from '@/services/settings.service'
 import { fuzzyMatch } from '@/lib/utils'
 import { SelectField } from '@/components/ui/select-field'
@@ -29,6 +30,7 @@ export default function BarcodePrintPage() {
   const [qtyById, setQtyById] = useState({})  // product_id → integer qty
   const [printing, setPrinting] = useState(false)
   const [sizeOverride, setSizeOverride] = useState(null)
+  const [uniquePerPiece, setUniquePerPiece] = useState(false)
 
   const { data: productsData, isLoading } = useQuery({
     queryKey: ['products', { for: 'barcode-print' }],
@@ -76,28 +78,40 @@ export default function BarcodePrintPage() {
       const bwipjs = (await import('bwip-js/browser')).default
       const { w: mmW, h: mmH } = parseSize(activeSize)
 
+      // Unique mode: ask the server for one distinct code per piece (saved, so each can be scanned once).
+      const codesByProduct = new Map()
+      if (uniquePerPiece) {
+        for (const { p, qty } of targets) {
+          const res = await inventoryService.createProductUnits({ product_id: p.product_id, quantity: qty })
+          codesByProduct.set(p.product_id, (res?.data || res).map((u) => u.barcode))
+        }
+      }
+
       // Render each unique barcode once to a PNG dataURL, then duplicate in HTML.
       const dataUrlByBarcode = new Map()
-      for (const { p } of targets) {
-        if (dataUrlByBarcode.has(p.barcode)) continue
+      const textsToRender = uniquePerPiece
+        ? [...codesByProduct.values()].flat()
+        : targets.map(({ p }) => p.barcode)
+      for (const text of textsToRender) {
+        if (dataUrlByBarcode.has(text)) continue
         const canvas = document.createElement('canvas')
         // Scale: tuned so ~10-char Code 128 fits a 50×25mm label readably.
         bwipjs.toCanvas(canvas, {
           bcid: 'code128',
-          text: p.barcode,
+          text,
           scale: 3,
           height: Math.max(8, Math.round(mmH * 0.5)),
           includetext: true,
           textxalign: 'center',
           textsize: 8,
         })
-        dataUrlByBarcode.set(p.barcode, canvas.toDataURL('image/png'))
+        dataUrlByBarcode.set(text, canvas.toDataURL('image/png'))
       }
 
       let labelHtml = ''
       for (const { p, qty } of targets) {
-        const url = dataUrlByBarcode.get(p.barcode)
         for (let i = 0; i < qty; i += 1) {
+          const url = dataUrlByBarcode.get(uniquePerPiece ? codesByProduct.get(p.product_id)[i] : p.barcode)
           labelHtml += `
             <div class="lbl">
               <img src="${url}" />
@@ -197,7 +211,16 @@ export default function BarcodePrintPage() {
       </div>
 
       <Card>
-        <CardContent className="py-3 px-4">
+        <CardContent className="py-3 px-4 space-y-3">
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="checkbox" className="mt-1" checked={uniquePerPiece} onChange={(e) => setUniquePerPiece(e.target.checked)} />
+            <span>
+              <span className="font-medium">Different barcode for every piece</span>
+              <span className="block text-xs text-gray-500">
+                Each printed label gets its own code (e.g. 20 pieces → 20 codes), so you can scan or type that exact piece when taking it in use. Every print creates new codes — print only what you will stick.
+              </span>
+            </span>
+          </label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input

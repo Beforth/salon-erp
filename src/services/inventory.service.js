@@ -22,6 +22,10 @@ export const inventoryService = {
   getOpenContainerByBarcode: (barcode, params) =>
     api.get(`/inventory/open-containers/barcode/${encodeURIComponent(barcode)}`, { params }),
 
+  createProductUnits: (data) => api.post('/inventory/product-units', data),
+
+  getProductUnit: (barcode) => api.get(`/inventory/product-units/${encodeURIComponent(barcode)}`),
+
   openContainer: (data) => api.post('/inventory/open-containers', data),
 
   discardOpenContainer: (id) => api.post(`/inventory/open-containers/${id}/discard`),
