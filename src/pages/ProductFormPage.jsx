@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { SelectField } from '@/components/ui/select-field'
 
 const emptyFormData = {
   sku_id: '',
@@ -210,7 +211,7 @@ export default function ProductFormPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>Parent SKU</Label>
-              <select
+              <SelectField
                 className="w-full h-10 px-3 border rounded-md"
                 value={formData.sku_id}
                 onChange={(e) => setFormData({ ...formData, sku_id: e.target.value })}
@@ -221,7 +222,7 @@ export default function ProductFormPage() {
                     {s.name}{s.brand ? ` · ${s.brand}` : ''}
                   </option>
                 ))}
-              </select>
+              </SelectField>
               <p className="text-xs text-gray-500 mt-1">
                 Group variants under one SKU so they share name, brand, and category.
               </p>
@@ -256,7 +257,7 @@ export default function ProductFormPage() {
                 </div>
                 <div>
                   <Label>Category</Label>
-                  <select
+                  <SelectField
                     className="w-full h-10 px-3 border rounded-md"
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
@@ -265,7 +266,7 @@ export default function ProductFormPage() {
                     {categories.map((cat) => (
                       <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
               </div>
             )}
@@ -283,7 +284,7 @@ export default function ProductFormPage() {
               </div>
               <div>
                 <Label>Pack unit</Label>
-                <select
+                <SelectField
                   className="w-full h-10 px-3 border rounded-md"
                   value={formData.weight_unit}
                   onChange={(e) => setFormData({ ...formData, weight_unit: e.target.value })}
@@ -293,7 +294,7 @@ export default function ProductFormPage() {
                   <option value="g">g</option>
                   <option value="kg">kg</option>
                   <option value="piece">piece</option>
-                </select>
+                </SelectField>
               </div>
             </div>
 
@@ -317,7 +318,7 @@ export default function ProductFormPage() {
                 </div>
                 <div>
                   <Label className="text-xs">Usage unit</Label>
-                  <select
+                  <SelectField
                     className="w-full h-10 px-3 border rounded-md bg-white"
                     value={formData.consumption_unit}
                     onChange={(e) => setFormData({ ...formData, consumption_unit: e.target.value })}
@@ -326,7 +327,7 @@ export default function ProductFormPage() {
                     <option value="L">L</option>
                     <option value="g">g</option>
                     <option value="kg">kg</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
             </div>
@@ -415,7 +416,7 @@ export default function ProductFormPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Product type *</Label>
-                <select
+                <SelectField
                   className="w-full h-10 px-3 border rounded-md"
                   value={formData.product_type}
                   onChange={(e) => setFormData({ ...formData, product_type: e.target.value })}
@@ -423,7 +424,7 @@ export default function ProductFormPage() {
                 >
                   <option value="retail">Retail (for sale)</option>
                   <option value="consumption">Consumption (internal use)</option>
-                </select>
+                </SelectField>
               </div>
               <div>
                 <Label>Reorder level</Label>

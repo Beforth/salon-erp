@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { productService } from '@/services/product.service'
 import { settingsService } from '@/services/settings.service'
 import { fuzzyMatch } from '@/lib/utils'
+import { SelectField } from '@/components/ui/select-field'
 
 const SIZE_OPTIONS = [
   { value: '50x25', label: '50 × 25 mm' },
@@ -175,7 +176,7 @@ export default function BarcodePrintPage() {
         <div className="flex items-center gap-3">
           <div className="text-sm text-gray-500">
             Active size:&nbsp;
-            <select
+            <SelectField
               value={activeSize}
               onChange={(e) => setSizeOverride(e.target.value)}
               className="h-8 px-2 border rounded-md text-sm"
@@ -183,7 +184,7 @@ export default function BarcodePrintPage() {
               {SIZE_OPTIONS.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
-            </select>
+            </SelectField>
             {sizeOverride && sizeOverride !== defaultSize && (
               <button onClick={() => setSizeOverride(null)} className="ml-1 text-xs text-primary hover:underline">reset</button>
             )}

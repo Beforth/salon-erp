@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Download, Loader2 } from 'lucide-react'
+import { SelectField } from '@/components/ui/select-field'
 
 const CSV_COLUMNS = [
   'employee_code', 'full_name', 'pay_type', 'wage_amount', 'days_worked', 'half_days',
@@ -238,7 +239,7 @@ function WagesTab({ branchId }) {
                     </TableCell>
                     <TableCell className="capitalize">{e.role}</TableCell>
                     <TableCell>
-                      <select
+                      <SelectField
                         aria-label={`Pay type for ${e.full_name}`}
                         className="h-10 px-3 border rounded-md bg-white text-sm"
                         value={row.pay_type}
@@ -247,7 +248,7 @@ function WagesTab({ branchId }) {
                         <option value="">—</option>
                         <option value="daily">Daily</option>
                         <option value="monthly">Monthly</option>
-                      </select>
+                      </SelectField>
                     </TableCell>
                     <TableCell>
                       <Input
@@ -332,7 +333,7 @@ function SettingsTab() {
           <>
             <div className="space-y-2 max-w-sm">
               <Label htmlFor="payroll-divisor">Monthly rate divisor</Label>
-              <select
+              <SelectField
                 id="payroll-divisor"
                 className="w-full h-10 px-3 border rounded-md bg-white text-sm"
                 value={form.monthly_days_mode}
@@ -340,7 +341,7 @@ function SettingsTab() {
               >
                 <option value="calendar">Days in the month</option>
                 <option value="fixed">Fixed number of days</option>
-              </select>
+              </SelectField>
             </div>
             {form.monthly_days_mode === 'fixed' && (
               <div className="space-y-2 max-w-sm">
@@ -401,7 +402,7 @@ export default function PayrollPage() {
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1.5 w-full sm:w-64">
               <Label htmlFor="payroll-branch" className="text-xs font-medium text-gray-700">Branch</Label>
-              <select
+              <SelectField
                 id="payroll-branch"
                 className="w-full h-10 px-3 border border-input rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={branchId}
@@ -410,7 +411,7 @@ export default function PayrollPage() {
                 {branches.map((b) => (
                   <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-1.5 w-full sm:w-48">
               <Label htmlFor="payroll-month" className="text-xs font-medium text-gray-700">Month</Label>

@@ -14,6 +14,7 @@ import StaffReport from '@/components/reports/StaffReport'
 import CatalogReport from '@/components/reports/CatalogReport'
 import ProfitLossReport from '@/components/reports/ProfitLossReport'
 import LegacyReports from '@/components/reports/LegacyReports'
+import { SelectField } from '@/components/ui/select-field'
 
 const ALL = ['owner', 'developer', 'manager', 'cashier']
 const MGR = ['owner', 'developer', 'manager']
@@ -93,7 +94,7 @@ export default function ReportsPage() {
         <nav aria-label="Reports" className="lg:sticky lg:top-4 lg:self-start">
           <label className="block lg:hidden">
             <span className="sr-only">Report</span>
-            <select value={active.id} onChange={(e) => set({ r: e.target.value, branch: '' })} className="h-10 w-full rounded-md border bg-background px-3 text-sm font-medium">
+            <SelectField value={active.id} onChange={(e) => set({ r: e.target.value, branch: '' })} className="h-10 w-full rounded-md border bg-background px-3 text-sm font-medium">
               {groups.map((g) => (
                 <optgroup key={g} label={g}>
                   {available.filter((r) => r.group === g).map((r) => (
@@ -101,7 +102,7 @@ export default function ReportsPage() {
                   ))}
                 </optgroup>
               ))}
-            </select>
+            </SelectField>
           </label>
           <div className="hidden space-y-4 lg:block">
             {groups.map((g) => (
@@ -164,12 +165,12 @@ export default function ReportsPage() {
                   </>
                 )}
                 {showBranchPicker && (
-                  <select value={validBranch} onChange={(e) => set({ branch: e.target.value })} aria-label="Branch" className="h-8 rounded-md border bg-background px-2 text-xs font-medium">
+                  <SelectField value={validBranch} onChange={(e) => set({ branch: e.target.value })} aria-label="Branch" className="h-8 rounded-md border bg-background px-2 text-xs font-medium">
                     {active.branch !== 'warehouse' && <option value="">All branches</option>}
                     {pickList.map((b) => (
                       <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
                     ))}
-                  </select>
+                  </SelectField>
                 )}
               </div>
             )}

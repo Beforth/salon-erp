@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 import CompleteBillModal from '@/components/modals/CompleteBillModal'
 import StartServiceModal from '@/components/modals/StartServiceModal'
 import ConfirmDialog from '@/components/modals/ConfirmDialog'
+import { SelectField } from '@/components/ui/select-field'
 
 const STATUS_TABS = [
   { value: '', label: 'All', key: '1' },
@@ -446,19 +447,19 @@ function BillsPage() {
             )}
           </div>
           {isOwner && branches.length > 1 && (
-            <select aria-label="Branch" value={branch} onChange={(e) => setP({ branch: e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
+            <SelectField aria-label="Branch" value={branch} onChange={(e) => setP({ branch: e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
               <option value="">All branches</option>
               {branches.map((b) => <option key={b.branch_id} value={b.branch_id}>{b.name}</option>)}
-            </select>
+            </SelectField>
           )}
           {view === 'bills' && (
             <>
-              <select aria-label="Payment" value={mode} onChange={(e) => setP({ mode: e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <SelectField aria-label="Payment" value={mode} onChange={(e) => setP({ mode: e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
                 {PAYMENT_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-              <select aria-label="Sort" value={sort} onChange={(e) => setP({ sort: e.target.value === 'bill_date_desc' ? '' : e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
+              </SelectField>
+              <SelectField aria-label="Sort" value={sort} onChange={(e) => setP({ sort: e.target.value === 'bill_date_desc' ? '' : e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
                 {SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              </SelectField>
             </>
           )}
           {hasFilters && <Button variant="ghost" size="sm" onClick={clearAll}><X className="mr-1 h-4 w-4" />Clear</Button>}

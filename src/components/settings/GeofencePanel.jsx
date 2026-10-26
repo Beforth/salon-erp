@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { MapPin, Plus, Pencil, Trash2, Loader2, LocateFixed } from 'lucide-react'
+import { SelectField } from '@/components/ui/select-field'
 
 const EMPTY_FORM = { name: '', latitude: '', longitude: '', radius_m: '100', is_active: true }
 
@@ -164,7 +165,7 @@ export default function GeofencePanel() {
         <CardContent className="space-y-4">
           <div className="space-y-2 max-w-sm">
             <Label htmlFor="geofence-branch">Branch</Label>
-            <select
+            <SelectField
               id="geofence-branch"
               className="w-full h-10 px-3 border rounded-md bg-white text-sm"
               value={branchId}
@@ -173,7 +174,7 @@ export default function GeofencePanel() {
               {branches.map((b) => (
                 <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           <label className="flex items-center justify-between p-4 bg-gray-50 rounded-lg gap-4">

@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
+import { SelectField } from '@/components/ui/select-field'
 
 const statusConfig = {
   pending: { label: 'Pending', variant: 'warning', icon: Clock },
@@ -365,7 +366,7 @@ function StockTransfersPage() {
           <div className="flex gap-4">
             <div className="w-48">
               <Label className="mb-2 block">Filter by Status</Label>
-              <select
+              <SelectField
                 className="w-full h-10 px-3 border rounded-md"
                 value={statusFilter}
                 onChange={(e) => {
@@ -377,7 +378,7 @@ function StockTransfersPage() {
                 <option value="pending">Pending</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
-              </select>
+              </SelectField>
             </div>
           </div>
         </CardContent>
@@ -558,7 +559,7 @@ function StockTransfersPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>From (your branch) *</Label>
-                <select
+                <SelectField
                   className="w-full h-10 px-3 border rounded-md"
                   value={transferData.from_location_id}
                   onChange={(e) =>
@@ -578,11 +579,11 @@ function StockTransfersPage() {
                       {loc.branch?.branch_name ? ` · ${loc.branch.branch_name}` : ''}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div className="space-y-2">
                 <Label>To (other branch) *</Label>
-                <select
+                <SelectField
                   className="w-full h-10 px-3 border rounded-md"
                   value={transferData.to_location_id}
                   onChange={(e) => setTransferData({ ...transferData, to_location_id: e.target.value })}
@@ -595,7 +596,7 @@ function StockTransfersPage() {
                       {loc.branch?.branch_name ? ` · ${loc.branch.branch_name}` : ''}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
             </div>
 
@@ -615,7 +616,7 @@ function StockTransfersPage() {
                   return (
                   <div key={index} className="space-y-1">
                     <div className="flex gap-2">
-                    <select
+                    <SelectField
                       className="flex-1 h-10 px-3 border rounded-md"
                       value={item.product_id}
                       onChange={(e) => updateTransferItem(index, 'product_id', e.target.value)}
@@ -626,7 +627,7 @@ function StockTransfersPage() {
                           {p.product_name}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                     <Input
                       type="number"
                       min="1"

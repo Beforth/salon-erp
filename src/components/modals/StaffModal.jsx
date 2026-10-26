@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, User, Briefcase, Building, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
+import { SelectField } from '@/components/ui/select-field'
 
 const ROLES = [
   { value: 'employee', label: 'Employee' },
@@ -258,7 +259,7 @@ function StaffModal({ open, onOpenChange, staff = null }) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role *</Label>
-                  <select
+                  <SelectField
                     id="role"
                     className="w-full h-10 px-3 border rounded-md"
                     value={formData.role}
@@ -269,14 +270,14 @@ function StaffModal({ open, onOpenChange, staff = null }) {
                         {role.label}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="branch_id">Primary Branch *</Label>
-                  <select
+                  <SelectField
                     id="branch_id"
                     className="w-full h-10 px-3 border rounded-md"
                     value={formData.branch_id}
@@ -292,7 +293,7 @@ function StaffModal({ open, onOpenChange, staff = null }) {
                         {branch.name}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
                 <div className="space-y-2 flex items-end">
                   <label className="flex items-center gap-2 h-10">

@@ -33,6 +33,7 @@ import { Clock, Loader2, Plus, Pencil, Power, PowerOff, Calendar, ChevronLeft, C
 import { toast } from 'sonner'
 import { buildRulesPayload } from '@/lib/shiftRules'
 import RosterGrid from '@/components/shifts/RosterGrid'
+import { SelectField } from '@/components/ui/select-field'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -237,7 +238,7 @@ function ShiftModal({ open, onOpenChange, shift = null, onSuccess }) {
                     </div>
                     <div className="w-36 space-y-1">
                       <Label htmlFor={`tier_kind_${i}`} className="text-xs">Fine type</Label>
-                      <select
+                      <SelectField
                         id={`tier_kind_${i}`}
                         value={t.kind}
                         onChange={(e) => setTiers((rows) => rows.map((r, j) => (j === i ? { ...r, kind: e.target.value } : r)))}
@@ -245,7 +246,7 @@ function ShiftModal({ open, onOpenChange, shift = null, onSuccess }) {
                       >
                         <option value="amount">₹ Amount</option>
                         <option value="hours">Hours of pay</option>
-                      </select>
+                      </SelectField>
                     </div>
                     <div className="flex-1 space-y-1">
                       <Label htmlFor={`tier_deduct_${i}`} className="text-xs">

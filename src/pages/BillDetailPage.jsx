@@ -61,6 +61,7 @@ import CompleteBillModal from '@/components/modals/CompleteBillModal'
 import StartServiceModal from '@/components/modals/StartServiceModal'
 import ConfirmDialog from '@/components/modals/ConfirmDialog'
 import EmployeeRotationPanel from '@/components/billing/EmployeeRotationPanel'
+import { SelectField } from '@/components/ui/select-field'
 
 const statusColors = {
   completed: 'success',
@@ -1612,7 +1613,7 @@ function BillDetailPage() {
                     <div className="text-xs text-gray-500">
                       Price: {formatCurrency(svc.service_price)}
                     </div>
-                    <select
+                    <SelectField
                       className="w-full h-8 px-2 text-sm border rounded-md"
                       value={reconfigServices[sIdx]?.employee_id || ''}
                       onChange={(e) => {
@@ -1630,7 +1631,7 @@ function BillDetailPage() {
                           {emp.full_name}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
                 ))}
                 {/* Service groups (OR groups) */}
@@ -1641,7 +1642,7 @@ function BillDetailPage() {
                       <div className="text-sm font-medium text-blue-700">
                         Choose one (Group {gIdx + 1})
                       </div>
-                      <select
+                      <SelectField
                         className="w-full h-8 px-2 text-sm border rounded-md"
                         value={reconfigServices[serviceIdx]?.service_id || ''}
                         onChange={(e) => {
@@ -1661,8 +1662,8 @@ function BillDetailPage() {
                             {s.service_name} ({formatCurrency(s.service_price)})
                           </option>
                         ))}
-                      </select>
-                      <select
+                      </SelectField>
+                      <SelectField
                         className="w-full h-8 px-2 text-sm border rounded-md"
                         value={reconfigServices[serviceIdx]?.employee_id || ''}
                         onChange={(e) => {
@@ -1680,7 +1681,7 @@ function BillDetailPage() {
                             {emp.full_name}
                           </option>
                         ))}
-                      </select>
+                      </SelectField>
                     </div>
                   )
                 })}

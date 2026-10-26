@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { SelectField } from '@/components/ui/select-field'
 
 const initialFormData = {
   chair_name: '',
@@ -109,7 +110,7 @@ function ChairModal({ open, onOpenChange, chair = null, branchId }) {
 
           <div>
             <Label htmlFor="status">Status</Label>
-            <select
+            <SelectField
               id="status"
               className="w-full h-10 px-3 border rounded-md mt-1"
               value={formData.status}
@@ -118,7 +119,7 @@ function ChairModal({ open, onOpenChange, chair = null, branchId }) {
               <option value="available">Available</option>
               <option value="maintenance">Maintenance</option>
               <option value="inactive">Inactive</option>
-            </select>
+            </SelectField>
           </div>
 
           <DialogFooter>

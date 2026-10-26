@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ChairModal from '@/components/modals/ChairModal'
+import { SelectField } from '@/components/ui/select-field'
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All' },
@@ -151,7 +152,7 @@ function ChairManagementPage() {
       <div className="flex flex-wrap items-center gap-4">
         {!userBranchId && (
           <div>
-            <select
+            <SelectField
               className="h-10 px-3 border rounded-md"
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
@@ -162,7 +163,7 @@ function ChairManagementPage() {
                   {b.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
         )}
 

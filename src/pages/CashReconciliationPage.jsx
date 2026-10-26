@@ -33,6 +33,7 @@ import {
   ArrowUpCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { SelectField } from '@/components/ui/select-field'
 
 const DENOMINATIONS = [
   { value: 2000, label: '₹2000' },
@@ -210,7 +211,7 @@ function CashReconciliationPage() {
             {isOwner && (
               <div>
                 <Label className="mb-2 block">Branch</Label>
-                <select
+                <SelectField
                   className="h-10 px-3 border rounded-md min-w-[180px]"
                   value={selectedBranch}
                   onChange={(e) => setSelectedBranch(e.target.value)}
@@ -221,7 +222,7 @@ function CashReconciliationPage() {
                       {branch.name}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
             )}
             <Button variant="outline" onClick={() => refetch()}>

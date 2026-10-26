@@ -31,6 +31,7 @@ import {
   Building2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { SelectField } from '@/components/ui/select-field'
 
 const roleColors = {
   owner: 'bg-purple-100 text-purple-700',
@@ -194,7 +195,7 @@ function StaffPage() {
                 />
               </div>
             </div>
-            <select
+            <SelectField
               className="h-10 px-3 border rounded-md min-w-[150px]"
               value={selectedRole}
               onChange={(e) => {
@@ -207,9 +208,9 @@ function StaffPage() {
               <option value="cashier">Cashier</option>
               <option value="employee">Employee</option>
               {isOwner && <option value="owner">Owner</option>}
-            </select>
+            </SelectField>
             {isOwner && (
-              <select
+              <SelectField
                 className="h-10 px-3 border rounded-md min-w-[150px]"
                 value={selectedBranch}
                 onChange={(e) => {
@@ -223,9 +224,9 @@ function StaffPage() {
                     {branch.name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             )}
-            <select
+            <SelectField
               className="h-10 px-3 border rounded-md"
               value={activeFilter}
               onChange={(e) => {
@@ -236,7 +237,7 @@ function StaffPage() {
               <option value="">All Status</option>
               <option value="true">Active</option>
               <option value="false">Inactive</option>
-            </select>
+            </SelectField>
           </div>
         </CardContent>
       </Card>

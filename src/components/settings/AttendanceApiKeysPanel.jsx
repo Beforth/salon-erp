@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Key, Plus, Trash2, Loader2, Copy, Check } from 'lucide-react'
+import { SelectField } from '@/components/ui/select-field'
 
 export default function AttendanceApiKeysPanel() {
   const queryClient = useQueryClient()
@@ -121,7 +122,7 @@ export default function AttendanceApiKeysPanel() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="api-key-type">Key type</Label>
-              <select
+              <SelectField
                 id="api-key-type"
                 className="w-full h-10 px-3 border rounded-md bg-white text-sm"
                 value={type}
@@ -129,11 +130,11 @@ export default function AttendanceApiKeysPanel() {
               >
                 <option value="attendance_api">Attendance API</option>
                 <option value="webhook">Webhook (device punch ingest)</option>
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-2">
               <Label htmlFor="api-key-branch">Branch scope (optional)</Label>
-              <select
+              <SelectField
                 id="api-key-branch"
                 className="w-full h-10 px-3 border rounded-md bg-white text-sm"
                 value={branchId}
@@ -143,7 +144,7 @@ export default function AttendanceApiKeysPanel() {
                 {branches.map((b) => (
                   <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? (

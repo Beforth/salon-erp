@@ -27,6 +27,7 @@ import { TrendingUp, Calendar, Loader2, Star, Pencil, Check, X, Users, IndianRup
 import { MultiBarChart } from '@/components/charts'
 import { BranchColorDot } from '@/components/ui/branch-color-dot'
 import { toast } from 'sonner'
+import { SelectField } from '@/components/ui/select-field'
 
 function getDefaultDateRange() {
   const now = new Date()
@@ -431,7 +432,7 @@ function StaffPerformancePage() {
             {isOwner && (
               <div>
                 <Label className="mb-2 block text-xs">Branch</Label>
-                <select
+                <SelectField
                   className="h-9 px-3 border rounded-md border-gray-300 min-w-[180px] text-sm"
                   value={selectedBranch}
                   onChange={(e) => handleBranchChange(e.target.value)}
@@ -442,12 +443,12 @@ function StaffPerformancePage() {
                       {branch.name}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
             )}
             <div>
               <Label className="mb-2 block text-xs">Employee</Label>
-              <select
+              <SelectField
                 className="h-9 px-3 border rounded-md border-gray-300 min-w-[200px] text-sm"
                 value={selectedEmployee}
                 onChange={(e) => {
@@ -465,7 +466,7 @@ function StaffPerformancePage() {
                       : ''}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           </div>
         </CardContent>
@@ -719,7 +720,7 @@ function StaffPerformancePage() {
                         ? 'No rows'
                         : `Showing ${(matrixPageSafe - 1) * matrixPageSize + 1}–${Math.min(matrixPageSafe * matrixPageSize, matrixTotal)} of ${matrixTotal}`}
                     </span>
-                    <select
+                    <SelectField
                       className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm"
                       value={matrixPageSize}
                       onChange={(e) => setMatrixPageSize(Number(e.target.value))}
@@ -727,7 +728,7 @@ function StaffPerformancePage() {
                       {[10, 25, 50, 100].map((n) => (
                         <option key={n} value={n}>{n} per page</option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button

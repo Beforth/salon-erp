@@ -19,6 +19,7 @@ import {
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Building, Loader2, Pencil, IndianRupee, Filter, X } from 'lucide-react'
 import BankDepositEditModal from '@/components/modals/BankDepositEditModal'
+import { SelectField } from '@/components/ui/select-field'
 
 function BankDepositsPage() {
   const { user } = useSelector((state) => state.auth)
@@ -146,7 +147,7 @@ function BankDepositsPage() {
                   {isOwner && (
                     <div>
                       <Label className="text-xs text-gray-500 mb-1 block">Branch</Label>
-                      <select
+                      <SelectField
                         className="h-9 px-3 border rounded-md text-sm min-w-[150px]"
                         value={branchFilter}
                         onChange={(e) => { setBranchFilter(e.target.value); setPage(1) }}
@@ -155,7 +156,7 @@ function BankDepositsPage() {
                         {branches.map((b) => (
                           <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
                         ))}
-                      </select>
+                      </SelectField>
                     </div>
                   )}
                   {hasActiveFilters && (

@@ -20,6 +20,7 @@ import { reportsService } from '@/services/reports.service'
 import { branchService } from '@/services/branch.service'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/utils'
+import { SelectField } from '@/components/ui/select-field'
 
 const RANGES = [
   { days: 7, label: '7 days' },
@@ -219,7 +220,7 @@ export default function InsightsPanel({ allowBranchFilter = false }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {allowBranchFilter && branches.length > 1 && (
-            <select
+            <SelectField
               value={branchId}
               onChange={(e) => setBranchId(e.target.value)}
               aria-label="Branch"
@@ -231,7 +232,7 @@ export default function InsightsPanel({ allowBranchFilter = false }) {
                   {b.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           )}
           <div className="inline-flex rounded-full border bg-background p-0.5" role="tablist" aria-label="Period">
             {RANGES.map((r) => (

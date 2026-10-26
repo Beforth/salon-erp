@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Loader2, Plus, Minus, Trash2, Package, Star, Search, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
+import { SelectField } from '@/components/ui/select-field'
 
 const initialFormData = {
   package_name: '',
@@ -472,7 +473,7 @@ function PackageFormPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="category_id">Category</Label>
-              <select
+              <SelectField
                 id="category_id"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={formData.category_id}
@@ -484,7 +485,7 @@ function PackageFormPage() {
                     {cat.name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-2">
               <Label htmlFor="package_price">Package Price (₹)</Label>

@@ -45,6 +45,7 @@ import IncentiveConfigModal from '@/components/modals/IncentiveConfigModal'
 import StaffIncentiveConfig from '@/components/StaffIncentiveConfig'
 import AttendanceApiKeysPanel from '@/components/settings/AttendanceApiKeysPanel'
 import GeofencePanel from '@/components/settings/GeofencePanel'
+import { SelectField } from '@/components/ui/select-field'
 
 function SetupChecklist({ status, navigate, setActiveTab }) {
   const items = [
@@ -644,7 +645,7 @@ function SettingsPage() {
               {/* Barcode labels */}
               <div className="pt-4 border-t space-y-2">
                 <Label htmlFor="barcode_label_size">Barcode Label Size</Label>
-                <select
+                <SelectField
                   id="barcode_label_size"
                   className="w-full md:w-1/2 h-10 px-3 border rounded-md"
                   value={formData['barcode.label_size'] || '50x25'}
@@ -653,7 +654,7 @@ function SettingsPage() {
                   <option value="50x25">50 × 25 mm</option>
                   <option value="38x25">38 × 25 mm</option>
                   <option value="100x50">100 × 50 mm</option>
-                </select>
+                </SelectField>
                 <p className="text-xs text-gray-500">
                   Default size used by the Print Barcodes page. The page also lets you override per-print.
                 </p>
@@ -678,7 +679,7 @@ function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="default_currency">Currency</Label>
-                  <select
+                  <SelectField
                     id="default_currency"
                     className="w-full h-10 px-3 border rounded-md"
                     value={formData.default_currency || 'INR'}
@@ -688,7 +689,7 @@ function SettingsPage() {
                     <option value="USD">US Dollar (USD)</option>
                     <option value="EUR">Euro (EUR)</option>
                     <option value="GBP">British Pound (GBP)</option>
-                  </select>
+                  </SelectField>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currency_symbol">Currency Symbol</Label>
@@ -704,7 +705,7 @@ function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="date_format">Date Format</Label>
-                  <select
+                  <SelectField
                     id="date_format"
                     className="w-full h-10 px-3 border rounded-md"
                     value={formData.date_format || 'DD/MM/YYYY'}
@@ -713,11 +714,11 @@ function SettingsPage() {
                     <option value="DD/MM/YYYY">DD/MM/YYYY (31/12/2024)</option>
                     <option value="MM/DD/YYYY">MM/DD/YYYY (12/31/2024)</option>
                     <option value="YYYY-MM-DD">YYYY-MM-DD (2024-12-31)</option>
-                  </select>
+                  </SelectField>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="time_format">Time Format</Label>
-                  <select
+                  <SelectField
                     id="time_format"
                     className="w-full h-10 px-3 border rounded-md"
                     value={formData.time_format || '12h'}
@@ -725,13 +726,13 @@ function SettingsPage() {
                   >
                     <option value="12h">12 Hour (2:30 PM)</option>
                     <option value="24h">24 Hour (14:30)</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="timezone">Timezone</Label>
-                <select
+                <SelectField
                   id="timezone"
                   className="w-full h-10 px-3 border rounded-md"
                   value={formData.timezone || 'Asia/Kolkata'}
@@ -742,7 +743,7 @@ function SettingsPage() {
                   <option value="America/Los_Angeles">Pacific Time (PT)</option>
                   <option value="Europe/London">Greenwich Mean Time (GMT)</option>
                   <option value="Asia/Dubai">Gulf Standard Time (GST)</option>
-                </select>
+                </SelectField>
               </div>
             </CardContent>
           </Card>

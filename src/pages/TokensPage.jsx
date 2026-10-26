@@ -17,6 +17,7 @@ import { printTokenSlip } from '@/components/TokenSlip'
 import TokenQrCode from '@/components/TokenQrCode'
 import ConfirmDialog from '@/components/modals/ConfirmDialog'
 import CreateTokenModal from '@/components/modals/CreateTokenModal'
+import { SelectField } from '@/components/ui/select-field'
 
 const STATUS_FILTERS = [
   { value: 'open', label: 'Open' },
@@ -100,7 +101,7 @@ export default function TokensPage() {
       {!userBranchId && branches.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">Branch:</span>
-          <select
+          <SelectField
             className="h-8 px-2 border rounded-md text-sm"
             value={selectedBranch || ''}
             onChange={(e) => setSelectedBranch(e.target.value || null)}
@@ -109,7 +110,7 @@ export default function TokensPage() {
             {branches.map((b) => (
               <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
             ))}
-          </select>
+          </SelectField>
         </div>
       )}
 

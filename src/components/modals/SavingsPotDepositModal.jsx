@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatCurrency } from '@/lib/utils'
 import { savingsPotService } from '@/services/savingsPot.service'
+import { SelectField } from '@/components/ui/select-field'
 
 function nowLocal() {
   const d = new Date()
@@ -151,7 +152,7 @@ export default function SavingsPotDepositModal({ open, onOpenChange, allPots, pe
 
           <div>
             <Label>Payment Mode</Label>
-            <select
+            <SelectField
               className="w-full h-10 px-3 border rounded-md text-sm"
               value={formData.payment_mode}
               onChange={(e) => setFormData({ ...formData, payment_mode: e.target.value })}
@@ -161,7 +162,7 @@ export default function SavingsPotDepositModal({ open, onOpenChange, allPots, pe
               <option value="upi">UPI</option>
               <option value="online">Online</option>
               <option value="other">Other</option>
-            </select>
+            </SelectField>
           </div>
 
           <div className="flex items-center gap-2">

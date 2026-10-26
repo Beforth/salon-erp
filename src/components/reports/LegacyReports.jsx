@@ -59,6 +59,7 @@ import {
   SimpleBarChart,
 } from '@/components/charts'
 import StaffIncentivesReport from '@/components/StaffIncentivesReport'
+import { SelectField } from '@/components/ui/select-field'
 
 
 function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }) {
@@ -318,7 +319,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>
                     <Label className="text-xs">Status</Label>
-                    <select
+                    <SelectField
                       className="h-9 px-3 border rounded-md text-sm min-w-[140px]"
                       value={consumptionStatus}
                       onChange={(e) => setConsumptionStatus(e.target.value)}
@@ -327,7 +328,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                       <option value="active">Active</option>
                       <option value="empty">Empty</option>
                       <option value="discarded">Discarded</option>
-                    </select>
+                    </SelectField>
                   </div>
                 </div>
               </CardContent>

@@ -47,6 +47,7 @@ import BarcodeImage from '@/components/BarcodeImage'
 import { printOpenBottleLabel, DEFAULT_LABEL_SIZE } from '@/lib/barcodePrint'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { toast } from 'sonner'
+import { SelectField } from '@/components/ui/select-field'
 
 const emptyAdjustData = {
   product_id: '',
@@ -456,7 +457,7 @@ function InventoryPage() {
               />
             </div>
             <div>
-              <select
+              <SelectField
                 className="w-full h-10 px-3 border rounded-md bg-white"
                 value={selectedLocation}
                 onChange={(e) => {
@@ -470,10 +471,10 @@ function InventoryPage() {
                     {loc.location_name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div>
-              <select
+              <SelectField
                 className="w-full h-10 px-3 border rounded-md bg-white"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -482,7 +483,7 @@ function InventoryPage() {
                 <option value="low">Low stock</option>
                 <option value="reserved">Reserved</option>
                 <option value="available">Healthy</option>
-              </select>
+              </SelectField>
             </div>
           </div>
         </CardContent>
@@ -614,7 +615,7 @@ function InventoryPage() {
           <form onSubmit={handleAdjust} className="space-y-4">
             <div className="space-y-2">
               <Label>Product *</Label>
-              <select
+              <SelectField
                 className="w-full h-10 px-3 border rounded-md bg-white"
                 value={adjustData.product_id}
                 onChange={(e) => setAdjustData({ ...adjustData, product_id: e.target.value })}
@@ -626,11 +627,11 @@ function InventoryPage() {
                     {p.product_name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-2">
               <Label>Location *</Label>
-              <select
+              <SelectField
                 className="w-full h-10 px-3 border rounded-md bg-white"
                 value={adjustData.location_id}
                 onChange={(e) => setAdjustData({ ...adjustData, location_id: e.target.value })}
@@ -642,12 +643,12 @@ function InventoryPage() {
                     {loc.location_name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Action *</Label>
-                <select
+                <SelectField
                   className="w-full h-10 px-3 border rounded-md bg-white"
                   value={adjustData.adjustment_type}
                   onChange={(e) => setAdjustData({ ...adjustData, adjustment_type: e.target.value })}
@@ -655,7 +656,7 @@ function InventoryPage() {
                   <option value="add">Add stock</option>
                   <option value="subtract">Remove stock</option>
                   <option value="set">Set counted quantity</option>
-                </select>
+                </SelectField>
               </div>
               <div className="space-y-2">
                 <Label>Quantity *</Label>

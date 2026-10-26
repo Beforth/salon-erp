@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { skuService } from '@/services/sku.service'
 import { productService } from '@/services/product.service'
+import { SelectField } from '@/components/ui/select-field'
 
 const initial = {
   code: '',
@@ -136,7 +137,7 @@ function SkuModal({ open, onOpenChange, sku = null }) {
 
           <div className="space-y-2">
             <Label htmlFor="category_id">Category</Label>
-            <select
+            <SelectField
               id="category_id"
               className="w-full h-10 px-3 border rounded-md text-sm"
               value={form.category_id}
@@ -148,7 +149,7 @@ function SkuModal({ open, onOpenChange, sku = null }) {
                   {c.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           <div className="space-y-2">

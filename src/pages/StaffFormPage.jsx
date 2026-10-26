@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { SelectField } from '@/components/ui/select-field'
 
 const ROLES = [
   { value: 'employee', label: 'Employee' },
@@ -713,7 +714,7 @@ function StaffFormPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="gender">Gender</Label>
-                    <select
+                    <SelectField
                       id="gender"
                       className="w-full h-10 px-3 border rounded-md"
                       value={formData.gender}
@@ -723,7 +724,7 @@ function StaffFormPage() {
                       <option value="female">Female</option>
                       <option value="male">Male</option>
                       <option value="other">Other</option>
-                    </select>
+                    </SelectField>
                     <p className="text-xs text-muted-foreground">
                       Required for female employee incentive rules (early arrival / late departure).
                     </p>
@@ -742,7 +743,7 @@ function StaffFormPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Role *</Label>
-                    <select
+                    <SelectField
                       id="role"
                       className="w-full h-10 px-3 border rounded-md"
                       value={formData.role}
@@ -753,14 +754,14 @@ function StaffFormPage() {
                           {role.label}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="branch_id">Primary Branch *</Label>
-                    <select
+                    <SelectField
                       id="branch_id"
                       className="w-full h-10 px-3 border rounded-md"
                       value={formData.branch_id}
@@ -778,7 +779,7 @@ function StaffFormPage() {
                           {branch.name}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
                   <div className="space-y-2 flex items-end">
                     <label className="flex items-center gap-2 h-10">
@@ -1159,7 +1160,7 @@ function StaffFormPage() {
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="asset_type" className="text-xs">Type *</Label>
-                          <select
+                          <SelectField
                             id="asset_type"
                             className="w-full h-10 px-3 border rounded-md text-sm bg-white"
                             value={assetForm.type}
@@ -1168,7 +1169,7 @@ function StaffFormPage() {
                             <option value="debit">Given (Debit)</option>
                             <option value="credit">Returned (Credit)</option>
                             <option value="broken">Broken (Credit)</option>
-                          </select>
+                          </SelectField>
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="asset_amount" className="text-xs">Amount (&#8377;) *</Label>

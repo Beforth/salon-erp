@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner'
 import ExpenseModal from '@/components/modals/ExpenseModal'
 import ExpenseCategoryModal from '@/components/modals/ExpenseCategoryModal'
+import { SelectField } from '@/components/ui/select-field'
 
 const PAYMENT_MODES = [
   { value: '', label: 'All Modes' },
@@ -335,7 +336,7 @@ function ExpensesPage() {
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500 mb-1 block">Category</Label>
-                      <select
+                      <SelectField
                         className="h-9 px-3 border rounded-md text-sm min-w-[150px]"
                         value={categoryFilter}
                         onChange={(e) => { setCategoryFilter(e.target.value); setPage(1) }}
@@ -344,11 +345,11 @@ function ExpensesPage() {
                         {allCategories.filter((c) => c.is_active).map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
-                      </select>
+                      </SelectField>
                     </div>
                     <div>
                       <Label className="text-xs text-gray-500 mb-1 block">Payment Mode</Label>
-                      <select
+                      <SelectField
                         className="h-9 px-3 border rounded-md text-sm min-w-[130px]"
                         value={paymentMode}
                         onChange={(e) => { setPaymentMode(e.target.value); setPage(1) }}
@@ -356,12 +357,12 @@ function ExpensesPage() {
                         {PAYMENT_MODES.map((m) => (
                           <option key={m.value} value={m.value}>{m.label}</option>
                         ))}
-                      </select>
+                      </SelectField>
                     </div>
                     {isOwner && (
                       <div>
                         <Label className="text-xs text-gray-500 mb-1 block">Branch</Label>
-                        <select
+                        <SelectField
                           className="h-9 px-3 border rounded-md text-sm min-w-[150px]"
                           value={branchFilter}
                           onChange={(e) => { setBranchFilter(e.target.value); setPage(1) }}
@@ -370,7 +371,7 @@ function ExpensesPage() {
                           {branches.map((b) => (
                             <option key={b.branch_id} value={b.branch_id}>{b.name}</option>
                           ))}
-                        </select>
+                        </SelectField>
                       </div>
                     )}
                     {hasActiveFilters && (

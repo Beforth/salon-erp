@@ -62,6 +62,7 @@ import EmployeeRotationPanel from '@/components/billing/EmployeeRotationPanel'
 import ConfirmDialog from '@/components/modals/ConfirmDialog'
 import { UserPlus } from 'lucide-react'
 import { useSidebar } from '@/contexts/SidebarContext'
+import { SelectField } from '@/components/ui/select-field'
 
 const IST = 'Asia/Kolkata'
 
@@ -1842,7 +1843,7 @@ function BillCreatePage() {
           {!isEdit && (
             <div className="w-36">
           {!branchId ? (
-          <select
+          <SelectField
             className="h-9 px-2 text-sm border rounded-md w-full bg-background"
             value={selectedBranch || ''}
             onChange={(e) => {
@@ -1858,7 +1859,7 @@ function BillCreatePage() {
                 {branch.name}
               </option>
             ))}
-          </select>
+          </SelectField>
         ) : (
           <span className="inline-flex w-full items-center h-9 px-3 text-sm font-medium text-gray-700 bg-gray-100 rounded-md">
             {user?.branch?.name || 'Branch'}
@@ -1924,7 +1925,7 @@ function BillCreatePage() {
           {!isEdit && (
             <div className="w-32">
           {selectedBranch && (
-          <select
+          <SelectField
             className="h-9 px-2 text-sm border rounded-md w-full bg-background"
             value={selectedChair}
             onChange={(e) => setSelectedChair(e.target.value)}
@@ -1936,7 +1937,7 @@ function BillCreatePage() {
                 {chair.chair_number}{chair.chair_name ? ` - ${chair.chair_name}` : ''}
               </option>
             ))}
-          </select>
+          </SelectField>
         )}
             </div>
           )}
@@ -2376,7 +2377,7 @@ function BillCreatePage() {
                               <div key={group.group_id || groupIdx} className="p-1.5 bg-amber-50/50 rounded border border-amber-200">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-[10px] font-medium text-amber-700 shrink-0">{group.group_label || `OR ${groupIdx + 1}`}</span>
-                                  <select
+                                  <SelectField
                                     className="h-6 px-1 text-[11px] border rounded min-w-[120px] flex-1 border-amber-300"
                                     value={selectedId || ''}
                                     onChange={(e) => {
@@ -2398,7 +2399,7 @@ function BillCreatePage() {
                                         </option>
                                       )
                                     })}
-                                  </select>
+                                  </SelectField>
                                   {chosen && (
                                     <>
                                       {slots.map((_, slotIdx) => (
@@ -2487,7 +2488,7 @@ function BillCreatePage() {
                           const allSlots = (componentEmployees[0] || []).length ? componentEmployees[0] : ['']
                           return (
                             <div key={slotIdx} className="flex items-center gap-0.5">
-                              <select
+                              <SelectField
                                 className="h-7 px-1 text-xs border rounded min-w-[90px]"
                                 value={(componentEmployees[0] || [])[slotIdx] || ''}
                                 onChange={(e) => {
@@ -2506,7 +2507,7 @@ function BillCreatePage() {
                                     {emp.full_name}
                                   </option>
                                 ))}
-                              </select>
+                              </SelectField>
                               {allSlots.length > 1 && (
                                 <button
                                   type="button"
@@ -3417,7 +3418,7 @@ function BillCreatePage() {
                               {slots.map((eid, slotIdx) => (
                                 <div key={slotIdx} className="flex items-center gap-2">
                                   <span className="text-xs text-gray-500 w-16 shrink-0">E{slotIdx + 1}</span>
-                                  <select
+                                  <SelectField
                                     className="flex-1 h-8 px-2 text-xs border rounded-md min-w-0"
                                     value={(currentIds[slotIdx] || '').toString()}
                                     onChange={(e) => {
@@ -3436,7 +3437,7 @@ function BillCreatePage() {
                                         {emp.full_name}
                                       </option>
                                     ))}
-                                  </select>
+                                  </SelectField>
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -3606,7 +3607,7 @@ function BillCreatePage() {
                       {((currentIds) => (currentIds.length ? currentIds : ['']))(cartItems[editingItemIndex]?.employee_ids || []).map((eid, slotIdx) => (
                         <div key={slotIdx} className="flex items-center gap-2">
                           <span className="text-xs text-gray-500 w-20 shrink-0">Employee {slotIdx + 1}</span>
-                          <select
+                          <SelectField
                             className="flex-1 h-9 px-3 text-sm border rounded-md min-w-0"
                             value={((cartItems[editingItemIndex]?.employee_ids || [])[slotIdx] || '').toString()}
                             onChange={(e) => {
@@ -3627,7 +3628,7 @@ function BillCreatePage() {
                                 {emp.full_name}
                               </option>
                             ))}
-                          </select>
+                          </SelectField>
                           <Button
                             type="button"
                             variant="ghost"
