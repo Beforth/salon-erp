@@ -30,6 +30,36 @@ const HINTS = [
   [['t'], 'today'],
 ]
 
+
+const fmtDay = (d) => fromDateStr(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+const fmtRange = (a, b) => (a === b ? fmtDay(a) : `${fmtDay(a)} – ${fmtDay(b)}`)
+
+/** entries: [{ name, shift, dates[] }] → WhatsApp-ready text, employees with identical days grouped per shift. */
+function buildMessage(entries, heading) {
+  const groups = new Map()
+  for (const { name, shift, dates } of entries) {
+    const sorted = [...dates].sort()
+    if (!sorted.length || !shift) continue
+    const ranges = []
+    for (const d of sorted) {
+      const last = ranges[ranges.length - 1]
+      if (last && addDays(last[1], 1) === d) last[1] = d; else ranges.push([d, d])
+    }
+    const key = `${shift.id}|${ranges.map((r) => r.join('~')).join(',')}`
+    if (!groups.has(key)) groups.set(key, { shift, ranges, names: [] })
+    groups.get(key).names.push(name)
+  }
+  const lines = [heading]
+  for (const g of groups.values()) {
+    lines.push('', `*${g.shift.name}* (${g.shift.start_time}–${g.shift.end_time})`, `${g.ranges.map((r) => fmtRange(r[0], r[1])).join(', ')}`, g.names.join(', '))
+  }
+  return groups.size ? lines.join('\n') : ''
+}
+
+const copyText = async (text) => {
+  try { await navigator.clipboard.writeText(text); toast.success('Message copied — paste it in WhatsApp') } catch { toast.error('Could not copy') }
+}
+
 /** Keyboard-first roster: employees as rows, days as columns, press a number to set a shift. */
 export default function RosterGrid({ branchId }) {
   const queryClient = useQueryClient()
@@ -150,6 +180,21 @@ export default function RosterGrid({ branchId }) {
     await apply(cells)
     setBulkOpen(false)
   }
+
+  const bulkMessage = bulk.shiftId && bulk.ids.length && bulkDates.length
+    ? buildMessage(
+        bulk.ids.map((id) => ({ name: allEmployees.find((e) => employeeId(e) === id)?.full_name, shift: shiftById.get(bulk.shiftId), dates: bulkDates })),
+        `Shift schedule · ${fmtRange(bulkDates[0], bulkDates[bulkDates.length - 1])}`
+      )
+    : ''
+  const viewMessage = () => buildMessage(
+    employees.flatMap((e) => {
+      const byShift = new Map()
+      dates.forEach((d) => { const a = lookup(employeeId(e), d); if (a) byShift.set(a.shift_id, [...(byShift.get(a.shift_id) || []), d]) })
+      return [...byShift].map(([sid, ds]) => ({ name: e.full_name, shift: shiftById.get(sid), dates: ds }))
+    }),
+    `Shift schedule · ${title}`
+  )
 
   const selectedCells = (shiftId) => {
     const cells = []
@@ -333,6 +378,7 @@ export default function RosterGrid({ branchId }) {
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>}
           <Button size="sm" onClick={() => { setBulk((b) => ({ ...b, from: b.from || today, to: b.to || today, shiftId: b.shiftId || shifts[0]?.id || '' })); setBulkOpen(true) }}>Assign shift to dates</Button>
+          <Button variant="outline" size="sm" onClick={() => { const m = viewMessage(); if (m) copyText(m); else toast.error('No shifts assigned in this period') }} disabled={!rows}>Copy message</Button>
           <Button variant="outline" size="sm" onClick={() => exportImage('copy')} disabled={!rows}><Copy className="mr-1.5 h-3.5 w-3.5" /> Copy image</Button>
           <Button variant="outline" size="sm" onClick={() => exportImage('save')} disabled={!rows}><Download className="mr-1.5 h-3.5 w-3.5" /> Save image</Button>
         </div>
@@ -507,6 +553,12 @@ export default function RosterGrid({ branchId }) {
                 })}
               </div>
             </div>
+            {bulkMessage && (
+              <div className="rounded-md border bg-secondary/50 p-2">
+                <pre className="whitespace-pre-wrap text-xs">{bulkMessage}</pre>
+                <button type="button" className="mt-1 text-xs text-primary underline" onClick={() => copyText(bulkMessage)}>Copy message</button>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">{bulk.ids.length} employee(s) × {bulkDates.length} day(s) = {bulk.ids.length * bulkDates.length} assignments. Existing shifts on those days are replaced.</p>
           </div>
           <DialogFooter>
