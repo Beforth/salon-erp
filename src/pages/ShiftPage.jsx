@@ -33,6 +33,7 @@ import { Clock, Loader2, Plus, Pencil, Power, PowerOff, Calendar, ChevronLeft, C
 import { toast } from 'sonner'
 import { buildRulesPayload } from '@/lib/shiftRules'
 import RosterGrid from '@/components/shifts/RosterGrid'
+import PunctualityRulesEditor, { rulesToRows, rowsToRules } from '@/components/PunctualityRulesEditor'
 import { SelectField } from '@/components/ui/select-field'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -67,6 +68,7 @@ function ShiftModal({ open, onOpenChange, shift = null, onSuccess }) {
   const isEditing = !!shift
   const [form, setForm] = useState(initialShiftForm)
   const [tiers, setTiers] = useState([])
+  const [punctRows, setPunctRows] = useState([])
   const [saving, setSaving] = useState(false)
   const { user } = useSelector((s) => s.auth)
   const canEditRules = user?.role === 'owner'
@@ -82,6 +84,7 @@ function ShiftModal({ open, onOpenChange, shift = null, onSuccess }) {
         half_day_late_after_min: shift.half_day_late_after_min == null ? '' : String(shift.half_day_late_after_min),
         half_day_min_hours: shift.half_day_min_hours == null ? '' : String(shift.half_day_min_hours),
       })
+      setPunctRows(rulesToRows(shift.punctuality_rules))
       setTiers((shift.late_tiers || []).map((t) => (
         t.deduct_hours == null && t.deduct_amount != null
           ? { after_min: String(t.after_min), kind: 'amount', value: String(t.deduct_amount) }
@@ -90,6 +93,7 @@ function ShiftModal({ open, onOpenChange, shift = null, onSuccess }) {
     } else {
       setForm(initialShiftForm)
       setTiers([])
+      setPunctRows([])
     }
   }, [shift, open])
 
@@ -121,7 +125,9 @@ function ShiftModal({ open, onOpenChange, shift = null, onSuccess }) {
         halfDayMinHours: form.half_day_min_hours,
       })
       if (!built.ok) { toast.error(built.error); return }
-      rules = built.value
+      const punct = rowsToRules(punctRows)
+      if (!punct.ok) { toast.error(punct.error); return }
+      rules = { ...built.value, punctuality_rules: punct.value }
     }
     const base = Object.fromEntries(Object.entries(form).filter(([k]) => !k.startsWith('half_day')))
     const payload = { ...base, grace_period: grace, ...rules }
@@ -285,6 +291,11 @@ function ShiftModal({ open, onOpenChange, shift = null, onSuccess }) {
                 <p className="text-xs text-muted-foreground">
                   Applies after the grace period; the highest tier reached is used. A ₹ amount is deducted from salary as-is; hours are deducted at the employee's hourly rate. Leave empty for no late fine.
                 </p>
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">Punctuality rewards (early arrival / late leaving)</h4>
+                <PunctualityRulesEditor rows={punctRows} onChange={setPunctRows} />
+                <p className="text-xs text-muted-foreground">If this shift has rules they are used instead of the branch-wide rules in Incentive settings. Leave empty to use the branch rules.</p>
               </div>
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold">Half day</h4>

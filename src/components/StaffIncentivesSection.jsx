@@ -259,10 +259,12 @@ export default function StaffIncentivesSection({
             <div className="text-xs text-gray-500">Punctuality</div>
             <div className="text-lg font-semibold">{formatCurrency(totals.punctuality)}</div>
           </div>
-          <div className="p-3 rounded border">
-            <div className="text-xs text-gray-500">Female add-ons</div>
-            <div className="text-lg font-semibold">{formatCurrency(totals.female)}</div>
-          </div>
+          {totals.female > 0 && (
+            <div className="p-3 rounded border">
+              <div className="text-xs text-gray-500">Female add-ons (locked months)</div>
+              <div className="text-lg font-semibold">{formatCurrency(totals.female)}</div>
+            </div>
+          )}
           <div className="p-3 rounded border bg-primary/5 border-primary/20">
             <div className="text-xs text-gray-500">Total payout</div>
             <div className="text-lg font-bold text-primary">{formatCurrency(totals.total)}</div>
@@ -461,12 +463,13 @@ export default function StaffIncentivesSection({
                                 )}
                               </div>
                               <div>
-                                <div className="text-sm font-semibold mb-2">Punctuality &amp; female add-ons</div>
+                                <div className="text-sm font-semibold mb-2">Punctuality rewards</div>
                                 {r.punctuality_breakdown && r.punctuality_breakdown.length > 0 ? (
                                   <ul className="text-xs space-y-1 text-gray-700 mb-2">
                                     {r.punctuality_breakdown.map((t, i) => (
                                       <li key={i}>
-                                        {t.arrival_time ? `By ${t.arrival_time}` : `≥${t.minutes_early} min early`} → ₹{t.amount}{' '}
+                                        {t.label ?? (t.arrival_time ? `By ${t.arrival_time}` : `≥${t.minutes_early} min early`)}
+                                        {t.gender && t.gender !== 'all' ? ` (${t.gender} only)` : ''} → ₹{t.amount}{' '}
                                         × {t.days} day(s) = <strong>{formatCurrency(t.total)}</strong>
                                       </li>
                                     ))}
@@ -482,11 +485,7 @@ export default function StaffIncentivesSection({
                                       </li>
                                     ))}
                                   </ul>
-                                ) : (
-                                  <p className="text-xs text-gray-500">
-                                    {r.gender === 'female' ? 'No female add-on days' : 'N/A (not female)'}
-                                  </p>
-                                )}
+                                ) : null}
                               </div>
                             </div>
                           </TableCell>

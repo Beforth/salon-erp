@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { branchService } from '@/services/branch.service'
+import PunctualityRulesEditor, { rulesToRows, rowsToRules } from '@/components/PunctualityRulesEditor'
 import { incentiveConfigService } from '@/services/incentiveConfig.service'
 
 const num = (v) => (v === '' || v === null || v === undefined ? '' : Number(v))
@@ -47,6 +48,7 @@ export default function StaffIncentiveConfig() {
       const c = configResp.data.data
       setDraft({
         punctualityTiers: [...(c.punctuality_tiers || [])],
+        punctualityRows: rulesToRows(c.punctuality_rules),
         p1RevenueMultiplier: c.p1_revenue_multiplier,
         p1PayoutRate: c.p1_payout_rate,
         p2Tiers: [...(c.p2_tiers || [])],
@@ -334,61 +336,16 @@ export default function StaffIncentiveConfig() {
           </section>
 
           <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold">Punctuality (arrival time)</h3>
-              <Button size="sm" variant="outline" onClick={addPunctualityTier}>
-                <Plus className="h-3 w-3 mr-1" /> Add tier
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {draft.punctualityTiers.map((t, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600 w-24">By</span>
-                  <Input
-                    type="time"
-                    value={t.arrivalTime || ''}
-                    onChange={(e) => updatePunctualityTier(i, 'arrivalTime', e.target.value)}
-                    className="w-36"
-                  />
-                  <span className="text-sm text-gray-600">→ ₹</span>
-                  <Input
-                    type="number"
-                    value={t.amount}
-                    onChange={(e) => updatePunctualityTier(i, 'amount', num(e.target.value))}
-                    className="w-28"
-                  />
-                  <Button size="sm" variant="ghost" onClick={() => removePunctualityTier(i)}>
-                    <Trash2 className="h-3 w-3 text-red-600" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="font-semibold mb-2">Female employee add-ons</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <Label>Early arrival before</Label>
-                <Input
-                  type="time"
-                  value={draft.femaleIncentives?.earlyArrivalBefore || '09:00'}
-                  onChange={(e) => updateDraft({
-                    femaleIncentives: { ...draft.femaleIncentives, earlyArrivalBefore: e.target.value },
-                  })}
-                />
-              </div>
-              <div>
-                <Label>Early arrival amount (₹)</Label>
-                <Input
-                  type="number"
-                  value={draft.femaleIncentives?.earlyArrivalAmount ?? 20}
-                  onChange={(e) => updateDraft({
-                    femaleIncentives: { ...draft.femaleIncentives, earlyArrivalAmount: num(e.target.value) },
-                  })}
-                />
-              </div>
-            </div>
+            <h3 className="font-semibold mb-1">Punctuality rewards (all shifts)</h3>
+            <p className="text-xs text-gray-500 mb-2">
+              Early arrival and late leaving, for everyone or only male / female staff. Set it as minutes before shift start / after shift end,
+              or as a fixed clock time (e.g. 9:00 AM). A shift can have its own rules (Shifts → edit shift) which replace these for that shift.
+            </p>
+            <PunctualityRulesEditor
+              rows={draft.punctualityRows}
+              onChange={(punctualityRows) => updateDraft({ punctualityRows })}
+              shiftBased={false}
+            />
           </section>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t">
@@ -404,11 +361,17 @@ export default function StaffIncentiveConfig() {
               <RotateCcw className="h-4 w-4 mr-1" /> Reset to defaults
             </Button>
             <Button
-              onClick={() => saveMutation.mutate({
-                ...draft,
+              onClick={() => {
+                const punct = rowsToRules(draft.punctualityRows)
+                if (!punct.ok) { toast.error(punct.error); return }
+                const { punctualityRows, ...rest } = draft
+                saveMutation.mutate({
+                ...rest,
+                punctualityRules: punct.value,
                 p1RevenueMultiplier: (draft.targetSalaryMultiplier || 0.95) * (draft.targetFactor || 5),
                 dailyEarningsPayoutRate: draft.p3DailyBonus,
-              })}
+                })
+              }}
               disabled={saveMutation.isPending}
             >
               {saveMutation.isPending ? (
