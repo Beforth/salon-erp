@@ -80,7 +80,8 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
   // Detect Staff Advance category
   const selectedCategory = categories.find((c) => c.id === formData.category_id)
   const categoryName = selectedCategory?.name?.trim().toLowerCase() || ''
-  const isStaffRelated = categoryName.startsWith('staff advance') || categoryName.startsWith('staff salary')
+  // Category tick "Add employee"; name check kept so older Staff categories still work
+  const isStaffRelated = !!selectedCategory?.requires_employee || categoryName.startsWith('staff advance') || categoryName.startsWith('staff salary')
   const isOtherCategory = ['other', 'others'].includes(selectedCategory?.name?.toLowerCase())
   const isOtherPaymentMode = formData.payment_mode === 'other'
 

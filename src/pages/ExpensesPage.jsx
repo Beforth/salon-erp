@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { expenseService } from '@/services/expense.service'
@@ -81,6 +81,8 @@ function ExpensesPage() {
   const { user } = useSelector((state) => state.auth)
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
   const canCreateCategory = isOwner || user?.role === 'manager'
+
+  const searchRef = useRef(null)
 
   // Tab state
   const [activeTab, setActiveTab] = useState('expenses')
@@ -225,6 +227,26 @@ function ExpensesPage() {
     setCategoryModalOpen(true)
   }
 
+  // Keyboard shortcuts: N = new, / = search (ignored while typing or a dialog is open)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target
+      if (t?.closest?.('input, textarea, select, [contenteditable="true"]')) return
+      if (document.querySelector('[role="dialog"]')) return
+      if (e.key === '/' && activeTab === 'expenses') {
+        e.preventDefault()
+        searchRef.current?.focus()
+      } else if (e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        if (activeTab === 'expenses') handleAddExpense()
+        else if (canCreateCategory) handleAddCategory()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -236,7 +258,7 @@ function ExpensesPage() {
         {activeTab === 'expenses' ? (
           <Button onClick={handleAddExpense}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Expense
+            Add Expense <kbd className="ml-2 rounded bg-white/20 px-1 text-[10px]">N</kbd>
           </Button>
         ) : canCreateCategory ? (
           <Button onClick={handleAddCategory}>
@@ -275,7 +297,8 @@ function ExpensesPage() {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    placeholder="Search expenses..."
+                    ref={searchRef}
+                    placeholder="Search expenses... (press /)"
                     className="pl-10"
                     value={search}
                     onChange={(e) => {

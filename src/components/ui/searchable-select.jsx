@@ -29,6 +29,9 @@ export function SearchableSelect({
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
   const targetRef = useRef(null)
+  const triggerRef = useRef(null)
+  const listRef = useRef(null)
+  const [highlight, setHighlight] = useState(0)
 
   const selectedOption = options.find((o) => o.value === value)
 
@@ -128,10 +131,29 @@ export function SearchableSelect({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Keep the highlighted row valid and visible as the filter / arrows change
+  useEffect(() => {
+    setHighlight(0)
+  }, [search, open])
+
+  useEffect(() => {
+    if (!open) return
+    listRef.current?.querySelector('[data-highlighted="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [highlight, open])
+
   const handleSelect = (val) => {
     onChange(val)
     setOpen(false)
     setSearch('')
+    // Return focus to the field so Tab continues to the next one
+    setTimeout(() => triggerRef.current?.focus(), 0)
+  }
+
+  const openMenu = (initialSearch = '') => {
+    if (disabled) return
+    setSearch(initialSearch)
+    setOpen(true)
+    setTimeout(() => inputRef.current?.focus(), 0)
   }
 
   const handleClear = (e) => {
@@ -180,14 +202,24 @@ export function SearchableSelect({
             if (e.key === 'Escape') {
               e.preventDefault(); e.stopPropagation()
               setOpen(false); setSearch('')
-            } else if (e.key === 'Enter') {
-              e.preventDefault(); e.stopPropagation()
-              if (filtered[0]) handleSelect(filtered[0].value)
+              setTimeout(() => triggerRef.current?.focus(), 0)
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setHighlight((h) => Math.min(h + 1, filtered.length - 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setHighlight((h) => Math.max(h - 1, 0))
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+              // Enter / Tab pick the highlighted row (Tab then moves on naturally)
+              if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation() }
+              if (filtered[highlight]) handleSelect(filtered[highlight].value)
+              else if (e.key === 'Tab') { setOpen(false); setSearch('') }
             }
           }}
         />
       </div>
       <div
+        ref={listRef}
         className="overflow-y-auto py-1"
         style={{ maxHeight: DROPDOWN_MAX_HEIGHT }}
       >
@@ -201,14 +233,18 @@ export function SearchableSelect({
             No results found
           </div>
         ) : (
-          filtered.map((option) => (
+          filtered.map((option, idx) => (
             <button
               key={option.value}
               type="button"
+              tabIndex={-1}
+              data-highlighted={idx === highlight}
+              onMouseEnter={() => setHighlight(idx)}
               className={cn(
                 'w-full text-left hover:bg-accent hover:text-accent-foreground cursor-pointer',
                 compact ? 'px-2 py-1.5 text-xs' : 'px-3 py-2 text-sm',
-                option.value === value && 'bg-accent text-accent-foreground font-medium'
+                idx === highlight && 'bg-accent text-accent-foreground',
+                option.value === value && 'font-medium'
               )}
               onMouseDown={(e) => {
                 // Select on mousedown so Radix Dialog focus/dismiss logic
@@ -228,8 +264,20 @@ export function SearchableSelect({
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={handleTriggerClick}
+        onKeyDown={(e) => {
+          if (disabled || open) return
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            openMenu()
+          } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== ' ') {
+            // Start typing to search straight away
+            e.preventDefault()
+            openMenu(e.key)
+          }
+        }}
         disabled={disabled}
         className={cn(
           compact

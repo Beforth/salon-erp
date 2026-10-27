@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 const initialFormData = {
   name: '',
   description: '',
+  requires_employee: false,
 }
 
 function ExpenseCategoryModal({ open, onOpenChange, category = null }) {
@@ -30,6 +31,7 @@ function ExpenseCategoryModal({ open, onOpenChange, category = null }) {
       setFormData({
         name: category.name || '',
         description: category.description || '',
+        requires_employee: !!category.requires_employee,
       })
     } else {
       setFormData(initialFormData)
@@ -77,6 +79,7 @@ function ExpenseCategoryModal({ open, onOpenChange, category = null }) {
     const data = {
       name: formData.name.trim(),
       description: formData.description.trim() || null,
+      requires_employee: formData.requires_employee,
     }
 
     if (isEditing) {
@@ -102,6 +105,7 @@ function ExpenseCategoryModal({ open, onOpenChange, category = null }) {
               id="cat-name"
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
+              autoFocus
               placeholder="e.g., Petty Cash"
             />
           </div>
@@ -115,6 +119,25 @@ function ExpenseCategoryModal({ open, onOpenChange, category = null }) {
               placeholder="Optional description"
             />
           </div>
+
+          <label
+            htmlFor="cat-requires-employee"
+            className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-gray-50"
+          >
+            <input
+              id="cat-requires-employee"
+              type="checkbox"
+              className="mt-0.5 h-4 w-4"
+              checked={formData.requires_employee}
+              onChange={(e) => handleChange('requires_employee', e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium">Add employee</span>
+              <span className="block text-xs text-gray-500">
+                Expenses in this category ask for an employee (dropdown) when added.
+              </span>
+            </span>
+          </label>
 
           <DialogFooter>
             <Button
