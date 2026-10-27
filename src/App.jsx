@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage'
 import DashboardLayout from './components/layout/DashboardLayout'
 import OwnerDashboard from './pages/dashboards/OwnerDashboard'
 import RoleRoute from './components/auth/RoleRoute'
+import ShiftFormPage from './pages/ShiftFormPage'
 import ManagerDashboard from './pages/dashboards/ManagerDashboard'
 import CashierDashboard from './pages/dashboards/CashierDashboard'
 import EmployeeDashboard from './pages/dashboards/EmployeeDashboard'
@@ -130,6 +131,8 @@ function App() {
         <Route path="bills/:id" element={<BillDetailPage />} />
         <Route path="bills/:id/edit" element={<BillCreatePage />} />
         <Route path="shifts" element={<ShiftPage />} />
+        <Route path="shifts/new" element={<RoleRoute roles={['owner']}><ShiftFormPage /></RoleRoute>} />
+        <Route path="shifts/:id/edit" element={<RoleRoute roles={['owner']}><ShiftFormPage /></RoleRoute>} />
         <Route path="shifts/assignments/:date" element={<ShiftAssignmentsPage />} />
         <Route path="employee-status" element={<EmployeeStatusPage />} />
         <Route path="services" element={<ServicesPage />} />
