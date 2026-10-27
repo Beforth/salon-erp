@@ -93,7 +93,7 @@ export const getNavItemsByRole = (role) => {
     { title: 'Shift',            href: '/shifts',           icon: Clock,         roles: ['owner','developer','manager'] },
     { title: 'Attendance',       href: '/attendance',       icon: CalendarCheck, roles: ['owner','developer','manager','cashier'] },
     { title: 'My Attendance',    href: '/my-attendance',    icon: MapPin,        roles: ['employee','manager','cashier'] },
-    { title: 'Staff Performance',href: '/staff-performance',icon: TrendingUp,    roles: ['owner','developer'] },
+    { title: 'Staff Performance',href: '/staff-performance',icon: TrendingUp,    roles: ['owner','developer','manager','cashier'] },
     { title: 'Branches',         href: '/branches',         icon: Building2,     roles: ['owner','developer'] },
     { title: 'Jobs',             href: '/jobs',             icon: Activity,      roles: ['owner','developer'] },
     { title: 'Machines',         href: '/machines',         icon: Cpu,           roles: ['owner','developer'] },

@@ -150,7 +150,7 @@ function App() {
         <Route path="staff" element={<StaffPage />} />
         <Route path="staff/new" element={<StaffFormPage />} />
         <Route path="staff/:id/edit" element={<StaffFormPage />} />
-        <Route path="staff-performance" element={<RoleRoute roles={OWNER_ROLES}><StaffPerformancePage /></RoleRoute>} />
+        <Route path="staff-performance" element={<StaffPerformancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="cash-reconciliation" element={<CashReconciliationPage />} />
         <Route path="expenses" element={<ExpensesPage />} />
