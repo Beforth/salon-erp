@@ -435,8 +435,6 @@ function BillsPage() {
         {view === 'bills' && !cancelledView && summary && (
           <div className="flex gap-4 text-sm">
             <span><b className="tabular-nums">{summary.count}</b> <span className="text-muted-foreground">bills</span></span>
-            <span><b className="tabular-nums text-emerald-600">{formatCurrency(summary.revenue)}</b> <span className="text-muted-foreground">collected</span></span>
-            {summary.pending_amount > 0 && <span><b className="tabular-nums text-amber-600">{formatCurrency(summary.pending_amount)}</b> <span className="text-muted-foreground">unpaid</span></span>}
           </div>
         )}
       </div>
