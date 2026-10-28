@@ -19,6 +19,7 @@ export const userService = {
   searchByBiometricId: (query) => api.get('/users/search/biometric', { params: { q: query } }),
 
   // Attach existing employee to another branch
+  mergeAccount: (oldUserId, keepUserId) => api.post(`/users/${oldUserId}/merge`, { into_user_id: keepUserId }),
   attachEmployeeToBranch: (userId, branchId) => api.post(`/users/${userId}/branches`, { branch_id: branchId }),
 
   // Employee services (limited data, no amounts)

@@ -6,6 +6,7 @@ import { userService } from '@/services/user.service'
 import { branchService } from '@/services/branch.service'
 import { skillService } from '@/services/skill.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -363,6 +364,23 @@ function StaffFormPage() {
 
   const [mergeConfirm, setMergeConfirm] = useState({ show: false, existingUser: null, currentBranchId: null })
 
+  // Retire this (duplicate) account in favour of another account of the same person
+  const [mergeKeepId, setMergeKeepId] = useState('')
+  const { data: mergeCandidates } = useQuery({
+    queryKey: ['merge-candidates'],
+    queryFn: () => userService.getUsers({ role: 'employee,manager,cashier', is_active: 'true', limit: 500 }),
+    enabled: isEditing && isOwner,
+  })
+  const mergeAccountMutation = useMutation({
+    mutationFn: ({ oldId, keepId }) => userService.mergeAccount(oldId, keepId),
+    onSuccess: () => {
+      toast.success('Account retired. Use the kept account from now on.')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      navigate('/staff')
+    },
+    onError: (error) => toast.error(error.response?.data?.error?.message || 'Failed to merge accounts'),
+  })
+
   const attachBranchMutation = useMutation({
     mutationFn: ({ userId, branchId }) => userService.attachEmployeeToBranch(userId, branchId),
     onSuccess: () => {
@@ -654,6 +672,52 @@ function StaffFormPage() {
           </h1>
         </div>
       </div>
+
+      {isEditing && userData?.data?.merged_into_id && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          This account was merged into another account and is no longer used.{' '}
+          <Link className="underline" to={`/staff/${userData.data.merged_into_id}/edit`}>Open the account in use</Link>
+        </div>
+      )}
+
+      {isEditing && isOwner && userData?.data && !userData.data.merged_into_id && userData.data.is_active !== false && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium">Same person has another account?</p>
+            <p className="text-xs text-muted-foreground">
+              Retire this account and keep using the other one. Past bills, attendance and incentives stay on this
+              account; new work goes on the one you keep, which also gets this account's branches.
+            </p>
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="w-72">
+                <SearchableSelect
+                  options={(mergeCandidates?.data || [])
+                    .filter((u) => u.user_id !== id && !u.merged_into_id)
+                    .map((u) => ({
+                      value: u.user_id,
+                      label: `${u.full_name}${u.employee_details?.employee_code ? ` (${u.employee_details.employee_code})` : ''}${u.branch?.name ? ` · ${u.branch.name}` : ''}`,
+                    }))}
+                  value={mergeKeepId}
+                  onChange={setMergeKeepId}
+                  placeholder="Account to keep..."
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!mergeKeepId || mergeAccountMutation.isPending}
+                onClick={() => {
+                  if (window.confirm('Retire THIS account and keep the selected one? This account will be deactivated and cannot log in.')) {
+                    mergeAccountMutation.mutate({ oldId: id, keepId: mergeKeepId })
+                  }
+                }}
+              >
+                {mergeAccountMutation.isPending ? 'Merging...' : 'Retire this account'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <form onSubmit={handleSubmit}>
         <Card>
