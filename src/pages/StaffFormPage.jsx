@@ -180,7 +180,7 @@ function StaffFormPage() {
     }
     try {
       const response = await userService.searchByBiometricId(query)
-      setBiometricSuggestions(response.data || [])
+      setBiometricSuggestions((response.data || []).filter((s) => s.userId !== id))
     } catch (error) {
       console.error('Biometric search failed:', error)
       setBiometricSuggestions([])
@@ -209,6 +209,19 @@ function StaffFormPage() {
         biometricInputRef.current.focus()
       }
     }, 0)
+  }
+
+  const linkSelectedEmployee = () => {
+    const branchId = formData.branch_id || user?.branchId
+    if (!selectedBiometricSuggestion || !branchId) {
+      toast.error('Select a branch first')
+      return
+    }
+    if (selectedBiometricSuggestion.branchId === branchId) {
+      toast.error('This employee already belongs to this branch')
+      return
+    }
+    attachBranchMutation.mutate({ userId: selectedBiometricSuggestion.userId, branchId })
   }
 
   const clearBiometricSelection = () => {
@@ -605,7 +618,11 @@ function StaffFormPage() {
               <p className="text-xs text-muted-foreground font-mono">Biometric ID: {formData.biometric_id}</p>
             </div>
             <p className="text-sm text-muted-foreground mb-6">
-              Do you want to identify this employee as the same person and link them to the current branch?
+              Do you want to treat them as the same person and link them to the current branch?
+            </p>
+            <p className="text-xs text-muted-foreground mb-6 -mt-4">
+              Their existing bills, attendance and incentives stay with them and become available in this branch.
+              {isEditing && ' Nothing moves from the record you are editing, and your unsaved changes are not applied.'}
             </p>
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={handleMergeCancel}>Cancel</Button>
@@ -863,7 +880,11 @@ function StaffFormPage() {
                             key={suggestion.userId}
                             type="button"
                             className="w-full px-3 py-2 text-left hover:bg-accent focus:bg-accent focus:outline-none flex items-center justify-between gap-2"
-                            onClick={() => selectBiometricSuggestion(suggestion)}
+                            onMouseDown={(e) => {
+                              // mousedown (not click): the outside-click handler would unmount the list first
+                              e.preventDefault()
+                              selectBiometricSuggestion(suggestion)
+                            }}
                           >
                             <div>
                               <p className="font-medium text-sm">{suggestion.fullName}</p>
@@ -889,13 +910,27 @@ function StaffFormPage() {
                             Matched: <strong>{selectedBiometricSuggestion.fullName}</strong> ({selectedBiometricSuggestion.employeeCode}) at {selectedBiometricSuggestion.branch?.name || 'Unknown Branch'}
                           </span>
                         </div>
-                        <Button type="button" variant="ghost" size="sm" onClick={clearBiometricSelection}>
-                          Clear
-                        </Button>
+                        <div className="flex gap-1">
+                          {!isEditing && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={attachBranchMutation.isPending}
+                              onClick={() => linkSelectedEmployee()}
+                            >
+                              {attachBranchMutation.isPending ? 'Linking...' : 'Link to this branch'}
+                            </Button>
+                          )}
+                          <Button type="button" variant="ghost" size="sm" onClick={clearBiometricSelection}>
+                            Clear
+                          </Button>
+                        </div>
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      Type to search existing biometric IDs. Select to link this employee record.
+                      {isEditing
+                        ? 'Each Biometric ID belongs to one person.'
+                        : 'Already works in another branch? Type their Biometric ID and pick them to link the same person here instead of adding a duplicate.'}
                     </p>
                   </div>
                   <div className="space-y-2">
