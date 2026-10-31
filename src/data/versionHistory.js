@@ -10,6 +10,7 @@ export const versionHistory = [
       'Machine punches go to the branch of the machine, for staff who work at more than one branch',
       'Expense categories can ask for an employee; Expenses page works from the keyboard',
       'Long report lists are split into pages and Staff Performance loads much faster',
+      'New Import / Export page: bring customers, services, products, staff, expenses, attendance punches and past bills in from Excel/CSV, or download them (owner only)',
       'Shift late rules can make the shift longer — e.g. 10 min late: +1 hour, 20 min late: +2 hours',
     ],
     details: [
@@ -37,6 +38,16 @@ export const versionHistory = [
           'Tick "Add employee" on an expense category to ask for an employee on those expenses',
           'Expenses page: press N to add, / to search; dropdowns work with the arrow keys and Enter',
           'Bills page no longer shows the collected and unpaid totals',
+        ],
+      },
+      {
+        section: 'Import / Export',
+        items: [
+          'New Import / Export page in the menu (owner only) for customers, services, products, staff, expenses, attendance punches and bills',
+          'Download a template, fill it in, and check it first — every row is checked and errors are shown with their row number before anything is saved',
+          'If something already exists you choose to skip it or update it; blank cells never erase stored details',
+          'New staff get a generated password, shown once as a downloadable file; bills are imported as history and do not change stock or incentives',
+          'Exports of bills, expenses and punches need a date range (up to a year) and a branch if you want one',
         ],
       },
       {

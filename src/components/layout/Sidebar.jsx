@@ -21,6 +21,7 @@ import {
   UserCog,
   Calculator,
   ChevronDown,
+  ArrowLeftRight,
   BoxesIcon,
   TrendingUp,
   BookOpen,
@@ -79,6 +80,7 @@ export const getNavItemsByRole = (role) => {
     },
     { title: 'Maintenance',      href: '/maintenance',      icon: Wrench,    roles: ['owner','developer','manager','cashier','employee'] },
     { title: 'Reports',          href: '/reports',          icon: BarChart3, roles: ['owner','developer'] },
+    { title: 'Import / Export',  href: '/data-transfer',    icon: ArrowLeftRight, roles: ['owner','developer'] },
     {
       title: 'Finance', icon: Landmark,
       roles: ['owner','developer','manager','cashier'],

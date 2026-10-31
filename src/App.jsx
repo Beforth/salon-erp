@@ -59,6 +59,7 @@ import BarcodePrintPage from './pages/BarcodePrintPage'
 import WarehousesPage from './pages/WarehousesPage'
 import WarehouseCreatePage from './pages/WarehouseCreatePage'
 import DocsPage from './pages/DocsPage'
+import DataTransferPage from './pages/DataTransferPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 // Pages that carry money and incentive figures: owner only.
@@ -147,6 +148,7 @@ function App() {
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="inventory/transfers" element={<StockTransfersPage />} />
         <Route path="reports" element={<RoleRoute roles={OWNER_ROLES}><ReportsPage /></RoleRoute>} />
+        <Route path="data-transfer" element={<RoleRoute roles={OWNER_ROLES}><DataTransferPage /></RoleRoute>} />
         <Route path="branches" element={<BranchesPage />} />
         <Route path="branches/new" element={<BranchFormPage />} />
         <Route path="branches/:id/edit" element={<BranchFormPage />} />
