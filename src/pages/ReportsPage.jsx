@@ -94,7 +94,7 @@ export default function ReportsPage() {
         <nav aria-label="Reports" className="lg:sticky lg:top-4 lg:self-start">
           <label className="block lg:hidden">
             <span className="sr-only">Report</span>
-            <SelectField value={active.id} onChange={(e) => set({ r: e.target.value, branch: '' })} className="h-10 w-full rounded-md border bg-background px-3 text-sm font-medium">
+            <SelectField value={active.id} onChange={(e) => set({ r: e.target.value, branch: '', staff: '' })} className="h-10 w-full rounded-md border bg-background px-3 text-sm font-medium">
               {groups.map((g) => (
                 <optgroup key={g} label={g}>
                   {available.filter((r) => r.group === g).map((r) => (
@@ -115,7 +115,7 @@ export default function ReportsPage() {
                       <li key={r.id}>
                         <button
                           type="button"
-                          onClick={() => set({ r: r.id, branch: '' })}
+                          onClick={() => set({ r: r.id, branch: '', staff: '' })}
                           aria-current={on ? 'page' : undefined}
                           className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-accent'}`}
                         >

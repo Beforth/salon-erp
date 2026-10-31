@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { formatCurrency } from '@/lib/utils'
@@ -7,7 +7,14 @@ import StaffDetail from './StaffDetail'
 import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading, ShareBar } from './ReportKit'
 
 export default function StaffReport({ from, to, branchId }) {
-  const [selected, setSelected] = useState(null)
+  // The chosen person lives in the URL (?staff=<id>) so a reload or a shared link lands on the same screen.
+  const [params, setParams] = useSearchParams()
+  const selected = params.get('staff')
+  const setSelected = (id) => {
+    const next = new URLSearchParams(params)
+    if (id) next.set('staff', id); else next.delete('staff')
+    setParams(next)
+  }
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['hub-staff', from, to, branchId],
     queryFn: () => reportsService.hubStaff({ start_date: from, end_date: to, branch_id: branchId || undefined }).then((r) => r.data),
