@@ -51,7 +51,7 @@ const CustomTooltip = ({ active, payload, label, formatter }) => {
 /**
  * Revenue Area Chart - Shows revenue trends over time
  */
-export function RevenueAreaChart({ data, dataKey = 'revenue', xKey = 'date', height = 300 }) {
+export function RevenueAreaChart({ data, dataKey = 'revenue', xKey = 'date', height = 300, format, axisFormat }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -72,7 +72,7 @@ export function RevenueAreaChart({ data, dataKey = 'revenue', xKey = 'date', hei
           tick={{ fontSize: 12 }}
           tickLine={false}
           axisLine={{ stroke: '#e5e7eb' }}
-          tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
+          tickFormatter={axisFormat || ((value) => `₹${(value / 1000).toFixed(0)}k`)}
         />
         <Tooltip
           content={<CustomTooltip formatter={format} />}
@@ -121,7 +121,7 @@ export function RevenueBarChart({ data, dataKey = 'revenue', xKey = 'name', heig
 /**
  * Simple Bar Chart - For count/quantity data (no currency formatting)
  */
-export function SimpleBarChart({ data, dataKey = 'value', xKey = 'name', height = 300, color = '#6366f1' }) {
+export function SimpleBarChart({ data, dataKey = 'value', xKey = 'name', height = 300, color = '#6366f1', format }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -137,7 +137,7 @@ export function SimpleBarChart({ data, dataKey = 'value', xKey = 'name', height 
           tickLine={false}
           axisLine={{ stroke: '#e5e7eb' }}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip formatter={format} />} />
         <Bar dataKey={dataKey} fill={color} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
@@ -182,7 +182,7 @@ export function MultiBarChart({ data, bars, xKey = 'name', height = 300 }) {
 /**
  * Line Chart - Track trends over time
  */
-export function TrendLineChart({ data, lines, xKey = 'date', height = 300 }) {
+export function TrendLineChart({ data, lines, xKey = 'date', height = 300, format }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -198,7 +198,7 @@ export function TrendLineChart({ data, lines, xKey = 'date', height = 300 }) {
           tickLine={false}
           axisLine={{ stroke: '#e5e7eb' }}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip formatter={format} />} />
         <Legend />
         {lines.map((line, index) => (
           <Line
@@ -254,7 +254,7 @@ export function DonutChart({ data, dataKey = 'value', nameKey = 'name', height =
 /**
  * Simple Pie Chart
  */
-export function SimplePieChart({ data, dataKey = 'value', nameKey = 'name', height = 250 }) {
+export function SimplePieChart({ data, dataKey = 'value', nameKey = 'name', height = 250, format }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <PieChart>
@@ -274,7 +274,7 @@ export function SimplePieChart({ data, dataKey = 'value', nameKey = 'name', heig
             />
           ))}
         </Pie>
-        <Tooltip />
+        <Tooltip content={<CustomTooltip formatter={format} />} />
         <Legend />
       </PieChart>
     </ResponsiveContainer>

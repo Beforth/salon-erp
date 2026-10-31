@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { reportsService } from '@/services/reports.service'
 import { useState } from 'react'
-import { DonutChart, HorizontalBarChart } from '@/components/charts'
-import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading } from './ReportKit'
+import { DonutChart, HorizontalBarChart, RevenueAreaChart, SimpleBarChart, SimplePieChart, TrendLineChart } from '@/components/charts'
+import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading, compact, shortDate } from './ReportKit'
 
 function Seg({ value, onChange, options, label }) {
   return (
@@ -26,27 +26,34 @@ function BreakdownChart({ data }) {
   const [cat, setCat] = useState('service')
   const [measure, setMeasure] = useState('revenue')
   const [shape, setShape] = useState('bar')
-  const all = { service: data.by_service, package: data.by_package, product: data.by_product }[cat]
-  const top = all.slice().sort((a, b) => b[measure] - a[measure]).slice(0, 10).map((r) => ({ ...r, label: r.name.length > 22 ? `${r.name.slice(0, 21)}…` : r.name }))
+  const byDay = data.days.filter((d) => d.services || d.revenue).map((d) => ({ name: shortDate(d.date), count: d.services, revenue: Math.round(d.revenue) }))
+  const all = { service: data.by_service, package: data.by_package, product: data.by_product, day: byDay }[cat]
+  const ranked = cat !== 'day' // days keep their calendar order; the rest rank by the measure
+  const top = (ranked ? all.slice().sort((a, b) => b[measure] - a[measure]).slice(0, 10) : all).map((r) => ({ ...r, label: r.name.length > 22 ? `${r.name.slice(0, 21)}…` : r.name }))
   const avg = all.length ? all.reduce((n, r) => n + r[measure], 0) / all.length : 0
   const fmt = (v) => (measure === 'revenue' ? money(v) : v)
-  const noun = { service: 'services', package: 'packages', product: 'products' }[cat]
+  const noun = { service: 'services', package: 'packages', product: 'products', day: 'days' }[cat]
   return (
     <Panel
       title="Breakdown chart"
       subtitle={`Top 10 ${noun} by ${measure === 'revenue' ? 'revenue' : 'times done'} · average per ${cat}: ${fmt(Math.round(avg * 100) / 100)}`}
       action={
         <div className="flex flex-wrap gap-2">
-          <Seg label="Category" value={cat} onChange={setCat} options={[['service', 'Services'], ['package', 'Packages'], ['product', 'Products']]} />
+          <Seg label="Category" value={cat} onChange={setCat} options={[['service', 'Services'], ['package', 'Packages'], ['product', 'Products'], ['day', 'By day']]} />
           <Seg label="Measure" value={measure} onChange={setMeasure} options={[['revenue', 'Revenue'], ['count', 'Count']]} />
-          <Seg label="Chart type" value={shape} onChange={setShape} options={[['bar', 'Bars'], ['pie', 'Donut']]} />
+          <Seg label="Chart type" value={shape} onChange={setShape} options={[['bar', 'Bars'], ['column', 'Columns'], ['donut', 'Donut'], ['pie', 'Pie'], ['area', 'Area'], ['line', 'Line']]} />
         </div>
       }
     >
-      {top.length === 0 ? <Empty>No {noun} credited in this period.</Empty> : shape === 'pie' ? (
-        <DonutChart data={top} dataKey={measure} nameKey="label" height={300} format={fmt} />
-      ) : (
-        <HorizontalBarChart data={top} dataKey={measure} nameKey="label" height={Math.max(220, top.length * 34 + 40)} format={fmt} yWidth={140} leftMargin={20} />
+      {top.length === 0 ? <Empty>No {noun} credited in this period.</Empty> : (
+        <>
+          {shape === 'bar' && <HorizontalBarChart data={top} dataKey={measure} nameKey="label" height={Math.max(220, top.length * 34 + 40)} format={fmt} yWidth={140} leftMargin={20} />}
+          {shape === 'column' && <SimpleBarChart data={top} dataKey={measure} xKey="label" height={300} format={fmt} />}
+          {shape === 'donut' && <DonutChart data={top} dataKey={measure} nameKey="label" height={300} format={fmt} />}
+          {shape === 'pie' && <SimplePieChart data={top} dataKey={measure} nameKey="label" height={300} format={fmt} />}
+          {shape === 'area' && <RevenueAreaChart data={top} dataKey={measure} xKey="label" height={300} format={fmt} axisFormat={compact} />}
+          {shape === 'line' && <TrendLineChart data={top} lines={[{ dataKey: measure, name: measure === 'revenue' ? 'Revenue' : 'Times' }]} xKey="label" height={300} format={fmt} />}
+        </>
       )}
     </Panel>
   )
