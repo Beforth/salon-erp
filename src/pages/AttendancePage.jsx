@@ -25,6 +25,7 @@ import { attendanceService } from '@/services/attendance.service'
 import { branchService } from '@/services/branch.service'
 import { machineService } from '@/services/machine.service'
 import { formatWorkedHours } from '@/lib/utils'
+import { PagedBody } from '@/components/ui/pager'
 
 const STATUS_META = {
   on_floor:     { label: 'On floor',     badge: 'success',     icon: CheckCircle2 },
@@ -719,7 +720,7 @@ export default function AttendancePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredRosterEmployees.map((emp, rowIndex) => {
+                    <PagedBody items={filteredRosterEmployees} pageSize={50} colSpan={9}>{(emp, rowIndex) => {
                       const meta = STATUS_META[emp.current_status] || STATUS_META.not_arrived
                       const Icon = meta.icon
                       const active = rowIndex === Math.min(rowCursor, filteredRosterEmployees.length - 1)
@@ -832,7 +833,7 @@ export default function AttendancePage() {
                           )}
                         </TableRow>
                       )
-                    })}
+                    }}</PagedBody>
                   </TableBody>
                 </Table>
                 </div>

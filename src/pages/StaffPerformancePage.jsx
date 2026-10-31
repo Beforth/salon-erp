@@ -186,10 +186,29 @@ function StaffPerformancePage() {
   const dailyTimeline = performanceData?.data?.daily_timeline || []
   const dailyTimelineTotal = performanceData?.data?.daily_timeline_total ?? 0
 
+  // The list carries only per-day totals; the services behind each day load for the selected employee only.
+  const { data: employeeDetailData } = useQuery({
+    queryKey: ['staff-performance-detail', activeEmployeeId, effectiveStart, effectiveEnd, effectiveBranch],
+    queryFn: () =>
+      reportsService.getEmployeePerformance({
+        start_date: effectiveStart,
+        end_date: effectiveEnd,
+        branch_id: effectiveBranch || undefined,
+        employee_id: activeEmployeeId,
+        include_services: true,
+        page: 1,
+        page_size: 1,
+      }),
+    enabled: canAccessPage && !!activeEmployeeId && !!effectiveStart && !!effectiveEnd,
+  })
+  const detailBreakdown = employeeDetailData?.data?.employees?.find((e) => e.employee_id === activeEmployeeId)?.daily_breakdown
+
   const activeEmployee = useMemo(() => {
     if (!activeEmployeeId) return null
-    return employees.find((e) => e.employee_id === activeEmployeeId) || null
-  }, [activeEmployeeId, employees])
+    const base = employees.find((e) => e.employee_id === activeEmployeeId)
+    if (!base) return null
+    return detailBreakdown ? { ...base, daily_breakdown: detailBreakdown } : base
+  }, [activeEmployeeId, employees, detailBreakdown])
 
   // Filter incentive data by selected employee pill
   const incentiveByEmployee = useMemo(() => {
@@ -1010,7 +1029,7 @@ function StaffPerformancePage() {
                             <TableCell>{day.services_count}</TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
-                                {day.services.map((s, i) => {
+                                {(day.services || []).map((s, i) => {
                                   const isProduct = s.item_type === 'product'
                                   return (
                                   <Badge
