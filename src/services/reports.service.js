@@ -9,6 +9,7 @@ export const reportsService = {
   hubSales: (params) => api.get('/reports/hub/sales', { params }),
   hubCustomers: (params) => api.get('/reports/hub/customers', { params }),
   hubStaff: (params) => api.get('/reports/hub/staff', { params }),
+  hubStaffDetail: (employeeId, params) => api.get(`/reports/hub/staff/${employeeId}`, { params }),
   hubCatalog: (params) => api.get('/reports/hub/catalog', { params }),
   hubProfitLoss: (params) => api.get('/reports/hub/profit-loss', { params }),
 

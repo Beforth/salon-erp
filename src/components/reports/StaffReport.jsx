@@ -1,14 +1,18 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { formatCurrency } from '@/lib/utils'
 import { reportsService } from '@/services/reports.service'
+import StaffDetail from './StaffDetail'
 import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading, ShareBar } from './ReportKit'
 
 export default function StaffReport({ from, to, branchId }) {
+  const [selected, setSelected] = useState(null)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['hub-staff', from, to, branchId],
     queryFn: () => reportsService.hubStaff({ start_date: from, end_date: to, branch_id: branchId || undefined }).then((r) => r.data),
   })
+  if (selected) return <StaffDetail employeeId={selected} from={from} to={to} branchId={branchId} onBack={() => setSelected(null)} />
   if (isLoading) return <ReportLoading />
   if (error) return <ReportError error={error} retry={refetch} />
 
@@ -26,7 +30,7 @@ export default function StaffReport({ from, to, branchId }) {
       </div>
       <Panel
         title="Team leaderboard"
-        subtitle="Completed services credited to each employee. Late fines and attendance live in Staff Performance."
+        subtitle="Completed services credited to each employee. Click a name to see everything that person did."
         action={
           <div className="flex items-center gap-2">
             <Link to="/staff-performance" className="text-xs font-medium text-primary hover:underline">Open Staff Performance</Link>
@@ -40,6 +44,7 @@ export default function StaffReport({ from, to, branchId }) {
           <DataTable
             rows={data.staff}
             rowKey={(r) => r.employee_id}
+            onRowClick={(r) => setSelected(r.employee_id)}
             defaultSort={{ key: 'revenue', dir: 'desc' }}
             columns={[
               { key: 'name', label: 'Employee', className: 'font-medium' },
