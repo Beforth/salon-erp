@@ -75,7 +75,7 @@ export function RevenueAreaChart({ data, dataKey = 'revenue', xKey = 'date', hei
           tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
         />
         <Tooltip
-          content={<CustomTooltip formatter={(v) => formatCurrency(v)} />}
+          content={<CustomTooltip formatter={format} />}
         />
         <Area
           type="monotone"
@@ -220,7 +220,7 @@ export function TrendLineChart({ data, lines, xKey = 'date', height = 300 }) {
 /**
  * Donut/Pie Chart - Show distribution
  */
-export function DonutChart({ data, dataKey = 'value', nameKey = 'name', height = 300 }) {
+export function DonutChart({ data, dataKey = 'value', nameKey = 'name', height = 300, format = formatCurrency }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <PieChart>
@@ -284,13 +284,13 @@ export function SimplePieChart({ data, dataKey = 'value', nameKey = 'name', heig
 /**
  * Horizontal Bar Chart - For rankings/comparisons
  */
-export function HorizontalBarChart({ data, dataKey = 'value', nameKey = 'name', height = 300 }) {
+export function HorizontalBarChart({ data, dataKey = 'value', nameKey = 'name', height = 300, format, yWidth = 70, leftMargin = 80 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart
         data={data}
         layout="vertical"
-        margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+        margin={{ top: 5, right: 30, left: leftMargin, bottom: 5 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
         <XAxis
@@ -305,9 +305,9 @@ export function HorizontalBarChart({ data, dataKey = 'value', nameKey = 'name', 
           tick={{ fontSize: 12 }}
           tickLine={false}
           axisLine={{ stroke: '#e5e7eb' }}
-          width={70}
+          width={yWidth}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip formatter={format} />} />
         <Bar dataKey={dataKey} fill="#6366f1" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>

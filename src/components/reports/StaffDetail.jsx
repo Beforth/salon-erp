@@ -5,10 +5,8 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { reportsService } from '@/services/reports.service'
 import { useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { ChartTip, DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading, compact, useChartColors } from './ReportKit'
-
-const SLICES = ['hsl(221 83% 53%)', 'hsl(161 94% 30%)', 'hsl(32 95% 44%)', 'hsl(188 78% 41%)', 'hsl(347 77% 50%)', 'hsl(262 70% 55%)', 'hsl(84 60% 40%)', 'hsl(215 16% 47%)']
+import { DonutChart, HorizontalBarChart } from '@/components/charts'
+import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading } from './ReportKit'
 
 function Seg({ value, onChange, options, label }) {
   return (
@@ -25,7 +23,6 @@ function Seg({ value, onChange, options, label }) {
 
 /** One chart whose category (services / packages / products), measure and shape the viewer picks. */
 function BreakdownChart({ data }) {
-  const c = useChartColors()
   const [cat, setCat] = useState('service')
   const [measure, setMeasure] = useState('revenue')
   const [shape, setShape] = useState('bar')
@@ -46,29 +43,10 @@ function BreakdownChart({ data }) {
         </div>
       }
     >
-      {top.length === 0 ? <Empty>No {noun} credited in this period.</Empty> : (
-        <div role="img" aria-label={`${noun} by ${measure}`} style={{ height: shape === 'pie' ? 280 : Math.max(180, top.length * 34 + 40) }}>
-          <ResponsiveContainer width="100%" height="100%">
-            {shape === 'pie' ? (
-              <PieChart>
-                <Tooltip content={<ChartTip format={(v) => fmt(v)} />} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Pie data={top} dataKey={measure} nameKey="label" innerRadius="55%" outerRadius="85%" paddingAngle={2} stroke="none">
-                  {top.map((r, i) => <Cell key={r.name} fill={SLICES[i % SLICES.length]} />)}
-                </Pie>
-              </PieChart>
-            ) : (
-              <BarChart data={top} layout="vertical" margin={{ left: 4, right: 16, top: 12, bottom: 0 }}>
-                <CartesianGrid horizontal={false} stroke={c.border} />
-                <XAxis type="number" tickFormatter={compact} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: 'transparent' }} content={<ChartTip format={(v) => fmt(v)} />} />
-                {avg > 0 && <ReferenceLine x={avg} stroke={c.warning} strokeDasharray="4 3" label={{ value: 'avg', position: 'top', fontSize: 10, fill: c.warning }} />}
-                <Bar dataKey={measure} name={measure === 'revenue' ? 'Revenue' : 'Times'} fill={c.primary} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            )}
-          </ResponsiveContainer>
-        </div>
+      {top.length === 0 ? <Empty>No {noun} credited in this period.</Empty> : shape === 'pie' ? (
+        <DonutChart data={top} dataKey={measure} nameKey="label" height={300} format={fmt} />
+      ) : (
+        <HorizontalBarChart data={top} dataKey={measure} nameKey="label" height={Math.max(220, top.length * 34 + 40)} format={fmt} yWidth={140} leftMargin={20} />
       )}
     </Panel>
   )
