@@ -1371,7 +1371,7 @@ function StaffPerformancePage() {
             </CardContent>
           </Card>}
 
-          {canSeeFinancials && staffIncentivePeriod && (
+          {isOwner && staffIncentivePeriod && (
             <StaffIncentivesSection
               id="staff-incentives"
               embedded
