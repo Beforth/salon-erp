@@ -4,26 +4,73 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { reportsService } from '@/services/reports.service'
-import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useState } from 'react'
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartTip, DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading, compact, useChartColors } from './ReportKit'
 
-/** Horizontal revenue bars, biggest first, with a dashed line at the average. */
-function RevenueBars({ rows, color, average, avgLabel }) {
-  const c = useChartColors()
-  const top = rows.slice(0, 10).map((r) => ({ ...r, label: r.name.length > 22 ? `${r.name.slice(0, 21)}…` : r.name }))
+const SLICES = ['hsl(221 83% 53%)', 'hsl(161 94% 30%)', 'hsl(32 95% 44%)', 'hsl(188 78% 41%)', 'hsl(347 77% 50%)', 'hsl(262 70% 55%)', 'hsl(84 60% 40%)', 'hsl(215 16% 47%)']
+
+function Seg({ value, onChange, options, label }) {
   return (
-    <div role="img" aria-label="Revenue by name, bar chart" style={{ height: Math.max(180, top.length * 34 + 40) }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={top} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
-          <CartesianGrid horizontal={false} stroke={c.border} />
-          <XAxis type="number" tickFormatter={compact} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
-          <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
-          <Tooltip cursor={{ fill: 'transparent' }} content={<ChartTip format={(v, k) => (k === 'revenue' ? money(v) : v)} />} />
-          {average > 0 && <ReferenceLine x={average} stroke={c.warning} strokeDasharray="4 3" label={{ value: avgLabel, position: 'top', fontSize: 10, fill: c.warning }} />}
-          <Bar dataKey="revenue" name="Revenue" fill={c.primary} radius={[0, 4, 4, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+    <div role="group" aria-label={label} className="inline-flex rounded-lg border bg-muted/50 p-0.5">
+      {options.map(([k, text]) => (
+        <button key={k} type="button" aria-pressed={value === k} onClick={() => onChange(k)}
+          className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${value === k ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+          {text}
+        </button>
+      ))}
     </div>
+  )
+}
+
+/** One chart whose category (services / packages / products), measure and shape the viewer picks. */
+function BreakdownChart({ data }) {
+  const c = useChartColors()
+  const [cat, setCat] = useState('service')
+  const [measure, setMeasure] = useState('revenue')
+  const [shape, setShape] = useState('bar')
+  const all = { service: data.by_service, package: data.by_package, product: data.by_product }[cat]
+  const top = all.slice().sort((a, b) => b[measure] - a[measure]).slice(0, 10).map((r) => ({ ...r, label: r.name.length > 22 ? `${r.name.slice(0, 21)}…` : r.name }))
+  const avg = all.length ? all.reduce((n, r) => n + r[measure], 0) / all.length : 0
+  const fmt = (v) => (measure === 'revenue' ? money(v) : v)
+  const noun = { service: 'services', package: 'packages', product: 'products' }[cat]
+  return (
+    <Panel
+      title="Breakdown chart"
+      subtitle={`Top 10 ${noun} by ${measure === 'revenue' ? 'revenue' : 'times done'} · average per ${cat}: ${fmt(Math.round(avg * 100) / 100)}`}
+      action={
+        <div className="flex flex-wrap gap-2">
+          <Seg label="Category" value={cat} onChange={setCat} options={[['service', 'Services'], ['package', 'Packages'], ['product', 'Products']]} />
+          <Seg label="Measure" value={measure} onChange={setMeasure} options={[['revenue', 'Revenue'], ['count', 'Count']]} />
+          <Seg label="Chart type" value={shape} onChange={setShape} options={[['bar', 'Bars'], ['pie', 'Donut']]} />
+        </div>
+      }
+    >
+      {top.length === 0 ? <Empty>No {noun} credited in this period.</Empty> : (
+        <div role="img" aria-label={`${noun} by ${measure}`} style={{ height: shape === 'pie' ? 280 : Math.max(180, top.length * 34 + 40) }}>
+          <ResponsiveContainer width="100%" height="100%">
+            {shape === 'pie' ? (
+              <PieChart>
+                <Tooltip content={<ChartTip format={(v) => fmt(v)} />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Pie data={top} dataKey={measure} nameKey="label" innerRadius="55%" outerRadius="85%" paddingAngle={2} stroke="none">
+                  {top.map((r, i) => <Cell key={r.name} fill={SLICES[i % SLICES.length]} />)}
+                </Pie>
+              </PieChart>
+            ) : (
+              <BarChart data={top} layout="vertical" margin={{ left: 4, right: 16, top: 12, bottom: 0 }}>
+                <CartesianGrid horizontal={false} stroke={c.border} />
+                <XAxis type="number" tickFormatter={compact} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: 'transparent' }} content={<ChartTip format={(v) => fmt(v)} />} />
+                {avg > 0 && <ReferenceLine x={avg} stroke={c.warning} strokeDasharray="4 3" label={{ value: 'avg', position: 'top', fontSize: 10, fill: c.warning }} />}
+                <Bar dataKey={measure} name={measure === 'revenue' ? 'Revenue' : 'Times'} fill={c.primary} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      )}
+    </Panel>
   )
 }
 
@@ -80,18 +127,7 @@ export default function StaffDetail({ employeeId, from, to, branchId, onBack }) 
         <Kpi label="Overtime hours" value={a.overtime_hours} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Service-wise revenue" subtitle="Top 10 services; dashed line is the average per service type">
-          {data.by_service.length === 0 ? <Empty>No services credited in this period.</Empty> : (
-            <RevenueBars rows={data.by_service} color="primary" average={data.by_service.reduce((n, r) => n + r.revenue, 0) / data.by_service.length} avgLabel="avg" />
-          )}
-        </Panel>
-        <Panel title="Package-wise revenue" subtitle="Packages sold with this person credited">
-          {data.by_package.length === 0 ? <Empty>No packages credited in this period.</Empty> : (
-            <RevenueBars rows={data.by_package} average={data.by_package.reduce((n, r) => n + r.revenue, 0) / data.by_package.length} avgLabel="avg" />
-          )}
-        </Panel>
-      </div>
+      <BreakdownChart data={data} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="What they did, by service" subtitle="Most revenue first">
