@@ -4,7 +4,28 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { reportsService } from '@/services/reports.service'
-import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading } from './ReportKit'
+import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { ChartTip, DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading, compact, useChartColors } from './ReportKit'
+
+/** Horizontal revenue bars, biggest first, with a dashed line at the average. */
+function RevenueBars({ rows, color, average, avgLabel }) {
+  const c = useChartColors()
+  const top = rows.slice(0, 10).map((r) => ({ ...r, label: r.name.length > 22 ? `${r.name.slice(0, 21)}…` : r.name }))
+  return (
+    <div role="img" aria-label="Revenue by name, bar chart" style={{ height: Math.max(180, top.length * 34 + 40) }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={top} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 0 }}>
+          <CartesianGrid horizontal={false} stroke={c.border} />
+          <XAxis type="number" tickFormatter={compact} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11, fill: c.muted }} axisLine={false} tickLine={false} />
+          <Tooltip cursor={{ fill: 'transparent' }} content={<ChartTip format={(v, k) => (k === 'revenue' ? money(v) : v)} />} />
+          {average > 0 && <ReferenceLine x={average} stroke={c.warning} strokeDasharray="4 3" label={{ value: avgLabel, position: 'top', fontSize: 10, fill: c.warning }} />}
+          <Bar dataKey="revenue" name="Revenue" fill={c.primary} radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
 
 const time = (iso) => (iso ? String(iso).slice(11, 16) : '—')
 const money = (n) => formatCurrency(Math.round(n || 0))
@@ -47,7 +68,7 @@ export default function StaffDetail({ employeeId, from, to, branchId, onBack }) 
         <Kpi label="Services done" value={t.services} />
         <Kpi label="Revenue credited" value={money(t.revenue)} hint="shared when two people did one service" />
         <Kpi label="Customers served" value={t.customers} />
-        <Kpi label="Avg per service" value={money(t.avg_per_service)} />
+        <Kpi label="Avg per service" value={money(t.avg_per_service)} hint={t.worked_days ? `${money(t.avg_per_day)} per working day` : undefined} />
         <Kpi label="Stars" value={t.stars} />
         <Kpi label="Products sold" value={t.product_items ? `${t.product_items} · ${money(t.product_sales)}` : '0'} hint={t.product_incentive ? `incentive ${money(t.product_incentive)}` : undefined} />
       </div>
@@ -57,6 +78,19 @@ export default function StaffDetail({ employeeId, from, to, branchId, onBack }) 
         <Kpi label="Half days / absent" value={`${a.half_day} / ${a.absent}`} />
         <Kpi label="Hours worked" value={a.hours} />
         <Kpi label="Overtime hours" value={a.overtime_hours} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Service-wise revenue" subtitle="Top 10 services; dashed line is the average per service type">
+          {data.by_service.length === 0 ? <Empty>No services credited in this period.</Empty> : (
+            <RevenueBars rows={data.by_service} color="primary" average={data.by_service.reduce((n, r) => n + r.revenue, 0) / data.by_service.length} avgLabel="avg" />
+          )}
+        </Panel>
+        <Panel title="Package-wise revenue" subtitle="Packages sold with this person credited">
+          {data.by_package.length === 0 ? <Empty>No packages credited in this period.</Empty> : (
+            <RevenueBars rows={data.by_package} average={data.by_package.reduce((n, r) => n + r.revenue, 0) / data.by_package.length} avgLabel="avg" />
+          )}
+        </Panel>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
