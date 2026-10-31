@@ -373,8 +373,8 @@ function StaffPerformancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Staff Performance</h1>
-        <p className="text-gray-500">
+        <h1 className="text-2xl font-bold text-foreground">Staff Performance</h1>
+        <p className="text-muted-foreground">
           {filterMode === 'single'
             ? `Single-day performance with time — hover service for bill number, click to open bill`
             : 'Employee-wise performance for the selected time range'}
@@ -393,27 +393,21 @@ function StaffPerformancePage() {
           <div className="flex flex-wrap gap-4 items-end">
             <div className="flex flex-col gap-1">
               <Label className="text-xs">Period</Label>
-              <div className="flex gap-3">
-                <label className="flex items-center gap-2 cursor-pointer text-sm">
-                  <input
-                    type="radio"
-                    name="filterMode"
-                    checked={filterMode === 'range'}
-                    onChange={() => setFilterMode('range')}
-                    className="rounded border-gray-300"
-                  />
-                  Date range
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer text-sm">
-                  <input
-                    type="radio"
-                    name="filterMode"
-                    checked={filterMode === 'single'}
-                    onChange={() => setFilterMode('single')}
-                    className="rounded border-gray-300"
-                  />
-                  Single date
-                </label>
+              <div role="radiogroup" aria-label="Period" className="inline-flex h-9 rounded-md border border-input bg-muted/50 p-0.5">
+                {[['range', 'Date range'], ['single', 'Single date']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    role="radio"
+                    aria-checked={filterMode === val}
+                    onClick={() => setFilterMode(val)}
+                    className={`rounded px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      filterMode === val ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
             {filterMode === 'range' && (
@@ -422,7 +416,7 @@ function StaffPerformancePage() {
                   <Label className="mb-2 block text-xs">From</Label>
                   <input
                     type="date"
-                    className="h-9 px-3 border rounded-md border-gray-300 text-sm"
+                    className="h-9 px-3 border rounded-md border-input text-sm bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
                   />
@@ -431,7 +425,7 @@ function StaffPerformancePage() {
                   <Label className="mb-2 block text-xs">To</Label>
                   <input
                     type="date"
-                    className="h-9 px-3 border rounded-md border-gray-300 text-sm"
+                    className="h-9 px-3 border rounded-md border-input text-sm bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
                   />
@@ -443,7 +437,7 @@ function StaffPerformancePage() {
                 <Label className="mb-2 block text-xs">Date</Label>
                 <input
                   type="date"
-                  className="h-9 px-3 border rounded-md border-gray-300 text-sm"
+                  className="h-9 px-3 border rounded-md border-input text-sm bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   value={singleDate}
                   onChange={(e) => setSingleDate(e.target.value)}
                 />
@@ -453,7 +447,7 @@ function StaffPerformancePage() {
               <div>
                 <Label className="mb-2 block text-xs">Branch</Label>
                 <SelectField
-                  className="h-9 px-3 border rounded-md border-gray-300 min-w-[180px] text-sm"
+                  className="h-9 px-3 border rounded-md border-input min-w-[180px] text-sm"
                   value={selectedBranch}
                   onChange={(e) => handleBranchChange(e.target.value)}
                 >
@@ -469,7 +463,7 @@ function StaffPerformancePage() {
             <div>
               <Label className="mb-2 block text-xs">Employee</Label>
               <SelectField
-                className="h-9 px-3 border rounded-md border-gray-300 min-w-[200px] text-sm"
+                className="h-9 px-3 border rounded-md border-input min-w-[200px] text-sm"
                 value={selectedEmployee}
                 onChange={(e) => {
                   setSelectedEmployee(e.target.value)
@@ -500,12 +494,14 @@ function StaffPerformancePage() {
         <div className="space-y-6">
           {/* Employee Pills */}
           {employees.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-lg border bg-card p-2" role="group" aria-label="Filter by employee">
               <button
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                type="button"
+                aria-pressed={!activeEmployeeId}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   !activeEmployeeId
                     ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-muted text-foreground/80 hover:bg-muted/70'
                 }`}
                 onClick={() => setActiveEmployeeId(null)}
               >
@@ -514,10 +510,12 @@ function StaffPerformancePage() {
               {employees.map((emp) => (
                 <button
                   key={emp.employee_id}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                  type="button"
+                  aria-pressed={activeEmployeeId === emp.employee_id}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     activeEmployeeId === emp.employee_id
                       ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-muted text-foreground/80 hover:bg-muted/70'
                   }`}
                   onClick={() => setActiveEmployeeId(emp.employee_id)}
                 >
@@ -649,16 +647,16 @@ function StaffPerformancePage() {
                       return (
                         <React.Fragment key={group.billNumber}>
                           <TableRow
-                            className="cursor-pointer hover:bg-primary/5 bg-gray-50/50"
+                            className="cursor-pointer hover:bg-primary/5 bg-muted/40"
                             onClick={(e) => { e.stopPropagation(); toggleBill(group.billNumber) }}
                           >
-                            <TableCell className="font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] bg-gray-50/50">
+                            <TableCell className="font-medium sticky left-0 z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-[160px] min-w-[160px] bg-muted/40">
                               <div className="flex items-center gap-1.5">
-                                {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-gray-500 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-500 shrink-0" />}
+                                {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
                                 <span>{group.rows.length} services</span>
                               </div>
                             </TableCell>
-                            <TableCell className="font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] bg-gray-50/50">
+                            <TableCell className="font-mono text-sm sticky left-[160px] z-[1] border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)] w-24 min-w-[6rem] bg-muted/40">
                               {group.time}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
@@ -741,7 +739,7 @@ function StaffPerformancePage() {
                         : `Showing ${(matrixPageSafe - 1) * matrixPageSize + 1}–${Math.min(matrixPageSafe * matrixPageSize, matrixTotal)} of ${matrixTotal}`}
                     </span>
                     <SelectField
-                      className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                      className="h-8 rounded-md border border-input bg-background px-2 text-sm"
                       value={matrixPageSize}
                       onChange={(e) => setMatrixPageSize(Number(e.target.value))}
                     >
@@ -838,7 +836,7 @@ function StaffPerformancePage() {
                       )}
                     </div>
                     {/* Progress bar */}
-                    <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-yellow-500 rounded-full transition-all"
                         style={{
@@ -1083,7 +1081,7 @@ function StaffPerformancePage() {
                       </TableBody>
                     </Table>
                   ) : (
-                    <p className="text-gray-500 text-center py-6 text-sm">
+                    <p className="text-muted-foreground text-center py-6 text-sm">
                       No data for this employee in the selected period
                     </p>
                   )}
@@ -1109,7 +1107,7 @@ function StaffPerformancePage() {
                   <Card>
                     <CardContent className="pt-5 pb-4 text-center">
                       <div className="text-xs text-muted-foreground mb-1">Total Services</div>
-                      <div className="text-2xl font-bold">{totals.services}</div>
+                      <div className="text-2xl font-bold tabular-nums">{totals.services}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -1274,10 +1272,10 @@ function StaffPerformancePage() {
           {employees.length === 0 && !isLoading && (
             <Card>
               <CardContent className="py-16">
-                <p className="text-gray-500 text-center">
+                <p className="text-muted-foreground text-center">
                   No completed service data for the selected time range.
                 </p>
-                <p className="text-gray-400 text-center text-sm mt-2">
+                <p className="text-muted-foreground text-center text-sm mt-2">
                   Try a wider date range or another branch. Staff incentive totals for the month are shown below.
                 </p>
               </CardContent>
@@ -1298,23 +1296,23 @@ function StaffPerformancePage() {
             <CardContent>
               {incentiveLoading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : incentiveByEmployee.length === 0 ? (
-                <p className="text-center text-gray-500 py-6 text-sm">No incentive data for this period</p>
+                <p className="text-center text-muted-foreground py-6 text-sm">No incentive data for this period</p>
               ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500">Total Sales</p>
+                    <div className="bg-muted/50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Total Sales</p>
                       <p className="text-lg font-bold">{formatCurrency(incentiveSummary.total_sales || 0)}</p>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500">Total Incentive</p>
+                    <div className="bg-muted/50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Total Incentive</p>
                       <p className="text-lg font-bold text-green-600">{formatCurrency(incentiveSummary.total_incentive || 0)}</p>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500">Records</p>
+                    <div className="bg-muted/50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Records</p>
                       <p className="text-lg font-bold">{incentiveSummary.record_count || 0}</p>
                     </div>
                   </div>
@@ -1323,7 +1321,7 @@ function StaffPerformancePage() {
                     {incentiveByEmployee.map((emp) => (
                       <div key={emp.employee_id} className="border rounded-lg">
                         <button
-                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
                           onClick={() => setExpandedIncentiveEmp(expandedIncentiveEmp === emp.employee_id ? null : emp.employee_id)}
                         >
                           <div className="flex items-center gap-2">
