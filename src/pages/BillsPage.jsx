@@ -452,17 +452,17 @@ function BillsPage() {
             )}
           </div>
           {isOwner && branches.length > 1 && (
-            <SelectField aria-label="Branch" value={branch} onChange={(e) => setP({ branch: e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
+            <SelectField aria-label="Branch" value={branch} onChange={(e) => setP({ branch: e.target.value })} className="w-52 shrink-0 h-9 rounded-md border bg-background px-2 text-sm">
               <option value="">All branches</option>
               {branches.map((b) => <option key={b.branch_id} value={b.branch_id}>{b.name}</option>)}
             </SelectField>
           )}
           {view === 'bills' && (
             <>
-              <SelectField aria-label="Payment" value={mode} onChange={(e) => setP({ mode: e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <SelectField aria-label="Payment" value={mode} onChange={(e) => setP({ mode: e.target.value })} className="w-36 shrink-0 h-9 rounded-md border bg-background px-2 text-sm">
                 {PAYMENT_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </SelectField>
-              <SelectField aria-label="Sort" value={sort} onChange={(e) => setP({ sort: e.target.value === 'bill_date_desc' ? '' : e.target.value })} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <SelectField aria-label="Sort" value={sort} onChange={(e) => setP({ sort: e.target.value === 'bill_date_desc' ? '' : e.target.value })} className="w-40 shrink-0 h-9 rounded-md border bg-background px-2 text-sm">
                 {SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </SelectField>
             </>
