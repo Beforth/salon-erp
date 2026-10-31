@@ -56,11 +56,11 @@ export default function ShiftFormPage() {
       half_day_min_hours: shift.half_day_min_hours == null ? '' : String(shift.half_day_min_hours),
     })
     setPunctRows(rulesToRows(shift.punctuality_rules))
-    setTiers((shift.late_tiers || []).map((t) => (
-      t.deduct_hours == null && t.deduct_amount != null
-        ? { after_min: String(t.after_min), kind: 'amount', value: String(t.deduct_amount) }
-        : { after_min: String(t.after_min), kind: 'hours', value: String(t.deduct_hours ?? '') }
-    )))
+    setTiers((shift.late_tiers || []).map((t) => {
+      if (t.extend_hours != null) return { after_min: String(t.after_min), kind: 'extend', value: String(t.extend_hours) }
+      if (t.deduct_hours == null && t.deduct_amount != null) return { after_min: String(t.after_min), kind: 'amount', value: String(t.deduct_amount) }
+      return { after_min: String(t.after_min), kind: 'hours', value: String(t.deduct_hours ?? '') }
+    }))
   }, [shift])
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }))
@@ -83,6 +83,7 @@ export default function ShiftFormPage() {
         after_min: t.after_min,
         deduct_hours: t.kind === 'hours' ? t.value : '',
         deduct_amount: t.kind === 'amount' ? t.value : '',
+        extend_hours: t.kind === 'extend' ? t.value : '',
       })),
       halfDayLateAfterMin: form.half_day_late_after_min,
       halfDayMinHours: form.half_day_min_hours,
@@ -186,7 +187,7 @@ export default function ShiftFormPage() {
 
         <div className="space-y-5">
           <Card>
-            <CardHeader><CardTitle className="text-base">Late fine rules</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Late rules (fine or longer shift)</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {tiers.map((t, i) => (
                 <div key={i} className="flex flex-wrap items-end gap-2">
@@ -199,10 +200,11 @@ export default function ShiftFormPage() {
                     <SelectField value={t.kind} onChange={(e) => setTier(i, { kind: e.target.value })} className={selectCls}>
                       <option value="amount">₹ Amount</option>
                       <option value="hours">Hours of pay</option>
+                      <option value="extend">Extend shift (hours)</option>
                     </SelectField>
                   </div>
                   <div className="w-36 space-y-1">
-                    <Label className="text-xs">{t.kind === 'amount' ? 'Deduct (₹)' : 'Deduct (hours)'}</Label>
+                    <Label className="text-xs">{t.kind === 'amount' ? 'Deduct (₹)' : t.kind === 'extend' ? 'Extra hours' : 'Deduct (hours)'}</Label>
                     <Input type="number" min="0" step={t.kind === 'amount' ? '1' : '0.25'} placeholder={t.kind === 'amount' ? 'e.g. 100' : 'e.g. 1'} value={t.value} onChange={(e) => setTier(i, { value: e.target.value })} />
                   </div>
                   <Button type="button" variant="ghost" size="sm" className="h-10 w-10 p-0 text-red-400 hover:text-red-600" onClick={() => setTiers((rows) => rows.filter((_, j) => j !== i))} aria-label="Remove tier">
@@ -214,7 +216,7 @@ export default function ShiftFormPage() {
                 <Plus className="mr-1 h-4 w-4" /> Add tier
               </Button>
               <p className="text-xs text-muted-foreground">
-                Applies after the grace period; the highest tier reached is used. A ₹ amount is deducted from salary as-is; hours are deducted at the employee's hourly rate. Leave empty for no late fine.
+                Applies after the grace period; the highest tier reached is used. A ₹ amount is deducted from salary as-is; hours are deducted at the employee's hourly rate. "Extend shift" adds hours to that day's shift instead of a fine, for example 10 min late → +1 hour, 20 min late → +2 hours. Leave empty for no late fine.
               </p>
             </CardContent>
           </Card>

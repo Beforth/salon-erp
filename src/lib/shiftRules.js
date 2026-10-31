@@ -9,13 +9,16 @@ export function buildRulesPayload({ grace, tiers, halfDayLateAfterMin, halfDayMi
     const a = toNum(t.after_min)
     const h = toNum(t.deduct_hours)
     const m = toNum(t.deduct_amount)
-    if (a == null && h == null && m == null) continue
-    if (a == null || (h == null && m == null)) return { ok: false, error: 'Fill both the minutes and a fine (hours or ₹) for each late tier' }
+    const x = toNum(t.extend_hours)
+    if (a == null && h == null && m == null && x == null) continue
+    if (a == null || (h == null && m == null && x == null)) return { ok: false, error: 'Fill both the minutes and a fine or extra hours for each late tier' }
     if (!Number.isInteger(a) || a < 1 || a > 1440) return { ok: false, error: 'Late tier minutes must be a whole number (1-1440)' }
     if (!(a > prev)) return { ok: false, error: 'Late tiers must be in increasing order and above the grace period' }
     if (h != null && (!(h > 0) || h > 24)) return { ok: false, error: 'Late tier must deduct more than 0 and at most 24 hours' }
     if (m != null && (!(m > 0) || m > 1000000)) return { ok: false, error: 'Late fine amount must be more than ₹0 and at most ₹10,00,000' }
+    if (x != null && (!(x > 0) || x > 12)) return { ok: false, error: 'A late tier can extend the shift by more than 0 and at most 12 hours' }
     const row = { after_min: a }
+    if (x != null) row.extend_hours = x
     if (h != null) row.deduct_hours = h
     if (m != null) row.deduct_amount = m
     rows.push(row)

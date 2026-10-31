@@ -10,6 +10,7 @@ export const versionHistory = [
       'Machine punches go to the branch of the machine, for staff who work at more than one branch',
       'Expense categories can ask for an employee; Expenses page works from the keyboard',
       'Long report lists are split into pages and Staff Performance loads much faster',
+      'Shift late rules can make the shift longer — e.g. 10 min late: +1 hour, 20 min late: +2 hours',
     ],
     details: [
       {
@@ -27,6 +28,7 @@ export const versionHistory = [
           'A punch from a registered machine is recorded at that machine\'s branch when the person works there',
           'Machines are matched by device number or serial number',
           'Attendance roster shows 50 staff per page',
+          'New tier type in a shift\'s late rules: "Extend shift (hours)" — a late arrival makes that day\'s shift longer, and overtime and late-leaving rewards count from the longer end',
         ],
       },
       {
