@@ -302,7 +302,16 @@ function SidebarContent({ collapsed, expandedGroups, toggleGroup, navItems, user
               {mark}
               <div className="flex flex-col">
                 <span className="text-lg font-black tracking-tight text-primary">Salon ERP</span>
-                <span className="-mt-0.5 text-[10px] font-medium text-muted-foreground">Salon Management · {CURRENT_VERSION}</span>
+                <span className="-mt-0.5 text-[10px] font-medium text-muted-foreground">
+                  Salon Management ·{' '}
+                  <Link
+                    to="/version-history"
+                    title="See what's new"
+                    className="rounded font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {CURRENT_VERSION}
+                  </Link>
+                </span>
               </div>
             </div>
           )

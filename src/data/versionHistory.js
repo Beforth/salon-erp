@@ -1,6 +1,52 @@
-export const CURRENT_VERSION = 'v2.12.0'
+export const CURRENT_VERSION = 'v2.13.0'
 
 export const versionHistory = [
+  {
+    version: 'v2.13.0',
+    date: 'Oct 2026',
+    title: 'Staff Accounts, Branch Attendance & Faster Reports',
+    highlights: [
+      'Retire a duplicate staff account and keep one — reports and incentives combine both',
+      'Machine punches go to the branch of the machine, for staff who work at more than one branch',
+      'Expense categories can ask for an employee; Expenses page works from the keyboard',
+      'Long report lists are split into pages and Staff Performance loads much faster',
+    ],
+    details: [
+      {
+        section: 'Staff Accounts',
+        items: [
+          'Owners can retire a duplicate account in favour of another; history stays on the old account and new work goes on the kept one',
+          'Incentives, Staff Performance, the Reports hub and dashboard top staff add both accounts together',
+          'Link an existing staff member to another branch directly from their profile',
+          'Fixed: picking a biometric suggestion now fills the ID in the box',
+        ],
+      },
+      {
+        section: 'Attendance',
+        items: [
+          'A punch from a registered machine is recorded at that machine\'s branch when the person works there',
+          'Machines are matched by device number or serial number',
+          'Attendance roster shows 50 staff per page',
+        ],
+      },
+      {
+        section: 'Expenses & Bills',
+        items: [
+          'Tick "Add employee" on an expense category to ask for an employee on those expenses',
+          'Expenses page: press N to add, / to search; dropdowns work with the arrow keys and Enter',
+          'Bills page no longer shows the collected and unpaid totals',
+        ],
+      },
+      {
+        section: 'Reports & Staff Performance',
+        items: [
+          'Long tables in reports, Staff Performance and Incentives are shown a page at a time',
+          'Staff Performance opens faster; the day-by-day services load when you pick a staff member',
+          'Cleaner look: follows light and dark mode, compact staff chips, clearer date-range switch',
+        ],
+      },
+    ],
+  },
   {
     version: 'v2.12.0',
     date: 'Oct 2026',
