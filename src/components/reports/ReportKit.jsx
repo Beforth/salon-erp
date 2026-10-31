@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowDownRight, ArrowUpRight, ChevronDown, Download, FileSpreadsheet, FileText, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Pager, usePaged } from '@/components/ui/pager'
 import { exportToCSV, exportToExcel, exportToPDF } from '@/lib/export-utils'
 
 function cssColor(name, fallback) {
@@ -97,7 +98,7 @@ export function ChartTip({ active, payload, label, format }) {
 }
 
 /** Sortable table. columns: { key, label, align?, render?(row), sortValue?(row), className? } */
-export function DataTable({ columns, rows, rowKey, onRowClick, defaultSort, empty, footer, maxHeight = '28rem' }) {
+export function DataTable({ columns, rows, rowKey, onRowClick, defaultSort, empty, footer, maxHeight = '28rem', pageSize = 25 }) {
   const [sort, setSort] = useState(defaultSort || null)
   const sorted = useMemo(() => {
     if (!sort) return rows
@@ -111,10 +112,12 @@ export function DataTable({ columns, rows, rowKey, onRowClick, defaultSort, empt
     })
   }, [rows, sort, columns])
 
+  const paged = usePaged(sorted, pageSize)
   if (!rows.length) return <Empty>{empty}</Empty>
   const toggle = (key) => setSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }))
 
   return (
+    <>
     <div className="overflow-auto rounded-lg border" style={{ maxHeight }}>
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
@@ -130,7 +133,7 @@ export function DataTable({ columns, rows, rowKey, onRowClick, defaultSort, empt
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r, i) => (
+          {paged.pageItems.map((r, i) => (
             <tr
               key={rowKey ? rowKey(r) : i}
               onClick={onRowClick ? () => onRowClick(r) : undefined}
@@ -159,6 +162,8 @@ export function DataTable({ columns, rows, rowKey, onRowClick, defaultSort, empt
         )}
       </table>
     </div>
+    <Pager {...paged} />
+    </>
   )
 }
 

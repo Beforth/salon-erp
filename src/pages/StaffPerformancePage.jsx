@@ -27,6 +27,7 @@ import { TrendingUp, Calendar, Loader2, Star, Pencil, Check, X, Users, IndianRup
 import { MultiBarChart } from '@/components/charts'
 import { BranchColorDot } from '@/components/ui/branch-color-dot'
 import { toast } from 'sonner'
+import { PagedBody } from '@/components/ui/pager'
 import { SelectField } from '@/components/ui/select-field'
 
 function getDefaultDateRange() {
@@ -920,7 +921,7 @@ function StaffPerformancePage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {singleDayServicesByTime.map((s, i) => {
+                        <PagedBody items={singleDayServicesByTime}>{(s, i) => {
                           const isProduct = s.item_type === 'product'
                           return (
                           <TableRow
@@ -965,7 +966,7 @@ function StaffPerformancePage() {
                             </TableCell>
                           </TableRow>
                           )
-                        })}
+                        }}</PagedBody>
                         <TableRow className="font-bold border-t-2 bg-muted/50">
                           <TableCell>Total</TableCell>
                           <TableCell></TableCell>
@@ -1329,7 +1330,7 @@ function StaffPerformancePage() {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {(emp.records || []).map((r) => (
+                                <PagedBody items={emp.records || []}>{(r) => (
                                   <TableRow key={r.incentive_id}>
                                     <TableCell className="text-sm">{r.bill_number}</TableCell>
                                     <TableCell className="text-sm">
@@ -1340,7 +1341,7 @@ function StaffPerformancePage() {
                                     <TableCell className="text-right">{r.percentage}%</TableCell>
                                     <TableCell className="text-right font-medium text-green-600">{formatCurrency(r.incentive_amount)}</TableCell>
                                   </TableRow>
-                                ))}
+                                )}</PagedBody>
                               </TableBody>
                             </Table>
                           </div>

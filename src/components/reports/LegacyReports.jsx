@@ -1,3 +1,4 @@
+import { PagedBody } from '@/components/ui/pager'
 import { Fragment, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useQuery } from '@tanstack/react-query'
@@ -275,14 +276,14 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {inventory.low_stock_items.map((item, i) => (
+                        <PagedBody items={inventory.low_stock_items}>{(item, i) => (
                           <TableRow key={i}>
                             <TableCell className="font-medium">{item.product_name}</TableCell>
                             <TableCell>{item.location}</TableCell>
                             <TableCell className="text-red-600 font-bold">{item.quantity}</TableCell>
                             <TableCell>{item.reorder_level}</TableCell>
                           </TableRow>
-                        ))}
+                        )}</PagedBody>
                       </TableBody>
                     </Table>
                   </CardContent>
@@ -379,7 +380,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {consumptionUsage.rows.map((row) => (
+                          <PagedBody items={consumptionUsage.rows}>{(row) => (
                             <TableRow key={`${row.service_id}-${row.product_id}-${row.unit}`}>
                               <TableCell className="font-medium">{row.service_name}</TableCell>
                               <TableCell>{row.product_name}</TableCell>
@@ -388,7 +389,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                                 {row.total_amount} {row.unit}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}</PagedBody>
                         </TableBody>
                       </Table>
                     )}
@@ -430,13 +431,13 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {consumptionWastage.by_product.map((row) => (
+                          <PagedBody items={consumptionWastage.by_product}>{(row) => (
                             <TableRow key={`${row.product_id}-${row.unit}`}>
                               <TableCell className="font-medium">{row.product_name}</TableCell>
                               <TableCell className="text-right">{row.bottles_discarded}</TableCell>
                               <TableCell className="text-right font-mono">{row.wasted_volume} {row.unit}</TableCell>
                             </TableRow>
-                          ))}
+                          )}</PagedBody>
                         </TableBody>
                       </Table>
                     </CardContent>
@@ -459,7 +460,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {consumptionWastage.rows.map((row) => (
+                          <PagedBody items={consumptionWastage.rows}>{(row) => (
                             <TableRow key={row.open_container_id}>
                               <TableCell className="font-medium">{row.product_name}</TableCell>
                               <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
@@ -471,7 +472,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                                 {row.discarded_at ? new Date(row.discarded_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}</PagedBody>
                         </TableBody>
                       </Table>
                     )}
@@ -513,7 +514,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {consumptionLifecycle.rows.map((row) => (
+                          <PagedBody items={consumptionLifecycle.rows}>{(row) => (
                             <TableRow
                               key={row.open_container_id}
                               className="cursor-pointer hover:bg-gray-50"
@@ -535,7 +536,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                                 {row.opened_at ? new Date(row.opened_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}</PagedBody>
                         </TableBody>
                       </Table>
                     )}
@@ -575,14 +576,14 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {bottleDetail.usage_log.map((log) => (
+                        <PagedBody items={bottleDetail.usage_log}>{(log) => (
                           <TableRow key={log.log_id}>
                             <TableCell className="text-sm">{log.used_at ? new Date(log.used_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</TableCell>
                             <TableCell>{log.service_name || log.item_name || '—'}</TableCell>
                             <TableCell className="font-mono text-xs">{log.bill_number || '—'}</TableCell>
                             <TableCell className="text-right font-mono">{log.amount} {log.unit}</TableCell>
                           </TableRow>
-                        ))}
+                        )}</PagedBody>
                       </TableBody>
                     </Table>
                   )}
@@ -640,7 +641,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {liability.bills.map((b) => (
+                        <PagedBody items={liability.bills}>{(b) => (
                           <Fragment key={b.bill_id}>
                             <TableRow
                               className="cursor-pointer hover:bg-gray-50"
@@ -666,7 +667,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                               </TableRow>
                             ))}
                           </Fragment>
-                        ))}
+                        )}</PagedBody>
                       </TableBody>
                     </Table>
                   </CardContent>
@@ -718,7 +719,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {supplierCredit.suppliers.map((s) => (
+                        <PagedBody items={supplierCredit.suppliers}>{(s) => (
                           <TableRow key={s.supplier_id}>
                             <TableCell className="font-medium">{s.supplier_name}</TableCell>
                             <TableCell className="text-right">{formatCurrency(s.total_amount)}</TableCell>
@@ -726,7 +727,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                             <TableCell className="text-right text-red-600 font-semibold">{formatCurrency(s.pending_amount)}</TableCell>
                             <TableCell className="text-center">{s.batch_count}</TableCell>
                           </TableRow>
-                        ))}
+                        )}</PagedBody>
                       </TableBody>
                     </Table>
                   </CardContent>
@@ -760,7 +761,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                       <TableHead className="text-right">Value at cost</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {whStock.map((r) => (
+                      <PagedBody items={whStock}>{(r) => (
                         <TableRow key={r.product_id}>
                           <TableCell className="font-medium">{r.product_name}</TableCell>
                           <TableCell className="text-sm text-gray-600">{r.sku_name || '—'}</TableCell>
@@ -768,7 +769,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                           <TableCell className="text-right">{r.cost_price != null ? formatCurrency(r.cost_price) : <span className="text-rose-600 text-xs">missing</span>}</TableCell>
                           <TableCell className="text-right font-medium">{r.value_at_cost ? formatCurrency(r.value_at_cost) : '—'}</TableCell>
                         </TableRow>
-                      ))}
+                      )}</PagedBody>
                     </TableBody>
                   </Table>
                 )}
@@ -799,7 +800,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                       <TableHead className="text-right">Pending</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {whPurchases.map((s) => (
+                      <PagedBody items={whPurchases}>{(s) => (
                         <TableRow key={s.supplier_id}>
                           <TableCell className="font-medium">{s.supplier_name}</TableCell>
                           <TableCell className="text-center">{s.batches}</TableCell>
@@ -807,7 +808,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                           <TableCell className="text-right text-green-700">{formatCurrency(s.paid_amount)}</TableCell>
                           <TableCell className="text-right text-rose-700">{formatCurrency(s.pending_amount)}</TableCell>
                         </TableRow>
-                      ))}
+                      )}</PagedBody>
                     </TableBody>
                   </Table>
                 )}
@@ -836,13 +837,13 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                       <TableHead className="text-right">Total value (cost)</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {whTransfers.map((r) => (
+                      <PagedBody items={whTransfers}>{(r) => (
                         <TableRow key={r.branch_id}>
                           <TableCell className="font-medium">{r.branch_name}</TableCell>
                           <TableCell className="text-center">{r.transfer_count}</TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(r.total_value_at_cost)}</TableCell>
                         </TableRow>
-                      ))}
+                      )}</PagedBody>
                     </TableBody>
                   </Table>
                 )}
@@ -872,7 +873,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                   <TableHead className="text-right">Value at cost</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {snapshot.map((r) => (
+                  <PagedBody items={snapshot}>{(r) => (
                     <TableRow key={r.location_id}>
                       <TableCell className="font-medium">{r.location_name}</TableCell>
                       <TableCell>{r.branch_name || '—'}</TableCell>
@@ -883,7 +884,7 @@ function LegacyReports({ activeReport, selectedBranch = '', startDate, endDate }
                       <TableCell className="text-right">{r.units}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(r.value_at_cost)}</TableCell>
                     </TableRow>
-                  ))}
+                  )}</PagedBody>
                 </TableBody>
               </Table>
             )}

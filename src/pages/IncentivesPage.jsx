@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
+import { PagedBody } from '@/components/ui/pager'
 import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -263,7 +264,7 @@ export default function IncentivesPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(emp.records || []).map((r) => (
+                          <PagedBody items={emp.records || []}>{(r) => (
                             <TableRow key={r.incentive_id}>
                               <TableCell className="text-sm">{r.bill_number}</TableCell>
                               <TableCell className="text-sm">{formatDateStored(r.bill_date)}</TableCell>
@@ -272,7 +273,7 @@ export default function IncentivesPage() {
                               <TableCell className="text-right">{r.percentage}%</TableCell>
                               <TableCell className="text-right font-medium text-green-600">{formatCurrency(r.incentive_amount)}</TableCell>
                             </TableRow>
-                          ))}
+                          )}</PagedBody>
                         </TableBody>
                       </Table>
                     </CardContent>
