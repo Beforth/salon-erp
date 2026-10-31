@@ -12,7 +12,7 @@ export const dataTransferService = {
     body.append('file', file)
     body.append('dry_run', dryRun ? 'true' : 'false')
     if (onDuplicate) body.append('on_duplicate', onDuplicate)
-    return api.post(`/data-transfer/${entity}/import`, body, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return api.post(`/data-transfer/${entity}/import`, body)
   },
 }
 

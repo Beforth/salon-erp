@@ -18,7 +18,7 @@ const HINTS = {
   staff: 'Employees, managers and cashiers. New staff get a generated password.',
   expenses: 'Money spent. Pick a date range to export.',
   punches: 'Attendance punches (in / out). Shifts and late rules apply as usual.',
-  bills: 'Past bills, one row per item. Saved as history: stock, tokens and sale incentives are not touched.',
+  bills: 'Past bills, one row per item, paid in full by one payment mode. Saved as history: stock, tokens and sale incentives are not touched. Tax, item discounts and split payments are not carried over.',
 }
 const HAS_DUPLICATES = new Set(['customers', 'services', 'products', 'staff'])
 const todayIso = () => new Date().toISOString().slice(0, 10)
@@ -100,7 +100,11 @@ export default function DataTransferPage() {
 
   const doImport = () => run('import', async () => {
     const res = await dataTransferService.importFile(entityKey, file, { dryRun: false, onDuplicate: HAS_DUPLICATES.has(entityKey) ? onDuplicate : undefined })
-    if (res.data.committed) {
+    if (res.data.partial) {
+      setCommitted(res.data)
+      setReport(null)
+      toast.error(`Stopped at row ${res.data.failed_row}`)
+    } else if (res.data.committed) {
       setCommitted(res.data)
       setReport(null)
       setFile(null)
@@ -289,9 +293,23 @@ export default function DataTransferPage() {
                     </div>
                   )}
 
-                  {committed && (
+                  {committed?.partial && (
+                    <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950/40" role="alert">
+                      <p className="flex items-start gap-2 font-medium text-amber-900 dark:text-amber-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Stopped at row {committed.failed_row}: {committed.failure}</p>
+                      <p className="text-amber-900 dark:text-amber-200">{committed.done.created + committed.done.updated} row(s) before it were saved. Fix the file and import it again — rows that already exist are skipped, so nothing is added twice.</p>
+                      {committed.extra?.credentials?.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-amber-900 dark:text-amber-200">Logins were already created for {committed.extra.credentials.length} new staff. <strong>This is the only time their passwords are shown.</strong></p>
+                          <Button size="sm" onClick={downloadLogins}><Download className="mr-2 h-4 w-4" />Download logins (CSV)</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {committed && !committed.partial && (
                     <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/40" role="status">
                       <p className="flex items-center gap-2 font-medium text-emerald-800 dark:text-emerald-300"><CheckCircle2 className="h-5 w-5" />Imported: {committed.done.created} added, {committed.done.updated} updated, {committed.done.skipped} skipped.</p>
+                      {committed.batch_id && <p className="text-xs text-muted-foreground">Bills from this import are tagged with batch ID <span className="font-mono">{committed.batch_id}</span>. There is no undo button — keep this ID if the batch ever has to be removed.</p>}
                       {committed.extra?.credentials?.length > 0 && (
                         <div className="space-y-2 text-sm">
                           <p className="text-amber-800 dark:text-amber-300">New staff logins were generated. <strong>This is the only time the passwords are shown</strong> — download them now and hand them out.</p>
