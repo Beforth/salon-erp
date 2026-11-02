@@ -26,7 +26,7 @@ const REPORTS = [
   { id: 'pl', group: 'Sales', label: 'Profit & loss', hint: 'Revenue against expenses', icon: Landmark, roles: OWNER, range: true, branch: 'optional', Comp: ProfitLossReport },
   { id: 'customers', group: 'People', label: 'Customers', hint: 'New, returning, win-back list', icon: Users, roles: MGR, range: true, branch: 'optional', Comp: CustomersReport },
   { id: 'staff', group: 'People', label: 'Staff', hint: 'Services and revenue per employee', icon: Star, roles: MGR, range: true, branch: 'optional', Comp: StaffReport },
-  { id: 'staff-incentives', group: 'People', label: 'Staff incentives', hint: 'Monthly incentive payouts', icon: TrendingUp, roles: OWNER, range: false, branch: 'none', legacy: true },
+  { id: 'staff-incentives', group: 'People', label: 'Staff incentives', hint: 'Monthly incentive payouts', icon: TrendingUp, roles: MGR, range: false, branch: 'none', legacy: true },
   { id: 'catalog', group: 'Catalog', label: 'Services & products', hint: 'What sells, what is slowing', icon: Scissors, roles: MGR, range: true, branch: 'optional', Comp: CatalogReport },
   { id: 'inventory', group: 'Stock', label: 'Stock levels', hint: 'Low stock and expiring items', icon: Package, roles: MGR, range: false, branch: 'none', legacy: true },
   { id: 'stock-snapshot', group: 'Stock', label: 'Stock value', hint: 'Value of stock at every location', icon: BoxesIcon, roles: OWNER, range: false, branch: 'none', legacy: true },
