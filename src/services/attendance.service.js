@@ -9,6 +9,7 @@ export const attendanceService = {
   runAutoClose: (data) => api.post('/attendance/run-auto-close', data),
   getMonthlyAttendance: (params) => api.get('/attendance/monthly', { params }),
   updateTimes: (data) => api.post('/attendance/update-times', data),
+  markDay: (data) => api.post('/attendance/mark-day', data),
   getSelfConfig: () => api.get('/attendance/self/config'),
   selfPunch: (formData) =>
     api.post('/attendance/self/punch', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
