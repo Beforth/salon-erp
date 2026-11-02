@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { attendanceService } from '@/services/attendance.service'
+import { shiftService } from '@/services/shift.service'
 import { reportsService } from '@/services/reports.service'
 import { Empty } from './ReportKit'
 
@@ -101,8 +102,13 @@ const CHOICES = [
  */
 export function MarkDayDrawer({ target, onClose, onSaved }) {
   const qc = useQueryClient()
-  const start = ['absent', 'leave'].includes(target.kind) ? target.kind : 'present'
+  const unmarked = target.kind === 'unmarked'
+  const start = unmarked ? 'keep' : ['absent', 'leave'].includes(target.kind) ? target.kind : 'present'
   const [choice, setChoice] = useState(start)
+  const currentShift = target.planned_shift?.shift_id || ''
+  const [shiftId, setShiftId] = useState(currentShift)
+  const { data: shiftList } = useQuery({ queryKey: ['shifts', 'active'], queryFn: () => shiftService.getShifts({ is_active: 'true' }).then((r) => r.data || []), staleTime: 60000 })
+  const shiftChanged = shiftId !== currentShift
   const [checkIn, setCheckIn] = useState(hhmm(target.check_in))
   const [checkOut, setCheckOut] = useState(hhmm(target.check_out))
   const [reason, setReason] = useState('')
@@ -117,12 +123,13 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
         attendance_date: target.date,
         branch_id: target.branch_id || undefined,
         mode: choice,
+        ...(shiftChanged ? { shift_id: shiftId || null } : {}),
         ...(choice === 'present' ? { check_in: checkIn ? `${target.date}T${checkIn}` : undefined, check_out: checkOut ? `${target.date}T${checkOut}` : undefined } : {}),
         ...(choice !== 'present' && reason.trim() ? { reason: reason.trim() } : {}),
       })
     },
     onSuccess: () => {
-      toast.success(`${target.name}: ${choice === 'leave' ? 'on leave' : choice} on ${target.date}`)
+      toast.success(choice === 'keep' ? `${target.name}: shift updated for ${target.date}` : `${target.name}: ${choice === 'leave' ? 'on leave' : choice} on ${target.date}`)
       qc.invalidateQueries({ queryKey: ['hub-attendance'] })
       qc.invalidateQueries({ queryKey: ['hub-staff-detail'] })
       onSaved?.()
@@ -155,7 +162,7 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
         <div>
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Mark as</span>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Mark as">
-            {CHOICES.map((c) => (
+            {(unmarked ? [{ value: 'keep', label: 'Leave unmarked' }, ...CHOICES] : CHOICES).map((c) => (
               <button
                 key={c.value}
                 type="button"
@@ -168,6 +175,20 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="md-shift" className="mb-1 block text-xs font-medium text-muted-foreground">Shift for this day</label>
+          <select
+            id="md-shift"
+            value={shiftId}
+            onChange={(e) => setShiftId(e.target.value)}
+            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="">Default hours{!currentShift && target.planned_shift ? ` (${shiftLabel(target.planned_shift)})` : ''}</option>
+            {(shiftList || []).map((s) => <option key={s.id} value={s.id}>{s.name} {s.start_time}-{s.end_time}</option>)}
+          </select>
+          {shiftChanged && <p className="mt-1 text-[12px] text-muted-foreground">Applies to this one day. Late rules and fines are recalculated from the new shift when the day has punches.</p>}
         </div>
 
         {choice === 'present' && (
@@ -185,11 +206,12 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
             </p>
           </div>
         )}
+        {choice === 'keep' && <p className="text-[13px] text-muted-foreground">Nothing is recorded for this day. Only the shift above is saved.</p>}
         {choice === 'absent' && (
           <p className="text-[13px] text-muted-foreground">Counts as not worked. A day that already has punches cannot be marked absent; change its times or mark it on leave instead.</p>
         )}
         {choice === 'leave' && <p className="text-[13px] text-muted-foreground">Marks the day as leave. It is not counted as worked.</p>}
-        {choice !== 'present' && (
+        {(choice === 'absent' || choice === 'leave') && (
           <div>
             <label htmlFor="md-reason" className="mb-1 block text-xs font-medium text-muted-foreground">Reason (optional)</label>
             <Input id="md-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
