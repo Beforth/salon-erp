@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CalendarDays, CheckCircle2, IndianRupee, Search, Users, Wallet } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { ArrowLeft, CalendarDays, CheckCircle2, IndianRupee, Pencil, Search, Users, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Pager, usePaged } from '@/components/ui/pager'
 import { payrollService } from '@/services/payroll.service'
@@ -24,10 +27,71 @@ function Stat({ icon: Icon, tone, value, label }) {
   )
 }
 
+const errText = (e) => e?.response?.data?.error?.message || e?.message || 'Something went wrong'
+const FIELDS = [
+  ['present', 'Present days', 'present'],
+  ['half_day', 'Half days', 'half_day'],
+  ['leave', 'Leave days', 'leave'],
+  ['penalty_hours', 'Penalty hours', 'penalty_hours'],
+]
+
+/** Edit one person's figures for this cycle. A blank box means "use the attendance figure". */
+function EditDialog({ cycleId, employee, locked, onClose, onSaved }) {
+  const orig = employee.attendance || { present: employee.present, half_day: employee.half_day, leave: employee.leave, penalty_hours: employee.penalty_hours }
+  const [vals, setVals] = useState(() => Object.fromEntries(FIELDS.map(([k]) => [k, employee.edited && employee[k] !== orig[k] ? String(employee[k]) : ''])))
+  const [note, setNote] = useState(employee.note || '')
+  const num = (s) => (s.trim() === '' ? null : Number(s))
+  const invalid = FIELDS.some(([k]) => { const n = num(vals[k]); return n !== null && (!Number.isFinite(n) || n < 0) })
+
+  const save = useMutation({
+    mutationFn: () => payrollService.saveEntry(cycleId, employee.employee_id, {
+      present: num(vals.present), half_day: num(vals.half_day), leave: num(vals.leave), penalty_hours: num(vals.penalty_hours), note: note.trim() || null,
+    }),
+    onSuccess: () => { toast.success(`Saved ${employee.name}`); onSaved(); onClose() },
+    onError: (e) => toast.error(errText(e)),
+  })
+  const reset = useMutation({
+    mutationFn: () => payrollService.resetEntry(cycleId, employee.employee_id),
+    onSuccess: () => { toast.success('Back to attendance figures'); onSaved(); onClose() },
+    onError: (e) => toast.error(errText(e)),
+  })
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader><DialogTitle>Edit {employee.name}</DialogTitle></DialogHeader>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!invalid && !locked) save.mutate() }}>
+          <p className="text-xs text-muted-foreground">Change the numbers used for this pay cycle only. Leave a box empty to use the attendance figure shown under it.</p>
+          <div className="grid grid-cols-2 gap-3">
+            {FIELDS.map(([k, label]) => (
+              <div key={k} className="space-y-1.5">
+                <Label htmlFor={`pe-${k}`}>{label}</Label>
+                <Input id={`pe-${k}`} type="number" inputMode="decimal" min={0} step={k === 'penalty_hours' ? 0.25 : 0.5} value={vals[k]} placeholder={String(orig[k])} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+                <p className="text-[11px] text-muted-foreground">Attendance: {orig[k]}</p>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pe-note">Reason (optional)</Label>
+            <Input id="pe-note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          {locked && <p role="alert" className="text-sm text-destructive">This cycle is paid and can't be edited.</p>}
+          <div className="flex gap-2">
+            {employee.edited && <Button type="button" variant="outline" disabled={locked || reset.isPending} onClick={() => reset.mutate()}>Reset to attendance</Button>}
+            <Button type="submit" className="flex-1" disabled={invalid || locked || save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function PayrollCycleDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [editing, setEditing] = useState(null)
   const { data, isLoading, error } = useQuery({ queryKey: ['payroll-cycle', id], queryFn: () => payrollService.getCycle(id).then((r) => r.data) })
 
   const rows = useMemo(() => {
@@ -78,14 +142,14 @@ export default function PayrollCycleDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {['Employee', 'Base salary', 'Present', 'Half', 'Leave', 'Absent', 'Late', 'Hours', 'Penalty hrs', 'Late fine'].map((h, i) => <TableHead key={h} className={`whitespace-nowrap uppercase ${i > 0 ? 'text-right' : ''}`}>{h}</TableHead>)}
+                  {['Employee', 'Base salary', 'Present', 'Half', 'Leave', 'Absent', 'Late', 'Hours', 'Penalty hrs', 'Late fine', ''].map((h, i) => <TableHead key={h} className={`whitespace-nowrap uppercase ${i > 0 ? 'text-right' : ''}`}>{h}</TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paged.pageItems.map((e) => (
                   <TableRow key={e.employee_id}>
                     <TableCell className="whitespace-nowrap">
-                      <p className="text-xs font-semibold">{e.name}</p>
+                      <p className="text-xs font-semibold">{e.name}{e.edited && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title={e.note || 'Edited for this cycle'}>Edited</span>}</p>
                       <p className="text-[11px] capitalize text-muted-foreground">{e.employee_code ? `${e.employee_code} · ` : ''}{e.role}</p>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{e.base_salary != null ? formatCurrency(e.base_salary) : '-'}</TableCell>
@@ -97,6 +161,9 @@ export default function PayrollCycleDetailPage() {
                     <TableCell className="text-right tabular-nums">{e.total_hours}</TableCell>
                     <TableCell className="text-right tabular-nums">{e.penalty_hours || '-'}</TableCell>
                     <TableCell className="text-right tabular-nums text-red-600">{e.late_amount ? formatCurrency(e.late_amount) : '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" aria-label={`Edit ${e.name}`} onClick={() => setEditing(e)}><Pencil className="h-4 w-4" /></Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -105,6 +172,7 @@ export default function PayrollCycleDetailPage() {
         )}
       </div>
       <Pager {...paged} />
+      {editing && <EditDialog key={editing.employee_id} cycleId={id} employee={editing} locked={c.status === 'paid'} onClose={() => setEditing(null)} onSaved={() => qc.invalidateQueries({ queryKey: ['payroll-cycle', id] })} />}
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Attendance is read live for this cycle's dates. Salary calculation is the next step.</p>
     </div>
   )
