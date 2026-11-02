@@ -1127,6 +1127,7 @@ function StaffPerformancePage() {
                           <div className="text-2xl font-bold text-green-600">{formatCurrency(totals.productIncentives || incentiveSummary.total_incentive || 0)}</div>
                         </CardContent>
                       </Card>
+                      {user?.role !== 'manager' && (
                       <Card
                         className="cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
                         onClick={() => document.getElementById('staff-incentives')?.scrollIntoView({ behavior: 'smooth' })}
@@ -1139,6 +1140,7 @@ function StaffPerformancePage() {
                           )}
                         </CardContent>
                       </Card>
+                      )}
                     </>
                   )}
                 </div>
