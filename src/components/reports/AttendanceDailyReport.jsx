@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
+import SearchBox from './SearchBox'
 import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading } from './ReportKit'
 import { KIND_LABEL, KindBadge, MarkDayDrawer, hhmm } from './AttendanceDrawers'
 
 /** One day, everyone. `to` is the chosen day. Click a row to correct it. */
 export default function AttendanceDailyReport({ to: date, branchId }) {
   const [edit, setEdit] = useState(null)
+  const [q, setQ] = useState('')
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['hub-attendance', 'daily', date, branchId],
     queryFn: () => reportsService.hubAttendanceDaily({ date, branch_id: branchId || undefined }).then((r) => r.data),
@@ -15,6 +17,8 @@ export default function AttendanceDailyReport({ to: date, branchId }) {
   if (error) return <ReportError error={error} retry={refetch} />
 
   const t = data.totals
+  const needle = q.trim().toLowerCase()
+  const shown = needle ? data.rows.filter((r) => `${r.name} ${r.employee_code || ''}`.toLowerCase().includes(needle)) : data.rows
   const rank = { unmarked: 0, absent: 1, leave: 2, half_day: 3, present: 4 }
   const exportRows = data.rows.map((r) => ({ name: r.name, branch: r.branch || '', status: KIND_LABEL[r.kind] + (r.late ? ' (late)' : ''), check_in: hhmm(r.check_in), check_out: hhmm(r.check_out), hours: r.hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
 
@@ -31,11 +35,11 @@ export default function AttendanceDailyReport({ to: date, branchId }) {
       <Panel
         title="Daily attendance"
         subtitle="Click a person to mark them present, absent or on leave, or to change their times."
-        action={<ExportMenu rows={exportRows} filename={`attendance-${date}`} title={`Attendance ${date}`} />}
+        action={<div className="flex items-center gap-2"><SearchBox value={q} onChange={setQ} /><ExportMenu rows={exportRows} filename={`attendance-${date}`} title={`Attendance ${date}`} /></div>}
       >
-        {data.rows.length === 0 ? <Empty>No staff for this branch.</Empty> : (
+        {data.rows.length === 0 ? <Empty>No staff for this branch.</Empty> : shown.length === 0 ? <Empty>No one matches "{q}".</Empty> : (
           <DataTable
-            rows={data.rows}
+            rows={shown}
             rowKey={(r) => `${r.employee_id}-${r.branch_id}`}
             onRowClick={(r) => setEdit(r)}
             defaultSort={{ key: 'kind', dir: 'asc' }}

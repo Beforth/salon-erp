@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
+import SearchBox from './SearchBox'
 import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading } from './ReportKit'
 import { DaysDrawer } from './AttendanceDrawers'
 
 /** A range, one line per person. Every number opens the days behind it. */
 export default function AttendanceSummaryReport({ from, to, branchId }) {
   const [drill, setDrill] = useState(null)
+  const [q, setQ] = useState('')
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['hub-attendance', 'summary', from, to, branchId],
     queryFn: () => reportsService.hubAttendanceSummary({ start_date: from, end_date: to, branch_id: branchId || undefined }).then((r) => r.data),
@@ -15,6 +17,8 @@ export default function AttendanceSummaryReport({ from, to, branchId }) {
   if (error) return <ReportError error={error} retry={refetch} />
 
   const t = data.totals
+  const needle = q.trim().toLowerCase()
+  const shown = needle ? data.rows.filter((r) => `${r.name} ${r.employee_code || ''}`.toLowerCase().includes(needle)) : data.rows
   const open = (row, kind) => setDrill({ employeeId: row.employee_id, name: row.name, kind })
   const cell = (kind, key, fmt = (v) => v) => (r) => (r[key]
     ? <button type="button" onClick={(e) => { e.stopPropagation(); open(r, kind) }} className="rounded px-1.5 font-semibold text-primary hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{fmt(r[key])}</button>
@@ -34,11 +38,11 @@ export default function AttendanceSummaryReport({ from, to, branchId }) {
       <Panel
         title="Attendance summary"
         subtitle="Click any number to see its days and correct them. Days the system closed because nobody punched count as absent."
-        action={<ExportMenu rows={exportRows} filename={`attendance-summary-${from}-to-${to}`} title={`Attendance summary ${from} to ${to}`} />}
+        action={<div className="flex items-center gap-2"><SearchBox value={q} onChange={setQ} /><ExportMenu rows={exportRows} filename={`attendance-summary-${from}-to-${to}`} title={`Attendance summary ${from} to ${to}`} /></div>}
       >
-        {data.rows.length === 0 ? <Empty>No staff for this branch.</Empty> : (
+        {data.rows.length === 0 ? <Empty>No staff for this branch.</Empty> : shown.length === 0 ? <Empty>No one matches "{q}".</Empty> : (
           <DataTable
-            rows={data.rows}
+            rows={shown}
             rowKey={(r) => r.employee_id}
             defaultSort={{ key: 'name', dir: 'asc' }}
             maxHeight="32rem"
