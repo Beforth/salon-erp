@@ -13,6 +13,7 @@ export const versionHistory = [
       'New Import / Export page: bring customers, services, products, staff, expenses, attendance punches and past bills in from Excel/CSV, or download them (owner only)',
       'Shift late rules can make the shift longer — e.g. 10 min late: +1 hour, 20 min late: +2 hours',
       'Reports > Daily attendance and Attendance summary: click a person or any number to see the days behind it and correct them from a side panel (present with times, absent, on leave)',
+      'Late rules can flag an employee for the day: they get no work from the queue unless everyone else is busy',
       'Reports > Staff: click a person to see everything they did — services, products, days in/out, hours and money paid out',
     ],
     details: [

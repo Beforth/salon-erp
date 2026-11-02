@@ -10,8 +10,9 @@ export function buildRulesPayload({ grace, tiers, halfDayLateAfterMin, halfDayMi
     const h = toNum(t.deduct_hours)
     const m = toNum(t.deduct_amount)
     const x = toNum(t.extend_hours)
-    if (a == null && h == null && m == null && x == null) continue
-    if (a == null || (h == null && m == null && x == null)) return { ok: false, error: 'Fill both the minutes and a fine or extra hours for each late tier' }
+    const flag = t.flag_queue === true
+    if (a == null && h == null && m == null && x == null && !flag) continue
+    if (a == null || (h == null && m == null && x == null && !flag)) return { ok: false, error: 'Fill both the minutes and a fine, extra hours or the queue flag for each late tier' }
     if (!Number.isInteger(a) || a < 1 || a > 1440) return { ok: false, error: 'Late tier minutes must be a whole number (1-1440)' }
     if (!(a > prev)) return { ok: false, error: 'Late tiers must be in increasing order and above the grace period' }
     if (h != null && (!(h > 0) || h > 24)) return { ok: false, error: 'Late tier must deduct more than 0 and at most 24 hours' }
@@ -21,6 +22,7 @@ export function buildRulesPayload({ grace, tiers, halfDayLateAfterMin, halfDayMi
     if (x != null) row.extend_hours = x
     if (h != null) row.deduct_hours = h
     if (m != null) row.deduct_amount = m
+    if (flag) row.flag_queue = true
     rows.push(row)
     prev = a
   }

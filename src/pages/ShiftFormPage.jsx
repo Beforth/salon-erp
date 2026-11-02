@@ -57,9 +57,11 @@ export default function ShiftFormPage() {
     })
     setPunctRows(rulesToRows(shift.punctuality_rules))
     setTiers((shift.late_tiers || []).map((t) => {
-      if (t.extend_hours != null) return { after_min: String(t.after_min), kind: 'extend', value: String(t.extend_hours) }
-      if (t.deduct_hours == null && t.deduct_amount != null) return { after_min: String(t.after_min), kind: 'amount', value: String(t.deduct_amount) }
-      return { after_min: String(t.after_min), kind: 'hours', value: String(t.deduct_hours ?? '') }
+      const flag = t.flag_queue === true
+      if (t.extend_hours != null) return { after_min: String(t.after_min), kind: 'extend', value: String(t.extend_hours), flag }
+      if (t.deduct_hours == null && t.deduct_amount != null) return { after_min: String(t.after_min), kind: 'amount', value: String(t.deduct_amount), flag }
+      if (t.deduct_hours == null) return { after_min: String(t.after_min), kind: 'none', value: '', flag }
+      return { after_min: String(t.after_min), kind: 'hours', value: String(t.deduct_hours ?? ''), flag }
     }))
   }, [shift])
 
@@ -84,6 +86,7 @@ export default function ShiftFormPage() {
         deduct_hours: t.kind === 'hours' ? t.value : '',
         deduct_amount: t.kind === 'amount' ? t.value : '',
         extend_hours: t.kind === 'extend' ? t.value : '',
+        flag_queue: t.flag === true,
       })),
       halfDayLateAfterMin: form.half_day_late_after_min,
       halfDayMinHours: form.half_day_min_hours,
@@ -201,22 +204,29 @@ export default function ShiftFormPage() {
                       <option value="amount">₹ Amount</option>
                       <option value="hours">Hours of pay</option>
                       <option value="extend">Extend shift (hours)</option>
+                      <option value="none">No fine</option>
                     </SelectField>
                   </div>
-                  <div className="w-36 space-y-1">
-                    <Label className="text-xs">{t.kind === 'amount' ? 'Deduct (₹)' : t.kind === 'extend' ? 'Extra hours' : 'Deduct (hours)'}</Label>
-                    <Input type="number" min="0" step={t.kind === 'amount' ? '1' : '0.25'} placeholder={t.kind === 'amount' ? 'e.g. 100' : 'e.g. 1'} value={t.value} onChange={(e) => setTier(i, { value: e.target.value })} />
-                  </div>
+                  {t.kind !== 'none' && (
+                    <div className="w-36 space-y-1">
+                      <Label className="text-xs">{t.kind === 'amount' ? 'Deduct (₹)' : t.kind === 'extend' ? 'Extra hours' : 'Deduct (hours)'}</Label>
+                      <Input type="number" min="0" step={t.kind === 'amount' ? '1' : '0.25'} placeholder={t.kind === 'amount' ? 'e.g. 100' : 'e.g. 1'} value={t.value} onChange={(e) => setTier(i, { value: e.target.value })} />
+                    </div>
+                  )}
+                  <label className="flex h-10 cursor-pointer items-center gap-2 text-xs" title="Not given work from the queue unless everyone else is busy">
+                    <input type="checkbox" checked={t.flag === true} onChange={(e) => setTier(i, { flag: e.target.checked })} className="h-4 w-4 rounded border-gray-300" />
+                    Flag: last in queue
+                  </label>
                   <Button type="button" variant="ghost" size="sm" className="h-10 w-10 p-0 text-red-400 hover:text-red-600" onClick={() => setTiers((rows) => rows.filter((_, j) => j !== i))} aria-label="Remove tier">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => setTiers((rows) => [...rows, { after_min: '', kind: 'amount', value: '' }])}>
+              <Button type="button" variant="outline" size="sm" onClick={() => setTiers((rows) => [...rows, { after_min: '', kind: 'amount', value: '', flag: false }])}>
                 <Plus className="mr-1 h-4 w-4" /> Add tier
               </Button>
               <p className="text-xs text-muted-foreground">
-                Applies after the grace period; the highest tier reached is used. A ₹ amount is deducted from salary as-is; hours are deducted at the employee's hourly rate. "Extend shift" adds hours to that day's shift instead of a fine, for example 10 min late → +1 hour, 20 min late → +2 hours. Leave empty for no late fine.
+                Applies after the grace period; the highest tier reached is used. A ₹ amount is deducted from salary as-is; hours are deducted at the employee's hourly rate. "Extend shift" adds hours to that day's shift instead of a fine, for example 10 min late → +1 hour, 20 min late → +2 hours. "Flag: last in queue" marks the employee for that day: they get no work from the queue while anyone else is free, and are only picked when everyone else is busy. Leave empty for no late fine.
               </p>
             </CardContent>
           </Card>

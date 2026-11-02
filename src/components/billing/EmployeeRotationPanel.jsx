@@ -82,6 +82,9 @@ function QueueRow({ row, highlight = false, hideMeta = false }) {
                 Waiting {formatCheckIn(row.check_in_at)}
               </span>
             )}
+            {row.flagged && (
+              <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-800" title="Late today: given work only when everyone else is busy">Late: last pick</span>
+            )}
             {row.skill_names?.length > 0 && (
               <span className="truncate">{row.skill_names.join(' · ')}</span>
             )}
