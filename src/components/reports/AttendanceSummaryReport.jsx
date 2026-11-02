@@ -23,7 +23,7 @@ export default function AttendanceSummaryReport({ from, to, branchId }) {
   const cell = (kind, key, fmt = (v) => v) => (r) => (r[key]
     ? <button type="button" onClick={(e) => { e.stopPropagation(); open(r, kind) }} className="rounded px-1.5 font-semibold text-primary hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{fmt(r[key])}</button>
     : <span className="text-muted-foreground">—</span>)
-  const exportRows = data.rows.map((r) => ({ name: r.name, shift: r.shifts.join(' / '), present: r.present, late: r.late, half_day: r.half_day, leave: r.leave, absent: r.absent, hours: r.hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
+  const exportRows = data.rows.map((r) => ({ name: r.name, shift: r.shifts.join(' / '), present: r.present, late: r.late, half_day: r.half_day, leave: r.leave, absent: r.absent, worked_hours: r.hours, shift_hours_no_penalty: r.base_hours, penalty_hours: r.penalty_hours, shift_hours_with_penalty: r.total_hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
 
   return (
     <div className="space-y-4">
@@ -34,6 +34,12 @@ export default function AttendanceSummaryReport({ from, to, branchId }) {
         <Kpi label="Half days" value={t.half_day} />
         <Kpi label="Absent days" value={t.absent} tone={t.absent ? 'text-rose-600' : ''} />
         <Kpi label="Overtime hours" value={t.overtime_hours} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi label="Hours worked" value={t.hours} />
+        <Kpi label="Shift hours, no penalty" value={t.base_hours} hint="length of the shifts worked" />
+        <Kpi label="Penalty hours" value={t.penalty_hours} tone={t.penalty_hours ? 'text-orange-600' : ''} hint="added by late rules or by hand" />
+        <Kpi label="Shift hours with penalty" value={t.total_hours} hint="shift hours + penalty hours" />
       </div>
       <Panel
         title="Attendance summary"
@@ -55,7 +61,10 @@ export default function AttendanceSummaryReport({ from, to, branchId }) {
               { key: 'half_day', label: 'Half day', align: 'right', render: cell('half_day', 'half_day') },
               { key: 'leave', label: 'Leave', align: 'right', render: cell('leave', 'leave') },
               { key: 'absent', label: 'Absent', align: 'right', render: cell('absent', 'absent') },
-              { key: 'hours', label: 'Hours', align: 'right' },
+              { key: 'hours', label: 'Worked h', align: 'right' },
+              { key: 'base_hours', label: 'Shift h', align: 'right', render: (r) => r.base_hours || '—' },
+              { key: 'penalty_hours', label: 'Penalty h', align: 'right', render: (r) => (r.penalty_hours ? <span className="font-semibold text-orange-600">+{r.penalty_hours}</span> : '—') },
+              { key: 'total_hours', label: 'Shift + penalty h', align: 'right', render: (r) => r.total_hours || '—' },
               { key: 'overtime_hours', label: 'Overtime h', align: 'right', render: cell('overtime', 'overtime_hours') },
               { key: 'late_amount', label: 'Late fine', align: 'right', render: cell('late', 'late_amount', (v) => `₹${v}`) },
             ]}

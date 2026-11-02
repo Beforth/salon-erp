@@ -288,7 +288,7 @@ export function DaysDrawer({ employeeId, name, kind, from, to, branchId, onClose
         footer={
           <div className="flex items-center justify-between text-[13px]">
             <span className="text-muted-foreground">{days.length} day{days.length === 1 ? '' : 's'}</span>
-            {kind === 'late' && <span className="font-medium">Late penalty ₹{sum('late_amount')} · {sum('late_hours')} h</span>}
+            {kind === 'late' && <span className="font-medium">Late penalty ₹{sum('late_amount')} · {sum('late_hours')} h off · +{sum('penalty_hours')} h shift</span>}
             {kind === 'overtime' && <span className="font-medium">Overtime {sum('overtime_hours')} h</span>}
             {!['late', 'overtime'].includes(kind) && <span className="text-muted-foreground">Click a day to correct it</span>}
           </div>
@@ -310,6 +310,7 @@ export function DaysDrawer({ employeeId, name, kind, from, to, branchId, onClose
                         {d.late_hours > 0 ? ` · ${d.late_hours} h off` : ''}
                       </p>
                       {(d.shift || d.planned_shift) && <p className="text-[12px] text-muted-foreground">Shift: {shiftLabel(d.shift || d.planned_shift)}{d.extend_hours > 0 ? ` (+${d.extend_hours} h)` : ''}</p>}
+                      {d.total_hours != null && <p className="text-[12px] text-muted-foreground">Shift {d.base_hours} h{d.penalty_hours > 0 ? ` + ${d.penalty_hours} h penalty = ${d.total_hours} h` : ', no penalty'}</p>}
                     </div>
                     <KindBadge row={d} />
                   </button>

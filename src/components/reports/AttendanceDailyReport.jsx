@@ -20,7 +20,7 @@ export default function AttendanceDailyReport({ to: date, branchId }) {
   const needle = q.trim().toLowerCase()
   const shown = needle ? data.rows.filter((r) => `${r.name} ${r.employee_code || ''}`.toLowerCase().includes(needle)) : data.rows
   const rank = { unmarked: 0, absent: 1, leave: 2, half_day: 3, present: 4 }
-  const exportRows = data.rows.map((r) => ({ name: r.name, branch: r.branch || '', shift: shiftLabel(r.shift || r.planned_shift), status: KIND_LABEL[r.kind] + (r.late ? ' (late)' : ''), check_in: hhmm(r.check_in), check_out: hhmm(r.check_out), hours: r.hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
+  const exportRows = data.rows.map((r) => ({ name: r.name, branch: r.branch || '', shift: shiftLabel(r.shift || r.planned_shift), status: KIND_LABEL[r.kind] + (r.late ? ' (late)' : ''), check_in: hhmm(r.check_in), check_out: hhmm(r.check_out), worked_hours: r.hours, shift_hours_no_penalty: r.base_hours ?? '', penalty_hours: r.penalty_hours, shift_hours_with_penalty: r.total_hours ?? '', overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
 
   return (
     <div className="space-y-4">
@@ -52,7 +52,10 @@ export default function AttendanceDailyReport({ to: date, branchId }) {
               { key: 'kind', label: 'Status', sortValue: (r) => rank[r.kind], render: (r) => <KindBadge row={r} /> },
               { key: 'check_in', label: 'In', sortValue: (r) => r.check_in || '', render: (r) => hhmm(r.check_in) || '—' },
               { key: 'check_out', label: 'Out', sortValue: (r) => r.check_out || '', render: (r) => hhmm(r.check_out) || '—' },
-              { key: 'hours', label: 'Hours', align: 'right', render: (r) => (r.hours ? r.hours : '—') },
+              { key: 'hours', label: 'Worked h', align: 'right', render: (r) => (r.hours ? r.hours : '—') },
+              { key: 'base_hours', label: 'Shift h', align: 'right', sortValue: (r) => r.base_hours ?? -1, render: (r) => (r.base_hours != null ? r.base_hours : '—') },
+              { key: 'penalty_hours', label: 'Penalty h', align: 'right', render: (r) => (r.penalty_hours ? <span className="font-semibold text-orange-600">+{r.penalty_hours}</span> : '—') },
+              { key: 'total_hours', label: 'Shift + penalty h', align: 'right', sortValue: (r) => r.total_hours ?? -1, render: (r) => (r.total_hours != null ? r.total_hours : '—') },
               { key: 'overtime_hours', label: 'Overtime', align: 'right', render: (r) => (r.overtime_hours ? `${r.overtime_hours} h` : '—') },
               { key: 'late_amount', label: 'Late fine', align: 'right', render: (r) => (r.late_amount ? `₹${r.late_amount}` : r.late_hours ? `${r.late_hours} h` : '—') },
             ]}
