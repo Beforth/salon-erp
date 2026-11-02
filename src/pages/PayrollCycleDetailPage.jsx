@@ -38,14 +38,15 @@ const FIELDS = [
 /** Edit one person's figures for this cycle. A blank box means "use the attendance figure". */
 function EditDialog({ cycleId, employee, locked, onClose, onSaved }) {
   const orig = employee.attendance || { present: employee.present, half_day: employee.half_day, leave: employee.leave, penalty_hours: employee.penalty_hours }
-  const [vals, setVals] = useState(() => Object.fromEntries(FIELDS.map(([k]) => [k, employee.edited && employee[k] !== orig[k] ? String(employee[k]) : ''])))
+  const [vals, setVals] = useState(() => Object.fromEntries(FIELDS.map(([k]) => [k, String(employee[k] ?? 0)])))
   const [note, setNote] = useState(employee.note || '')
-  const num = (s) => (s.trim() === '' ? null : Number(s))
-  const invalid = FIELDS.some(([k]) => { const n = num(vals[k]); return n !== null && (!Number.isFinite(n) || n < 0) })
+  // A box left at the attendance figure (or emptied) is saved as "no change" so it keeps following attendance.
+  const num = (k) => { const s = vals[k].trim(); if (s === '') return null; const n = Number(s); return n === Number(orig[k]) ? null : n }
+  const invalid = FIELDS.some(([k]) => { const s = vals[k].trim(); return s !== '' && (!Number.isFinite(Number(s)) || Number(s) < 0) })
 
   const save = useMutation({
     mutationFn: () => payrollService.saveEntry(cycleId, employee.employee_id, {
-      present: num(vals.present), half_day: num(vals.half_day), leave: num(vals.leave), penalty_hours: num(vals.penalty_hours), note: note.trim() || null,
+      present: num('present'), half_day: num('half_day'), leave: num('leave'), penalty_hours: num('penalty_hours'), note: note.trim() || null,
     }),
     onSuccess: () => { toast.success(`Saved ${employee.name}`); onSaved(); onClose() },
     onError: (e) => toast.error(errText(e)),
@@ -61,12 +62,12 @@ function EditDialog({ cycleId, employee, locked, onClose, onSaved }) {
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader><DialogTitle>Edit {employee.name}</DialogTitle></DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!invalid && !locked) save.mutate() }}>
-          <p className="text-xs text-muted-foreground">Change the numbers used for this pay cycle only. Leave a box empty to use the attendance figure shown under it.</p>
+          <p className="text-xs text-muted-foreground">Change the numbers used for this pay cycle only. A figure that matches attendance keeps following attendance.</p>
           <div className="grid grid-cols-2 gap-3">
             {FIELDS.map(([k, label]) => (
               <div key={k} className="space-y-1.5">
                 <Label htmlFor={`pe-${k}`}>{label}</Label>
-                <Input id={`pe-${k}`} type="number" inputMode="decimal" min={0} step={k === 'penalty_hours' ? 0.25 : 0.5} value={vals[k]} placeholder={String(orig[k])} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
+                <Input id={`pe-${k}`} type="number" inputMode="decimal" min={0} step={k === 'penalty_hours' ? 0.25 : 0.5} value={vals[k]} onChange={(e) => setVals({ ...vals, [k]: e.target.value })} />
                 <p className="text-[11px] text-muted-foreground">Attendance: {orig[k]}</p>
               </div>
             ))}
