@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowLeft, CalendarDays, CheckCircle2, IndianRupee, Pencil, Search, Users, Wallet } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Eye, Gift, HandCoins, Pencil, Search, Users, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Pager, usePaged } from '@/components/ui/pager'
 import { payrollService } from '@/services/payroll.service'
+import EmployeePayrollView from '@/components/payroll/EmployeePayrollView'
 import { formatCurrency } from '@/lib/utils'
 
 const fmt = (d) => (d ? new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '-')
@@ -93,6 +94,7 @@ export default function PayrollCycleDetailPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)
+  const [viewing, setViewing] = useState(null)
   const { data, isLoading, error } = useQuery({ queryKey: ['payroll-cycle', id], queryFn: () => payrollService.getCycle(id).then((r) => r.data) })
 
   const rows = useMemo(() => {
@@ -127,9 +129,9 @@ export default function PayrollCycleDetailPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={Users} tone="bg-sky-100 text-sky-600" value={t.employees} label="Employees" />
-        <Stat icon={CheckCircle2} tone="bg-emerald-100 text-emerald-600" value={t.present} label="Present days" />
         <Stat icon={Wallet} tone="bg-purple-100 text-purple-600" value={formatCurrency(t.base_salary)} label="Monthly base salaries" />
-        <Stat icon={IndianRupee} tone="bg-red-100 text-red-600" value={formatCurrency(t.late_amount)} label="Late fines" />
+        <Stat icon={Gift} tone="bg-emerald-100 text-emerald-600" value={formatCurrency(t.incentive + t.punctuality)} label="Incentives and rewards" />
+        <Stat icon={HandCoins} tone="bg-amber-100 text-amber-600" value={formatCurrency(t.advance_deduction)} label={`Advances deducted (of ${formatCurrency(t.advance_outstanding)} due)`} />
       </div>
 
       <div className="relative max-w-sm">
@@ -143,7 +145,7 @@ export default function PayrollCycleDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {['Employee', 'Base salary', 'Present', 'Half', 'Leave', 'Absent', 'Late', 'Hours', 'Penalty hrs', 'Late fine', ''].map((h, i) => <TableHead key={h} className={`whitespace-nowrap uppercase ${i > 0 ? 'text-right' : ''}`}>{h}</TableHead>)}
+                  {['Employee', 'Base salary', 'Present', 'Half', 'Leave', 'Absent', 'Late', 'Hours', 'Penalty hrs', 'Incentive', 'Punctuality', 'Expenses', 'Late fine', 'Advances', ''].map((h, i) => <TableHead key={h} className={`whitespace-nowrap uppercase ${i > 0 ? 'text-right' : ''}`}>{h}</TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -161,8 +163,20 @@ export default function PayrollCycleDetailPage() {
                     <TableCell className="text-right tabular-nums">{e.late}</TableCell>
                     <TableCell className="text-right tabular-nums">{e.total_hours}</TableCell>
                     <TableCell className="text-right tabular-nums">{e.penalty_hours || '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums text-emerald-700">{e.incentive_amount ? formatCurrency(e.incentive_amount) : '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums text-emerald-700">{e.punctuality_amount ? formatCurrency(e.punctuality_amount) : '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{e.expenses_due ? formatCurrency(e.expenses_due) : '-'}</TableCell>
                     <TableCell className="text-right tabular-nums text-red-600">{e.late_amount ? formatCurrency(e.late_amount) : '-'}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      {e.advance_outstanding || e.advance_deduction ? (
+                        <button type="button" className="text-right hover:underline" onClick={() => setViewing(e)} title="Choose what to deduct">
+                          <span className="block">{formatCurrency(e.advance_outstanding)}</span>
+                          {e.advance_deduction > 0 && <span className="block text-[11px] text-red-600">- {formatCurrency(e.advance_deduction)} now</span>}
+                        </button>
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right">
+                      <Button variant="ghost" size="icon" aria-label={`View ${e.name}`} onClick={() => setViewing(e)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" aria-label={`Edit ${e.name}`} onClick={() => setEditing(e)}><Pencil className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
@@ -173,8 +187,9 @@ export default function PayrollCycleDetailPage() {
         )}
       </div>
       <Pager {...paged} />
+      {viewing && <EmployeePayrollView key={viewing.employee_id} cycleId={id} employeeId={viewing.employee_id} onClose={() => setViewing(null)} onChanged={() => qc.invalidateQueries({ queryKey: ['payroll-cycle', id] })} />}
       {editing && <EditDialog key={editing.employee_id} cycleId={id} employee={editing} locked={c.status === 'paid'} onClose={() => setEditing(null)} onSaved={() => qc.invalidateQueries({ queryKey: ['payroll-cycle', id] })} />}
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Attendance is read live for this cycle's dates. Salary calculation is the next step.</p>
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Attendance is read live for this cycle's dates. Incentives are for the month the cycle ends in. Salary calculation is the next step.</p>
     </div>
   )
 }

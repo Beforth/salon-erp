@@ -37,6 +37,7 @@ const initialFormData = {
   payment_mode: '',
   upi_account_id: '',
   employee_id: '',
+  is_paid: true,
   vendor_name: '',
   description: '',
   notes: '',
@@ -83,6 +84,8 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
   // Category tick "Add employee"; name check kept so older Staff categories still work
   const isStaffRelated = !!selectedCategory?.requires_employee || categoryName.startsWith('staff advance') || categoryName.startsWith('staff salary')
   const isOtherCategory = ['other', 'others'].includes(selectedCategory?.name?.toLowerCase())
+  // Advances and salary are money already handed over; any other staff expense can be owed and paid with payroll.
+  const owedToEmployee = isStaffRelated && !categoryName.startsWith('staff advance') && !categoryName.startsWith('staff salary')
   const isOtherPaymentMode = formData.payment_mode === 'other'
 
   // Fetch employees when Staff Advance selected
@@ -107,6 +110,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
         payment_mode: expense.payment_mode || '',
         upi_account_id: expense.upi_account_id || '',
         employee_id: expense.employee_id || '',
+        is_paid: expense.is_paid !== false,
         vendor_name: expense.vendor_name || '',
         description: expense.description || '',
         notes: expense.notes || '',
@@ -224,6 +228,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       payment_mode: formData.payment_mode,
       upi_account_id: formData.upi_account_id || null,
       employee_id: formData.employee_id || null,
+      ...(owedToEmployee ? { is_paid: formData.is_paid } : {}),
       vendor_name: formData.vendor_name.trim() || null,
       description: formData.description.trim() || null,
       notes: formData.notes.trim() || null,
@@ -387,6 +392,16 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
                 <p className="text-xs text-muted-foreground">No active employees found for this branch.</p>
               )}
             </div>
+          )}
+
+          {owedToEmployee && (
+            <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+              <input type="checkbox" className="mt-0.5 h-4 w-4" checked={formData.is_paid} onChange={(e) => handleChange('is_paid', e.target.checked)} />
+              <span>
+                <span className="font-medium">Already paid to the employee</span>
+                <span className="block text-xs text-muted-foreground">Leave it unticked if you still owe this amount. It will then be added to their pay in the next payroll cycle.</span>
+              </span>
+            </label>
           )}
 
           {/* Vendor Name */}
