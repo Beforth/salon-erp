@@ -97,10 +97,12 @@ function Line({ label, value, sign, strong }) {
 /** How the amount to give is made up, from the figures shown in the list. */
 function PaySummary({ row, cycleDays }) {
   return (
-    <Section title="Amount to give" hint={`Base salary is spread over ${cycleDays} days. ${row.cut_days ? `${row.cut_days} day${row.cut_days === 1 ? '' : 's'} are cut` : 'No days are cut'} for absence.`}>
+    <Section title="Amount to give" hint={row.pay_basis === 'hours'
+      ? `Paid by the hour: ${formatCurrency(row.hourly_rate)} per hour (base salary / ${row.expected_hours} shift hours). ${row.pay_hours} hours earned of ${row.expected_hours}: hours worked minus ${row.penalty_hours || 0} penalty hours.`
+      : `No shift hours to work from, so base salary is spread over ${cycleDays} days. ${row.cut_days ? `${row.cut_days} day${row.cut_days === 1 ? '' : 's'} are cut` : 'No days are cut'} for absence.`}>
       <div className="rounded-lg border px-4 py-2">
         <Line label="Base salary" value={row.base_salary || 0} />
-        <Line label="Absence cut" value={row.salary_cut} sign="-" />
+        <Line label={row.pay_basis === 'hours' ? 'Cut for hours not earned' : 'Absence cut'} value={row.salary_cut} sign="-" />
         <Line label="Incentive" value={row.incentive_amount} sign="+" />
         <Line label="Punctuality reward" value={row.punctuality_amount} sign="+" />
         <Line label="Unpaid expenses owed" value={row.expenses_due} sign="+" />
