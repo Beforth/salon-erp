@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
 import SearchBox from './SearchBox'
 import { DataTable, Empty, ExportMenu, Kpi, Panel, ReportError, ReportLoading } from './ReportKit'
-import { KIND_LABEL, KindBadge, MarkDayDrawer, hhmm } from './AttendanceDrawers'
+import { KIND_LABEL, KindBadge, MarkDayDrawer, hhmm, shiftLabel } from './AttendanceDrawers'
 
 /** One day, everyone. `to` is the chosen day. Click a row to correct it. */
 export default function AttendanceDailyReport({ to: date, branchId }) {
@@ -20,7 +20,7 @@ export default function AttendanceDailyReport({ to: date, branchId }) {
   const needle = q.trim().toLowerCase()
   const shown = needle ? data.rows.filter((r) => `${r.name} ${r.employee_code || ''}`.toLowerCase().includes(needle)) : data.rows
   const rank = { unmarked: 0, absent: 1, leave: 2, half_day: 3, present: 4 }
-  const exportRows = data.rows.map((r) => ({ name: r.name, branch: r.branch || '', status: KIND_LABEL[r.kind] + (r.late ? ' (late)' : ''), check_in: hhmm(r.check_in), check_out: hhmm(r.check_out), hours: r.hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
+  const exportRows = data.rows.map((r) => ({ name: r.name, branch: r.branch || '', shift: shiftLabel(r.shift || r.planned_shift), status: KIND_LABEL[r.kind] + (r.late ? ' (late)' : ''), check_in: hhmm(r.check_in), check_out: hhmm(r.check_out), hours: r.hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
 
   return (
     <div className="space-y-4">
@@ -48,6 +48,7 @@ export default function AttendanceDailyReport({ to: date, branchId }) {
             columns={[
               { key: 'name', label: 'Employee', className: 'font-medium' },
               { key: 'branch', label: 'Branch', render: (r) => r.branch || '—' },
+              { key: 'shift', label: 'Shift', sortValue: (r) => shiftLabel(r.shift || r.planned_shift), render: (r) => shiftLabel(r.shift || r.planned_shift) || '—' },
               { key: 'kind', label: 'Status', sortValue: (r) => rank[r.kind], render: (r) => <KindBadge row={r} /> },
               { key: 'check_in', label: 'In', sortValue: (r) => r.check_in || '', render: (r) => hhmm(r.check_in) || '—' },
               { key: 'check_out', label: 'Out', sortValue: (r) => r.check_out || '', render: (r) => hhmm(r.check_out) || '—' },

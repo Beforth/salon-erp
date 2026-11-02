@@ -21,6 +21,8 @@ export const DRILL_TITLE = {
   present: 'Present days', late: 'Late days', half_day: 'Half days', leave: 'Days on leave', absent: 'Absent days', overtime: 'Overtime days',
 }
 
+/** "Morning 09:00-18:00", "09:00-20:00" or "Flexible" for the shift an attendance row belongs to. */
+export const shiftLabel = (sh) => (sh ? [sh.name, sh.start && sh.end ? `${sh.start}-${sh.end}` : null].filter(Boolean).join(' ') : '')
 export const hhmm = (iso) => (iso ? String(iso).slice(11, 16) : '')
 const longDate = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 
@@ -214,7 +216,7 @@ export function DaysDrawer({ employeeId, name, kind, from, to, branchId, onClose
                         {d.late_amount > 0 ? ` · fine ₹${d.late_amount}` : ''}
                         {d.late_hours > 0 ? ` · ${d.late_hours} h off` : ''}
                       </p>
-                      {d.shift && <p className="text-[12px] text-muted-foreground">Shift: {d.shift.name} {d.shift.start}–{d.shift.end}{d.extend_hours > 0 ? ` (+${d.extend_hours} h)` : ''}</p>}
+                      {(d.shift || d.planned_shift) && <p className="text-[12px] text-muted-foreground">Shift: {shiftLabel(d.shift || d.planned_shift)}{d.extend_hours > 0 ? ` (+${d.extend_hours} h)` : ''}</p>}
                     </div>
                     <KindBadge row={d} />
                   </button>

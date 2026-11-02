@@ -23,7 +23,7 @@ export default function AttendanceSummaryReport({ from, to, branchId }) {
   const cell = (kind, key, fmt = (v) => v) => (r) => (r[key]
     ? <button type="button" onClick={(e) => { e.stopPropagation(); open(r, kind) }} className="rounded px-1.5 font-semibold text-primary hover:bg-primary/10 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{fmt(r[key])}</button>
     : <span className="text-muted-foreground">—</span>)
-  const exportRows = data.rows.map((r) => ({ name: r.name, present: r.present, late: r.late, half_day: r.half_day, leave: r.leave, absent: r.absent, hours: r.hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
+  const exportRows = data.rows.map((r) => ({ name: r.name, shift: r.shifts.join(' / '), present: r.present, late: r.late, half_day: r.half_day, leave: r.leave, absent: r.absent, hours: r.hours, overtime_hours: r.overtime_hours, late_fine: r.late_amount, late_hours_off: r.late_hours }))
 
   return (
     <div className="space-y-4">
@@ -49,6 +49,7 @@ export default function AttendanceSummaryReport({ from, to, branchId }) {
             pageSize={50}
             columns={[
               { key: 'name', label: 'Employee', className: 'font-medium' },
+              { key: 'shift', label: 'Shift', sortValue: (r) => r.shifts[0] || '', render: (r) => (r.shifts.length ? <span title={r.shifts.join('\n')}>{r.shifts[0]}{r.shifts.length > 1 && <span className="ml-1 text-xs text-muted-foreground">+{r.shifts.length - 1} more</span>}</span> : '—') },
               { key: 'present', label: 'Present', align: 'right', render: cell('present', 'present') },
               { key: 'late', label: 'Late', align: 'right', render: cell('late', 'late') },
               { key: 'half_day', label: 'Half day', align: 'right', render: cell('half_day', 'half_day') },
