@@ -61,6 +61,7 @@ import WarehouseCreatePage from './pages/WarehouseCreatePage'
 import DocsPage from './pages/DocsPage'
 import DataTransferPage from './pages/DataTransferPage'
 import PayrollPage from './pages/PayrollPage'
+import PayrollCycleDetailPage from './pages/PayrollCycleDetailPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 // Pages that carry money and incentive figures: owner only.
@@ -150,6 +151,7 @@ function App() {
         <Route path="inventory/transfers" element={<StockTransfersPage />} />
         <Route path="reports" element={<RoleRoute roles={OWNER_ROLES}><ReportsPage /></RoleRoute>} />
         <Route path="payroll" element={<RoleRoute roles={OWNER_ROLES}><PayrollPage /></RoleRoute>} />
+        <Route path="payroll/cycle/:id" element={<RoleRoute roles={OWNER_ROLES}><PayrollCycleDetailPage /></RoleRoute>} />
         <Route path="data-transfer" element={<RoleRoute roles={OWNER_ROLES}><DataTransferPage /></RoleRoute>} />
         <Route path="branches" element={<BranchesPage />} />
         <Route path="branches/new" element={<BranchFormPage />} />

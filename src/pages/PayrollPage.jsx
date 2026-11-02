@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CalendarDays, CheckCircle2, Clock, FileText, Inbox, Plus, Search, Trash2, XCircle, Zap } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock, Eye, FileText, Inbox, Plus, Search, Trash2, XCircle, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -117,6 +118,7 @@ function GenerateDialog({ open, onClose, branches, onCreated }) {
 
 export default function PayrollPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
@@ -199,7 +201,7 @@ export default function PayrollPage() {
                   {paged.pageItems.map((c) => {
                     const s = STATUS[c.status] || STATUS.draft
                     return (
-                      <TableRow key={c.id}>
+                      <TableRow key={c.id} className="cursor-pointer" onClick={() => navigate(`/payroll/cycle/${c.id}`)}>
                         <TableCell className="whitespace-nowrap">
                           <p className="text-xs font-semibold">{c.name}</p>
                           <p className="text-[11px] text-muted-foreground">{fmt(c.period_start)} to {fmt(c.period_end)} · {c.days} days</p>
@@ -211,7 +213,8 @@ export default function PayrollPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{fmt(c.pay_date)}</TableCell>
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span></TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" aria-label={`Open ${c.name}`} onClick={() => navigate(`/payroll/cycle/${c.id}`)}><Eye className="h-4 w-4" /></Button>
                           {c.status === 'draft' && (
                             <Button variant="ghost" size="icon" aria-label={`Delete ${c.name}`} disabled={remove.isPending}
                               onClick={() => { if (window.confirm(`Delete the cycle "${c.name}"?`)) remove.mutate(c.id) }}>
