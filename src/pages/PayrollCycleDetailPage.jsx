@@ -162,7 +162,7 @@ export default function PayrollCycleDetailPage() {
                     <TableCell className="text-right tabular-nums">{e.total_hours}</TableCell>
                     <TableCell className="text-right tabular-nums">{e.penalty_hours || '-'}</TableCell>
                     <TableCell className="whitespace-nowrap text-right tabular-nums" title={e.pay_basis === 'hours' ? `Rate ${formatCurrency(e.hourly_rate)} per hour` : 'No shift hours, paid by the day'}>
-                      {e.pay_hours != null ? <>{e.pay_hours}<span className="block text-[11px] text-muted-foreground">of {e.expected_hours}</span></> : '-'}
+                      {e.pay_hours != null ? <>{e.pay_hours}<span className="block text-[11px] text-muted-foreground">of {e.expected_hours}</span>{e.overtime_hours > 0 && <span className="block text-[11px] font-medium text-emerald-700">+{e.overtime_hours} overtime</span>}</> : '-'}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-emerald-700">{e.incentive_amount ? formatCurrency(e.incentive_amount) : '-'}</TableCell>
                     <TableCell className="text-right tabular-nums text-emerald-700">{e.punctuality_amount ? formatCurrency(e.punctuality_amount) : '-'}</TableCell>
@@ -190,7 +190,7 @@ export default function PayrollCycleDetailPage() {
       </div>
       <Pager {...paged} />
       {editing && <EditDialog key={editing.employee_id} cycleId={id} employee={editing} locked={c.status === 'paid'} onClose={() => setEditing(null)} onSaved={() => qc.invalidateQueries({ queryKey: ['payroll-cycle', id] })} />}
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Attendance is read live for this cycle's dates. Incentives are for the month the cycle ends in. Net to give = salary for the hours earned, plus incentive, punctuality reward and unpaid expenses, minus late fine and advances deducted. Hourly rate = base salary / shift hours in the period; hours earned = hours worked minus penalty hours (never more than the shift). Days with no attendance record (weekly offs) are left out of both. Someone with no shift hours is paid by the day instead.</p>
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Attendance is read live for this cycle's dates. Incentives are for the month the cycle ends in. Net to give = salary for the hours earned, plus incentive, punctuality reward and unpaid expenses, minus late fine and advances deducted. Hourly rate = base salary / shift hours in the period; hours earned = hours worked minus penalty hours. Hours worked beyond the hours required for the period are overtime, paid at the hourly rate plus 50% extra (only for shifts that allow overtime). Days with no attendance record (weekly offs) are left out of both. Someone with no shift hours is paid by the day instead.</p>
     </div>
   )
 }

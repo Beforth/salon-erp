@@ -16,6 +16,7 @@ const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const initialForm = {
   name: '', start_time: '', end_time: '', color_code: '#6366f1', grace_period: '5',
   half_day_late_after_min: '', half_day_min_hours: '',
+  overtime_allowed: true,
 }
 
 const addMinutes = (hhmm, mins) => {
@@ -52,6 +53,7 @@ export default function ShiftFormPage() {
       end_time: shift.end_time || '',
       color_code: shift.color_code || '#6366f1',
       grace_period: String(shift.grace_period ?? 5),
+      overtime_allowed: shift.overtime_allowed !== false,
       half_day_late_after_min: shift.half_day_late_after_min == null ? '' : String(shift.half_day_late_after_min),
       half_day_min_hours: shift.half_day_min_hours == null ? '' : String(shift.half_day_min_hours),
     })
@@ -158,6 +160,13 @@ export default function ShiftFormPage() {
                   {graceUntil ? `Not late until ${graceUntil}. ` : ''}Late time on attendance is still counted from shift start.
                 </p>
               </div>
+              <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={form.overtime_allowed} onChange={(e) => set({ overtime_allowed: e.target.checked })} />
+                <span>
+                  <span className="font-medium">Overtime allowed</span>
+                  <span className="block text-xs text-muted-foreground">Hours worked beyond what this shift requires in a pay cycle are paid extra in payroll. Turn it off and they are not paid.</span>
+                </span>
+              </label>
               <div className="space-y-2">
                 <Label>Colour</Label>
                 <div className="flex items-center gap-3">
