@@ -38,6 +38,7 @@ const initialFormData = {
   upi_account_id: '',
   employee_id: '',
   is_paid: true,
+  for_employee: false,
   vendor_name: '',
   description: '',
   notes: '',
@@ -85,7 +86,9 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
   const isStaffRelated = !!selectedCategory?.requires_employee || categoryName.startsWith('staff advance') || categoryName.startsWith('staff salary')
   const isOtherCategory = ['other', 'others'].includes(selectedCategory?.name?.toLowerCase())
   // Advances and salary are money already handed over; any other staff expense can be owed and paid with payroll.
-  const owedToEmployee = isStaffRelated && !categoryName.startsWith('staff advance') && !categoryName.startsWith('staff salary')
+  // Any other category can also be tied to an employee (e.g. something they bought for the salon).
+  const hasEmployee = isStaffRelated || formData.for_employee
+  const owedToEmployee = hasEmployee && !categoryName.startsWith('staff advance') && !categoryName.startsWith('staff salary')
   const isOtherPaymentMode = formData.payment_mode === 'other'
 
   // Fetch employees when Staff Advance selected
@@ -93,7 +96,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
     queryKey: ['branch-employees', branchIdForEmployees],
     queryFn: () => branchService.getBranchEmployees(branchIdForEmployees),
-    enabled: open && isStaffRelated && !!branchIdForEmployees,
+    enabled: open && hasEmployee && !!branchIdForEmployees,
   })
   const employees = employeesData?.data || []
 
@@ -111,6 +114,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
         upi_account_id: expense.upi_account_id || '',
         employee_id: expense.employee_id || '',
         is_paid: expense.is_paid !== false,
+        for_employee: !!expense.employee_id,
         vendor_name: expense.vendor_name || '',
         description: expense.description || '',
         notes: expense.notes || '',
@@ -135,10 +139,10 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
 
   // Clear employee when category changes away from Staff Advance
   useEffect(() => {
-    if (!isStaffRelated && formData.employee_id) {
+    if (!hasEmployee && formData.employee_id) {
       setFormData((prev) => ({ ...prev, employee_id: '' }))
     }
-  }, [isStaffRelated])
+  }, [hasEmployee])
 
   // Clear other category text when category changes away from "Other"
   useEffect(() => {
@@ -210,7 +214,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       toast.error('Payment mode is required')
       return
     }
-    if (isStaffRelated && !isEditing && !formData.employee_id) {
+    if (hasEmployee && !isEditing && !formData.employee_id) {
       toast.error('Select the employee this is for')
       return
     }
@@ -227,7 +231,7 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
       expense_time: formData.expense_time || null,
       payment_mode: formData.payment_mode,
       upi_account_id: formData.upi_account_id || null,
-      employee_id: formData.employee_id || null,
+      employee_id: hasEmployee ? formData.employee_id || null : null,
       ...(owedToEmployee ? { is_paid: formData.is_paid } : {}),
       vendor_name: formData.vendor_name.trim() || null,
       description: formData.description.trim() || null,
@@ -368,8 +372,18 @@ function ExpenseModal({ open, onOpenChange, expense = null }) {
             </div>
           )}
 
-          {/* Employee (only for Staff Advance / Staff Salary) */}
-          {isStaffRelated && (
+          {!isStaffRelated && selectedCategory && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5 h-4 w-4" checked={formData.for_employee} onChange={(e) => handleChange('for_employee', e.target.checked)} />
+              <span>
+                <span className="font-medium">This is for an employee</span>
+                <span className="block text-xs text-muted-foreground">For example something an employee paid for, which you owe them back.</span>
+              </span>
+            </label>
+          )}
+
+          {/* Employee (Staff Advance / Staff Salary, or any category marked "for an employee") */}
+          {hasEmployee && (
             <div className="space-y-2">
               <Label>Employee *</Label>
               <SearchableSelect
