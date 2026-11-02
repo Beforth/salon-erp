@@ -84,7 +84,34 @@ function Advances({ cycleId, employeeId, advances, locked, onSaved }) {
   )
 }
 
-export default function EmployeePayrollView({ cycleId, employeeId, onClose, onChanged }) {
+function Line({ label, value, sign, strong }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 py-1 text-sm ${strong ? 'border-t pt-2 font-semibold' : ''}`}>
+      <span className={strong ? '' : 'text-muted-foreground'}>{label}</span>
+      <span className={`tabular-nums ${sign === '-' ? 'text-red-600' : sign === '+' ? 'text-emerald-700' : ''}`}>{sign && !strong ? sign : ''} {formatCurrency(value)}</span>
+    </div>
+  )
+}
+
+/** How the amount to give is made up, from the figures shown in the list. */
+function PaySummary({ row, cycleDays }) {
+  return (
+    <Section title="Amount to give" hint={`Base salary is spread over ${cycleDays} days. ${row.cut_days ? `${row.cut_days} day${row.cut_days === 1 ? '' : 's'} are cut` : 'No days are cut'} for absence.`}>
+      <div className="rounded-lg border px-4 py-2">
+        <Line label="Base salary" value={row.base_salary || 0} />
+        <Line label="Absence cut" value={row.salary_cut} sign="-" />
+        <Line label="Incentive" value={row.incentive_amount} sign="+" />
+        <Line label="Punctuality reward" value={row.punctuality_amount} sign="+" />
+        <Line label="Unpaid expenses owed" value={row.expenses_due} sign="+" />
+        <Line label="Late fine" value={row.late_amount} sign="-" />
+        <Line label="Advances deducted" value={row.advance_deduction} sign="-" />
+        <Line label="Net to give" value={row.net_pay} strong />
+      </div>
+    </Section>
+  )
+}
+
+export default function EmployeePayrollView({ row, cycleDays, cycleId, employeeId, onClose, onChanged }) {
   const { data, isLoading, error } = useQuery({ queryKey: ['payroll-employee', cycleId, employeeId], queryFn: () => payrollService.getEmployee(cycleId, employeeId).then((r) => r.data) })
   const qc = useQueryClient()
   const inc = data?.incentive
@@ -102,6 +129,7 @@ export default function EmployeePayrollView({ cycleId, employeeId, onClose, onCh
         {isLoading ? <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
           : error ? <p role="alert" className="py-10 text-center text-sm text-destructive">{errText(error)}</p> : (
           <div className="space-y-6">
+            {row && <PaySummary row={row} cycleDays={cycleDays} />}
             <Section title="Attendance, day by day" hint="Shift, and when the person actually came and went.">
               {rows.length === 0 ? <p className="text-sm text-muted-foreground">No attendance was recorded in this period.</p> : (
                 <div className="max-h-72 overflow-auto rounded-lg border">
