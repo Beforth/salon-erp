@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
@@ -36,24 +36,50 @@ export function KindBadge({ row }) {
   )
 }
 
-/** Right-hand panel shell: dims the page, closes on Esc or a click outside. */
-function Drawer({ title, subtitle, onClose, children, footer, width = 'max-w-md', z = 'z-50' }) {
+/**
+ * Right-hand panel shell: slides in over a fading backdrop, and slides out again on close
+ * (Esc, backdrop, X, or closeRef.current() from the caller). Honours reduced-motion.
+ */
+const DRAWER_MS = 250
+function Drawer({ title, subtitle, onClose, children, footer, width = 'max-w-md', z = 'z-50', closeRef }) {
+  const [shown, setShown] = useState(false)
+  const leaving = useRef(false)
+
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  const close = useCallback(() => {
+    if (leaving.current) return
+    leaving.current = true
+    setShown(false)
+    setTimeout(onClose, DRAWER_MS)
+  }, [onClose])
+  if (closeRef) closeRef.current = close
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close() } }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
+  }, [close])
+
   // Rendered on <body>: inside the page layout a fixed panel is cropped by the scrolling content area.
   return createPortal(
     <div className={`fixed inset-0 ${z} flex justify-end`}>
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
-      <aside role="dialog" aria-label={title} className={`relative flex h-dvh max-h-full w-full ${width} flex-col bg-card shadow-xl`}>
+      <div className={`absolute inset-0 bg-black/40 transition-opacity motion-reduce:transition-none ${shown ? 'opacity-100 ease-out' : 'opacity-0 ease-in'}`} style={{ transitionDuration: `${DRAWER_MS}ms` }} onClick={close} aria-hidden />
+      <aside
+        role="dialog"
+        aria-label={title}
+        style={{ transitionDuration: `${DRAWER_MS}ms` }}
+        className={`relative flex h-dvh max-h-full w-full ${width} flex-col bg-card shadow-xl transition-transform motion-reduce:transition-none ${shown ? 'translate-x-0 ease-out' : 'translate-x-full ease-in'}`}
+      >
         <header className="flex items-start justify-between border-b px-5 py-4">
           <div>
             <h2 className="text-base font-semibold">{title}</h2>
             {subtitle && <p className="text-[13px] text-muted-foreground">{subtitle}</p>}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={close} aria-label="Close"><X className="h-4 w-4" /></Button>
         </header>
         <div className="flex-1 overflow-y-auto">{children}</div>
         {footer && <footer className="border-t px-5 py-3">{footer}</footer>}
@@ -81,6 +107,7 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
   const [checkOut, setCheckOut] = useState(hhmm(target.check_out))
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
+  const closeRef = useRef(null)
 
   const save = useMutation({
     mutationFn: () => {
@@ -99,7 +126,7 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
       qc.invalidateQueries({ queryKey: ['hub-attendance'] })
       qc.invalidateQueries({ queryKey: ['hub-staff-detail'] })
       onSaved?.()
-      onClose()
+      closeRef.current?.()
     },
     onError: (e) => setError(e?.response?.data?.error?.message || e?.response?.data?.message || e.message || 'Could not save.'),
   })
@@ -109,10 +136,11 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
       title="Correct attendance"
       subtitle={`${target.name} · ${longDate(target.date)}${target.branch ? ` · ${target.branch}` : ''}`}
       onClose={onClose}
+      closeRef={closeRef}
       z="z-[60]"
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={save.isPending}>Cancel</Button>
+          <Button variant="outline" onClick={() => closeRef.current?.()} disabled={save.isPending}>Cancel</Button>
           <Button onClick={() => { setError(''); save.mutate() }} disabled={save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</Button>
         </div>
       }
