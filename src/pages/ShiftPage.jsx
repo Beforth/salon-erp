@@ -39,7 +39,7 @@ function ShiftPage() {
 
   const { user } = useSelector((state) => state.auth)
   const isOwnerDev = ['owner', 'developer'].includes(user?.role)
-  const isOwner = user?.role === 'owner'
+  const canManage = ['owner', 'developer', 'manager'].includes(user?.role)
   const userBranchId = user?.branchId || user?.branch_id || user?.branch?.branch_id || user?.branch?.id || ''
   const [selectedBranchId, setSelectedBranchId] = useState(userBranchId)
 
@@ -97,7 +97,7 @@ function ShiftPage() {
                 <Clock className="h-5 w-5" />
                 Shift Definitions
               </CardTitle>
-              {isOwner && (
+              {canManage && (
                 <Button size="sm" onClick={openAddModal}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add Shift
@@ -150,7 +150,7 @@ function ShiftPage() {
                           <TableCell>{shift.employee_count ?? 0}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
-                              {isOwner && (
+                              {canManage && (
                                 <>
                                   <Button variant="ghost" size="sm" onClick={() => openEditModal(shift)}>
                                     <Pencil className="h-4 w-4" />

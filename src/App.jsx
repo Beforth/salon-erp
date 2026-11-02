@@ -132,8 +132,8 @@ function App() {
         <Route path="bills/:id" element={<BillDetailPage />} />
         <Route path="bills/:id/edit" element={<BillCreatePage />} />
         <Route path="shifts" element={<ShiftPage />} />
-        <Route path="shifts/new" element={<RoleRoute roles={['owner']}><ShiftFormPage /></RoleRoute>} />
-        <Route path="shifts/:id/edit" element={<RoleRoute roles={['owner']}><ShiftFormPage /></RoleRoute>} />
+        <Route path="shifts/new" element={<RoleRoute roles={['owner', 'developer', 'manager']}><ShiftFormPage /></RoleRoute>} />
+        <Route path="shifts/:id/edit" element={<RoleRoute roles={['owner', 'developer', 'manager']}><ShiftFormPage /></RoleRoute>} />
         <Route path="shifts/assignments/:date" element={<ShiftAssignmentsPage />} />
         <Route path="employee-status" element={<EmployeeStatusPage />} />
         <Route path="services" element={<ServicesPage />} />
