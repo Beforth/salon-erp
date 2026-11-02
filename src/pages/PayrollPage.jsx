@@ -50,7 +50,7 @@ function GenerateDialog({ open, onClose, branches, onCreated }) {
   const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
   const [name, setName] = useState('')
-  const [payDate, setPayDate] = useState('')
+  const [payDay, setPayDay] = useState('27')
   const [branchId, setBranchId] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -60,10 +60,19 @@ function GenerateDialog({ open, onClose, branches, onCreated }) {
   const suggested = mode === 'month' ? bounds?.label || '' : ''
   const finalName = (name.trim() || suggested).trim()
   const bad = !start || !end || end < start
+  // Pay day is a day of the month; it falls in the month the period ends, and short months use their last day.
+  const dayNum = Math.min(31, Math.max(1, parseInt(payDay, 10) || 0))
+  const payDate = useMemo(() => {
+    if (!end || !payDay) return null
+    const [y, m] = end.split('-').map(Number)
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+    const d = `${y}-${String(m).padStart(2, '0')}-${String(Math.min(dayNum, last)).padStart(2, '0')}`
+    return d < start ? null : d
+  }, [end, start, payDay, dayNum])
 
   const create = useMutation({
     mutationFn: () => payrollService.createCycle({ name: finalName, period_start: start, period_end: end, pay_date: payDate || null, branch_id: branchId || null, notes: notes.trim() || null }),
-    onSuccess: (res) => { toast.success(`Pay cycle "${res.data.name}" created`); setName(''); setNotes(''); setPayDate(''); onCreated(); onClose() },
+    onSuccess: (res) => { toast.success(`Pay cycle "${res.data.name}" created`); setName(''); setNotes(''); setPayDay('27'); onCreated(); onClose() },
     onError: (e) => toast.error(errText(e)),
   })
 
@@ -102,7 +111,8 @@ function GenerateDialog({ open, onClose, branches, onCreated }) {
                 {branches.map((b) => <option key={b.branch_id} value={b.branch_id}>{b.name}</option>)}
               </SelectField>
             </div>
-            <div className="space-y-1.5"><Label htmlFor="pc-pay">Pay date</Label><Input id="pc-pay" type="date" value={payDate} min={start || undefined} onChange={(e) => setPayDate(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor="pc-pay">Pay day of month</Label><Input id="pc-pay" type="number" inputMode="numeric" min={1} max={31} value={payDay} onChange={(e) => setPayDay(e.target.value.replace(/\D/g, '').slice(0, 2))} />
+              <p className="text-xs text-muted-foreground">{payDate ? `Paid on ${fmt(payDate)}` : 'No pay date'}</p></div>
           </div>
           <div className="space-y-1.5"><Label htmlFor="pc-notes">Notes (optional)</Label><Input id="pc-notes" value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} /></div>
           {bad && start && end && <p role="alert" className="text-sm text-destructive">The period must end on or after its start.</p>}
