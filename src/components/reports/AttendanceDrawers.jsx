@@ -126,18 +126,22 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
   const [checkIn, setCheckIn] = useState(hhmm(target.check_in))
   const [checkOut, setCheckOut] = useState(hhmm(target.check_out))
   const [reason, setReason] = useState('')
+  const currentExtra = String(target.manual_extend_hours || 0)
+  const [extra, setExtra] = useState(currentExtra)
   const [error, setError] = useState('')
   const closeRef = useRef(null)
 
   const save = useMutation({
     mutationFn: () => {
       if (choice === 'present' && checkIn && checkOut && checkOut <= checkIn) throw new Error('Check-out must be after check-in.')
+      if (choice === 'present' && !(Number(extra || 0) >= 0 && Number(extra || 0) <= 12)) throw new Error('Extra shift hours must be between 0 and 12.')
       return attendanceService.markDay({
         employee_id: target.employee_id,
         attendance_date: target.date,
         branch_id: target.branch_id || undefined,
         mode: choice,
         ...(shiftChanged ? { shift_id: shiftId || null } : {}),
+        ...(choice === 'present' && Number(extra || 0) !== Number(currentExtra) ? { extend_hours: Number(extra || 0) } : {}),
         ...(choice === 'present' ? { check_in: checkIn ? `${target.date}T${checkIn}` : undefined, check_out: checkOut ? `${target.date}T${checkOut}` : undefined } : {}),
         ...(choice !== 'present' && reason.trim() ? { reason: reason.trim() } : {}),
       })
@@ -230,6 +234,15 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
             <div>
               <label htmlFor="md-out" className="mb-1 block text-xs font-medium text-muted-foreground">Check out</label>
               <Input id="md-out" type="time" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <label htmlFor="md-extra" className="mb-1 block text-xs font-medium text-muted-foreground">Extra shift hours (penalty)</label>
+              <Input id="md-extra" type="number" inputMode="decimal" min="0" max="12" step="0.25" placeholder="0" value={extra === '0' ? '' : extra} onChange={(e) => setExtra(e.target.value)} />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Makes this day's shift longer, so work up to the new end is not overtime.
+                {target.extend_hours > (target.manual_extend_hours || 0) ? ` The late rules already added ${Math.round((target.extend_hours - (target.manual_extend_hours || 0)) * 100) / 100} h.` : ''}
+                {' '}Empty or 0 removes it.
+              </p>
             </div>
             <p className="col-span-2 text-[12px] text-muted-foreground">
               Late, half day and overtime are worked out from these times and the shift rules, so they cannot be set by hand. Leave a time empty to keep what is there.
