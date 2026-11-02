@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Pager, usePaged } from '@/components/ui/pager'
 import { payrollService } from '@/services/payroll.service'
-import EmployeePayrollView from '@/components/payroll/EmployeePayrollView'
 import { formatCurrency } from '@/lib/utils'
 
 const fmt = (d) => (d ? new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '-')
@@ -94,7 +93,6 @@ export default function PayrollCycleDetailPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)
-  const [viewing, setViewing] = useState(null)
   const { data, isLoading, error } = useQuery({ queryKey: ['payroll-cycle', id], queryFn: () => payrollService.getCycle(id).then((r) => r.data) })
 
   const rows = useMemo(() => {
@@ -169,7 +167,7 @@ export default function PayrollCycleDetailPage() {
                     <TableCell className="text-right tabular-nums text-red-600">{e.late_amount ? formatCurrency(e.late_amount) : '-'}</TableCell>
                     <TableCell className="whitespace-nowrap text-right tabular-nums">
                       {e.advance_outstanding || e.advance_deduction ? (
-                        <button type="button" className="text-right hover:underline" onClick={() => setViewing(e)} title="Choose what to deduct">
+                        <button type="button" className="text-right hover:underline" onClick={() => navigate(`/payroll/cycle/${id}/employee/${e.employee_id}`)} title="Choose what to deduct">
                           <span className="block">{formatCurrency(e.advance_outstanding)}</span>
                           {e.advance_deduction > 0 && <span className="block text-[11px] text-red-600">- {formatCurrency(e.advance_deduction)} now</span>}
                         </button>
@@ -177,7 +175,7 @@ export default function PayrollCycleDetailPage() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums" title={`Salary ${formatCurrency(e.salary_payable)} + extras ${formatCurrency(e.additions)} - deductions ${formatCurrency(e.deductions)}`}>{formatCurrency(e.net_pay)}</TableCell>
                     <TableCell className="whitespace-nowrap text-right">
-                      <Button variant="ghost" size="icon" aria-label={`View ${e.name}`} onClick={() => setViewing(e)}><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label={`View ${e.name}`} onClick={() => navigate(`/payroll/cycle/${id}/employee/${e.employee_id}`)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" aria-label={`Edit ${e.name}`} onClick={() => setEditing(e)}><Pencil className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
@@ -188,7 +186,6 @@ export default function PayrollCycleDetailPage() {
         )}
       </div>
       <Pager {...paged} />
-      {viewing && <EmployeePayrollView key={viewing.employee_id} row={(data.employees.find((x) => x.employee_id === viewing.employee_id)) || viewing} cycleDays={c.days} cycleId={id} employeeId={viewing.employee_id} onClose={() => setViewing(null)} onChanged={() => qc.invalidateQueries({ queryKey: ['payroll-cycle', id] })} />}
       {editing && <EditDialog key={editing.employee_id} cycleId={id} employee={editing} locked={c.status === 'paid'} onClose={() => setEditing(null)} onSaved={() => qc.invalidateQueries({ queryKey: ['payroll-cycle', id] })} />}
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Attendance is read live for this cycle's dates. Incentives are for the month the cycle ends in. Net to give = base salary, minus a day's pay for each absent day (half for a half day), plus incentive, punctuality reward and unpaid expenses, minus late fine and advances deducted. Weekly offs are not cut.</p>
     </div>

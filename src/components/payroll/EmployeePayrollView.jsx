@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { KindBadge, hhmm, shiftLabel } from '@/components/reports/AttendanceDrawers'
 import { payrollService } from '@/services/payroll.service'
@@ -111,7 +112,13 @@ function PaySummary({ row, cycleDays }) {
   )
 }
 
-export default function EmployeePayrollView({ row, cycleDays, cycleId, employeeId, onClose, onChanged }) {
+export default function EmployeePayrollView() {
+  const { id: cycleId, employeeId } = useParams()
+  const navigate = useNavigate()
+  const { data: cycleData } = useQuery({ queryKey: ['payroll-cycle', cycleId], queryFn: () => payrollService.getCycle(cycleId).then((r) => r.data) })
+  const row = cycleData?.employees.find((x) => x.employee_id === employeeId)
+  const cycleDays = cycleData?.cycle.days
+  const onChanged = () => qc.invalidateQueries({ queryKey: ['payroll-cycle', cycleId] })
   const { data, isLoading, error } = useQuery({ queryKey: ['payroll-employee', cycleId, employeeId], queryFn: () => payrollService.getEmployee(cycleId, employeeId).then((r) => r.data) })
   const qc = useQueryClient()
   const inc = data?.incentive
@@ -119,12 +126,14 @@ export default function EmployeePayrollView({ row, cycleDays, cycleId, employeeI
   const refresh = () => { qc.invalidateQueries({ queryKey: ['payroll-employee', cycleId, employeeId] }); onChanged?.() }
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[90vh] sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{data ? data.employee.name : 'Employee'}{data?.employee.code ? <span className="ml-2 text-sm font-normal text-muted-foreground">{data.employee.code}</span> : null}</DialogTitle>
-          {data && <p className="text-xs text-muted-foreground">{data.cycle.name} · {short(data.cycle.period_start)} to {short(data.cycle.period_end)}</p>}
-        </DialogHeader>
+    <div className="space-y-5">
+      <div className="flex items-start gap-3">
+        <Button variant="ghost" size="icon" aria-label="Back to the pay cycle" onClick={() => navigate(`/payroll/cycle/${cycleId}`)}><ArrowLeft className="h-4 w-4" /></Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{data ? data.employee.name : 'Employee'}{data?.employee.code ? <span className="ml-2 text-sm font-normal text-muted-foreground">{data.employee.code}</span> : null}</h1>
+          {data && <p className="text-sm text-gray-500">{data.cycle.name} · {short(data.cycle.period_start)} to {short(data.cycle.period_end)}</p>}
+        </div>
+      </div>
 
         {isLoading ? <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
           : error ? <p role="alert" className="py-10 text-center text-sm text-destructive">{errText(error)}</p> : (
@@ -215,7 +224,6 @@ export default function EmployeePayrollView({ row, cycleDays, cycleId, employeeI
             </Section>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+    </div>
   )
 }
