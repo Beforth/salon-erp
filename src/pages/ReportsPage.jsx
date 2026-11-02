@@ -180,7 +180,7 @@ export default function ReportsPage() {
                   </>
                 )}
                 {showBranchPicker && (
-                  <SelectField value={validBranch} onChange={(e) => set({ branch: e.target.value })} aria-label="Branch" className="h-8 rounded-md border bg-background px-2 text-xs font-medium">
+                  <SelectField value={validBranch} onChange={(e) => set({ branch: e.target.value })} aria-label="Branch" className="w-60 h-8 rounded-md border bg-background px-2 text-xs font-medium">
                     {active.branch !== 'warehouse' && <option value="">All branches</option>}
                     {pickList.map((b) => (
                       <option key={b.branch_id} value={b.branch_id}>{b.name}</option>

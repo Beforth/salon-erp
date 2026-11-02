@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -40,10 +41,11 @@ function Drawer({ title, subtitle, onClose, children, footer, width = 'max-w-md'
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
-  return (
+  // Rendered on <body>: inside the page layout a fixed panel is cropped by the scrolling content area.
+  return createPortal(
     <div className={`fixed inset-0 ${z} flex justify-end`}>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
-      <aside role="dialog" aria-label={title} className={`relative flex h-full w-full ${width} flex-col bg-card shadow-xl`}>
+      <aside role="dialog" aria-label={title} className={`relative flex h-dvh max-h-full w-full ${width} flex-col bg-card shadow-xl`}>
         <header className="flex items-start justify-between border-b px-5 py-4">
           <div>
             <h2 className="text-base font-semibold">{title}</h2>
@@ -54,7 +56,8 @@ function Drawer({ title, subtitle, onClose, children, footer, width = 'max-w-md'
         <div className="flex-1 overflow-y-auto">{children}</div>
         {footer && <footer className="border-t px-5 py-3">{footer}</footer>}
       </aside>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
