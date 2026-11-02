@@ -44,6 +44,8 @@ function StaffPerformancePage() {
   const isOwner = user?.role === 'owner' || user?.role === 'developer'
   const canAccessPage = isOwner || user?.role === 'manager' || user?.role === 'cashier'
   const canSeeFinancials = user?.role !== 'employee'
+  // Payout figures (incentives, earnings) are for owners only; managers and cashiers see sales and services.
+  const showIncentives = isOwner
   const showServiceEarningsCard = user?.role !== 'manager' && user?.role !== 'cashier'
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -143,7 +145,7 @@ function StaffPerformancePage() {
       employee_id: selectedEmployee || undefined,
       branch_id: effectiveBranch || undefined,
     }),
-    enabled: canSeeFinancials && !!effectiveStart && !!effectiveEnd,
+    enabled: showIncentives && !!effectiveStart && !!effectiveEnd,
   })
 
   const { data: staffIncentiveData } = useQuery({
@@ -158,7 +160,7 @@ function StaffPerformancePage() {
         month: staffIncentivePeriod.month,
         ...(effectiveBranch ? { branchId: effectiveBranch } : {}),
       }),
-    enabled: canSeeFinancials && !!staffIncentivePeriod,
+    enabled: showIncentives && !!staffIncentivePeriod,
   })
   const staffIncentiveRows = Array.isArray(staffIncentiveData?.data) ? staffIncentiveData.data : []
   const staffIncentiveByEmployee = useMemo(() => {
@@ -524,7 +526,7 @@ function StaffPerformancePage() {
                     <Star className="h-3 w-3 fill-current" />
                     {emp.star_points}
                   </span>
-                  {canSeeFinancials && (
+                  {canSeeFinancials && showServiceEarningsCard && (
                     <span className="text-xs opacity-80">
                       {formatCurrency(emp.revenue_generated - (emp.product_incentives || 0))}
                     </span>
@@ -880,6 +882,7 @@ function StaffPerformancePage() {
                         <div className="text-2xl font-bold">{formatCurrency(activeEmployee.product_sales || 0)}</div>
                       </CardContent>
                     </Card>
+                    {showIncentives && (<>
                     <Card
                       className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
                       onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
@@ -911,6 +914,7 @@ function StaffPerformancePage() {
                         )}
                       </CardContent>
                     </Card>
+                    </>)}
                   </>
                 )}
               </div>
@@ -1135,6 +1139,7 @@ function StaffPerformancePage() {
                           <div className="text-2xl font-bold">{formatCurrency(totals.productSales)}</div>
                         </CardContent>
                       </Card>
+                      {showIncentives && (<>
                       <Card
                         className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
                         onClick={() => document.getElementById('product-incentives')?.scrollIntoView({ behavior: 'smooth' })}
@@ -1156,6 +1161,7 @@ function StaffPerformancePage() {
                           )}
                         </CardContent>
                       </Card>
+                      </>)}
                     </>
                   )}
                 </div>
@@ -1185,8 +1191,8 @@ function StaffPerformancePage() {
                         {canSeeFinancials && (
                           <>
                             <TableHead className="text-right">Product Sales</TableHead>
-                            <TableHead className="text-right">Product Incentives</TableHead>
-                            <TableHead className="text-right">Staff Incentive</TableHead>
+                            {showIncentives && <TableHead className="text-right">Product Incentives</TableHead>}
+                            {showIncentives && <TableHead className="text-right">Staff Incentive</TableHead>}
                           </>
                         )}
                       </TableRow>
@@ -1224,14 +1230,18 @@ function StaffPerformancePage() {
                               <TableCell className="text-right">
                                 {e.product_sales ? formatCurrency(e.product_sales) : '—'}
                               </TableCell>
-                              <TableCell className="text-right font-medium text-green-600">
-                                {e.product_incentives ? formatCurrency(e.product_incentives) : '—'}
-                              </TableCell>
-                              <TableCell className="text-right font-medium text-primary">
-                                {staffIncentiveByEmployee.has(e.employee_id)
-                                  ? formatCurrency(staffIncentiveByEmployee.get(e.employee_id).total_incentive)
-                                  : '—'}
-                              </TableCell>
+                              {showIncentives && (
+                                <TableCell className="text-right font-medium text-green-600">
+                                  {e.product_incentives ? formatCurrency(e.product_incentives) : '—'}
+                                </TableCell>
+                              )}
+                              {showIncentives && (
+                                <TableCell className="text-right font-medium text-primary">
+                                  {staffIncentiveByEmployee.has(e.employee_id)
+                                    ? formatCurrency(staffIncentiveByEmployee.get(e.employee_id).total_incentive)
+                                    : '—'}
+                                </TableCell>
+                              )}
                             </>
                           )}
                         </TableRow>
@@ -1283,7 +1293,7 @@ function StaffPerformancePage() {
           )}
 
           {/* Product Incentive Report (owners only) */}
-          {canSeeFinancials && <Card id="product-incentives">
+          {showIncentives && <Card id="product-incentives">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <IndianRupee className="h-4 w-4" />
