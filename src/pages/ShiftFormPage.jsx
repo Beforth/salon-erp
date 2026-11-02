@@ -16,7 +16,7 @@ const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const initialForm = {
   name: '', start_time: '', end_time: '', color_code: '#6366f1', grace_period: '5',
   half_day_late_after_min: '', half_day_min_hours: '',
-  overtime_allowed: true,
+  overtime_allowed: true, overtime_extra_percent: '',
 }
 
 const addMinutes = (hhmm, mins) => {
@@ -54,6 +54,7 @@ export default function ShiftFormPage() {
       color_code: shift.color_code || '#6366f1',
       grace_period: String(shift.grace_period ?? 5),
       overtime_allowed: shift.overtime_allowed !== false,
+      overtime_extra_percent: shift.overtime_extra_percent == null ? '' : String(shift.overtime_extra_percent),
       half_day_late_after_min: shift.half_day_late_after_min == null ? '' : String(shift.half_day_late_after_min),
       half_day_min_hours: shift.half_day_min_hours == null ? '' : String(shift.half_day_min_hours),
     })
@@ -98,7 +99,9 @@ export default function ShiftFormPage() {
     if (!punct.ok) { toast.error(punct.error); return }
 
     const base = Object.fromEntries(Object.entries(form).filter(([k]) => !k.startsWith('half_day')))
-    const payload = { ...base, grace_period: grace, ...built.value, punctuality_rules: punct.value }
+    const otPct = String(form.overtime_extra_percent).trim() === '' ? null : Number(form.overtime_extra_percent)
+    if (otPct !== null && (!Number.isFinite(otPct) || otPct < 0 || otPct > 500)) { toast.error('Overtime extra pay must be between 0 and 500 percent'); return }
+    const payload = { ...base, overtime_extra_percent: otPct, grace_period: grace, ...built.value, punctuality_rules: punct.value }
 
     setSaving(true)
     try {
@@ -167,6 +170,14 @@ export default function ShiftFormPage() {
                   <span className="block text-xs text-muted-foreground">Hours worked beyond what this shift requires in a pay cycle are paid extra in payroll. Turn it off and they are not paid.</span>
                 </span>
               </label>
+              {form.overtime_allowed && (
+                <div className="space-y-2">
+                  <Label htmlFor="overtime_extra_percent">Overtime extra pay (%)</Label>
+                  <Input id="overtime_extra_percent" type="text" inputMode="decimal" value={form.overtime_extra_percent} placeholder="Payroll default"
+                    onChange={(e) => { const v = e.target.value; if (v === '' || /^\d*\.?\d*$/.test(v)) set({ overtime_extra_percent: v }) }} />
+                  <p className="text-xs text-muted-foreground">Paid on top of the hourly rate, so 50 is time and a half. Leave empty to use the default from Payroll settings.</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Colour</Label>
                 <div className="flex items-center gap-3">

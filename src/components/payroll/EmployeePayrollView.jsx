@@ -98,12 +98,12 @@ function Line({ label, value, sign, strong }) {
 function PaySummary({ row, cycleDays }) {
   return (
     <Section title="Amount to give" hint={row.pay_basis === 'hours'
-      ? `Paid by the hour: ${formatCurrency(row.hourly_rate)} per hour (base salary / ${row.expected_hours} shift hours). ${row.pay_hours} hours earned of ${row.expected_hours}: hours worked minus ${row.penalty_hours || 0} penalty hours.${row.overtime_hours > 0 ? ` Another ${row.overtime_hours} hours were worked beyond the required hours: overtime, paid at the rate plus ${Math.round(row.overtime_extra_rate * 100)}% extra.` : ''}`
+      ? `Paid by the hour: ${formatCurrency(row.hourly_rate)} per hour (base salary / ${row.expected_hours} shift hours). ${row.pay_hours} hours earned of ${row.expected_hours}: hours worked minus ${row.penalty_hours || 0} penalty hours.${row.overtime_hours > 0 ? ` Another ${row.overtime_hours} hours were worked beyond the required hours: overtime, paid at the rate plus ${row.overtime_extra_percent}% extra.` : ''}`
       : `No shift hours to work from, so base salary is spread over ${cycleDays} days. ${row.cut_days ? `${row.cut_days} day${row.cut_days === 1 ? '' : 's'} are cut` : 'No days are cut'} for absence.`}>
       <div className="rounded-lg border px-4 py-2">
         <Line label="Base salary" value={row.base_salary || 0} />
         <Line label={row.pay_basis === 'hours' ? 'Cut for hours not earned' : 'Absence cut'} value={row.salary_cut} sign="-" />
-        {row.overtime_hours > 0 && <Line label={`Overtime pay (${row.overtime_hours} h at ${formatCurrency(row.hourly_rate * (1 + row.overtime_extra_rate))} per hour)`} value={row.overtime_pay} sign="+" />}
+        {row.overtime_hours > 0 && <Line label={`Overtime pay (${row.overtime_hours} h at ${formatCurrency(row.hourly_rate * (1 + row.overtime_extra_percent / 100))} per hour)`} value={row.overtime_pay} sign="+" />}
         <Line label="Incentive" value={row.incentive_amount} sign="+" />
         <Line label="Punctuality reward" value={row.punctuality_amount} sign="+" />
         <Line label="Unpaid expenses owed" value={row.expenses_due} sign="+" />

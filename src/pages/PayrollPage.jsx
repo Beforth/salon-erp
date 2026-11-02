@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CalendarDays, CheckCircle2, Clock, Eye, FileText, Inbox, Plus, Search, Trash2, XCircle, Zap } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock, Eye, FileText, Inbox, Plus, Search, Settings, Trash2, XCircle, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,6 +40,35 @@ function Stat({ icon: Icon, tone, value, label }) {
         <p className="mt-1 truncate text-xs font-medium text-muted-foreground">{label}</p>
       </div>
     </div>
+  )
+}
+
+function SettingsDialog({ open, onClose }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({ queryKey: ['payroll-settings'], queryFn: () => payrollService.getSettings().then((r) => r.data), enabled: open })
+  const [pct, setPct] = useState(null)
+  const shown = pct ?? (data ? String(data.overtime_extra_percent) : '')
+  const n = Number(shown)
+  const invalid = shown === '' || !Number.isFinite(n) || n < 0 || n > 500
+  const save = useMutation({
+    mutationFn: () => payrollService.saveSettings({ overtime_extra_percent: n }),
+    onSuccess: () => { toast.success('Payroll settings saved'); qc.invalidateQueries({ queryKey: ['payroll-settings'] }); qc.invalidateQueries({ queryKey: ['payroll-cycle'] }); qc.invalidateQueries({ queryKey: ['payroll-employee'] }); setPct(null); onClose() },
+    onError: (e) => toast.error(errText(e)),
+  })
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { setPct(null); onClose() } }}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader><DialogTitle>Payroll settings</DialogTitle></DialogHeader>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!invalid) save.mutate() }}>
+          <div className="space-y-1.5">
+            <Label htmlFor="ps-ot">Overtime extra pay (%)</Label>
+            <Input id="ps-ot" type="number" inputMode="decimal" min={0} max={500} step="any" value={shown} onChange={(e) => setPct(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Overtime hours are paid at the normal hourly rate plus this much extra. 50 means time and a half, 100 means double. A shift can set its own percentage; this one is used when it doesn't.</p>
+          </div>
+          <Button type="submit" className="w-full" disabled={invalid || save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -130,6 +159,7 @@ export default function PayrollPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
 
@@ -163,7 +193,10 @@ export default function PayrollPage() {
           <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
           <p className="text-sm text-gray-500">Pay cycles and payouts</p>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Generate Cycle</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setSettingsOpen(true)}><Settings className="mr-1.5 h-4 w-4" />Settings</Button>
+          <Button onClick={() => setOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Generate Cycle</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -242,6 +275,7 @@ export default function PayrollPage() {
       </div>
       <Pager {...paged} />
 
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <GenerateDialog open={open} onClose={() => setOpen(false)} branches={branches} onCreated={() => qc.invalidateQueries({ queryKey: ['payroll-cycles'] })} />
     </div>
   )
