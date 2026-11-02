@@ -894,23 +894,6 @@ function StaffPerformancePage() {
                         </div>
                       </CardContent>
                     </Card>
-                    <Card
-                      className="cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
-                      onClick={() => document.getElementById('staff-incentives')?.scrollIntoView({ behavior: 'smooth' })}
-                    >
-                      <CardContent className="pt-5 pb-4">
-                        <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                          <IndianRupee className="h-4 w-4 text-primary" />
-                          <span className="text-xs font-medium">Staff Incentive</span>
-                        </div>
-                        <div className="text-2xl font-bold text-primary">
-                          {formatCurrency(staffIncentiveByEmployee.get(activeEmployee.employee_id)?.total_incentive || 0)}
-                        </div>
-                        {staffIncentivePeriod && (
-                          <span className="text-xs text-muted-foreground">{monthLabel(staffIncentivePeriod.year, staffIncentivePeriod.month)}</span>
-                        )}
-                      </CardContent>
-                    </Card>
                   </>
                 )}
               </div>
@@ -1302,11 +1285,7 @@ function StaffPerformancePage() {
                 <p className="text-center text-muted-foreground py-6 text-sm">No incentive data for this period</p>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-muted/50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-muted-foreground">Total Sales</p>
-                      <p className="text-lg font-bold">{formatCurrency(incentiveSummary.total_sales || 0)}</p>
-                    </div>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="bg-muted/50 rounded-lg p-3 text-center">
                       <p className="text-xs text-muted-foreground">Total Incentive</p>
                       <p className="text-lg font-bold text-green-600">{formatCurrency(incentiveSummary.total_incentive || 0)}</p>
