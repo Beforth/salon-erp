@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SelectField } from '@/components/ui/select-field'
 import { attendanceService } from '@/services/attendance.service'
 import { shiftService } from '@/services/shift.service'
 import { reportsService } from '@/services/reports.service'
@@ -109,6 +110,19 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
   const [shiftId, setShiftId] = useState(currentShift)
   const { data: shiftList } = useQuery({ queryKey: ['shifts', 'active'], queryFn: () => shiftService.getShifts({ is_active: 'true' }).then((r) => r.data || []), staleTime: 60000 })
   const shiftChanged = shiftId !== currentShift
+  const [adding, setAdding] = useState(false)
+  const [newShift, setNewShift] = useState({ name: '', start: '09:00', end: '18:00' })
+  const createShift = useMutation({
+    mutationFn: () => shiftService.createShift({ name: newShift.name.trim(), start_time: newShift.start, end_time: newShift.end }).then((r) => r.data),
+    onSuccess: (s) => {
+      qc.invalidateQueries({ queryKey: ['shifts'] })
+      setShiftId(s.id)
+      setAdding(false)
+      setNewShift({ name: '', start: '09:00', end: '18:00' })
+      toast.success(`Shift "${s.name}" created`)
+    },
+    onError: (e) => toast.error(e?.response?.data?.error?.message || e?.response?.data?.message || 'Could not create the shift'),
+  })
   const [checkIn, setCheckIn] = useState(hhmm(target.check_in))
   const [checkOut, setCheckOut] = useState(hhmm(target.check_out))
   const [reason, setReason] = useState('')
@@ -179,15 +193,31 @@ export function MarkDayDrawer({ target, onClose, onSaved }) {
 
         <div>
           <label htmlFor="md-shift" className="mb-1 block text-xs font-medium text-muted-foreground">Shift for this day</label>
-          <select
+          <SelectField
             id="md-shift"
             value={shiftId}
-            onChange={(e) => setShiftId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onChange={(e) => (e.target.value === '__new__' ? setAdding(true) : (setAdding(false), setShiftId(e.target.value)))}
+            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
           >
             <option value="">Default hours{!currentShift && target.planned_shift ? ` (${shiftLabel(target.planned_shift)})` : ''}</option>
             {(shiftList || []).map((s) => <option key={s.id} value={s.id}>{s.name} {s.start_time}-{s.end_time}</option>)}
-          </select>
+            <option value="__new__">+ Add new shift…</option>
+          </SelectField>
+          {adding && (
+            <div className="mt-2 space-y-2 rounded-lg border bg-muted/30 p-3">
+              <p className="text-xs font-semibold">New shift</p>
+              <Input aria-label="Shift name" placeholder="Name, e.g. Evening" value={newShift.name} maxLength={100} onChange={(e) => setNewShift({ ...newShift, name: e.target.value })} />
+              <div className="grid grid-cols-2 gap-2">
+                <div><label htmlFor="ns-start" className="mb-1 block text-[11px] text-muted-foreground">Starts</label><Input id="ns-start" type="time" value={newShift.start} onChange={(e) => setNewShift({ ...newShift, start: e.target.value })} /></div>
+                <div><label htmlFor="ns-end" className="mb-1 block text-[11px] text-muted-foreground">Ends</label><Input id="ns-end" type="time" value={newShift.end} onChange={(e) => setNewShift({ ...newShift, end: e.target.value })} /></div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Late rules can be added later on the Shift page.</p>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setAdding(false)} disabled={createShift.isPending}>Cancel</Button>
+                <Button type="button" size="sm" onClick={() => createShift.mutate()} disabled={createShift.isPending || !newShift.name.trim() || !newShift.start || !newShift.end}>{createShift.isPending ? 'Creating…' : 'Create shift'}</Button>
+              </div>
+            </div>
+          )}
           {shiftChanged && <p className="mt-1 text-[12px] text-muted-foreground">Applies to this one day. Late rules and fines are recalculated from the new shift when the day has punches.</p>}
         </div>
 
