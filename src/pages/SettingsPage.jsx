@@ -400,7 +400,7 @@ function SettingsPage() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 sm:grid-cols-5 lg:grid-cols-10 lg:w-auto lg:inline-grid">
+        <TabsList className="flex w-full max-w-full justify-start overflow-x-auto lg:w-auto [&>button]:shrink-0">
           <TabsTrigger value="setup" className="flex items-center gap-2">
             <ListChecks className="h-4 w-4" />
             <span className="hidden sm:inline">Setup</span>
