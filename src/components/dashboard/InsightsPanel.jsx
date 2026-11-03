@@ -26,6 +26,8 @@ const RANGES = [
   { days: 7, label: '7 days' },
   { days: 30, label: '30 days' },
   { days: 90, label: '90 days' },
+  { period: 'month', label: 'This month' },
+  { period: 'last-month', label: 'Last month' },
 ]
 
 // Theme colours come from the CSS variables so charts follow the design tokens.
@@ -160,7 +162,9 @@ function ChartTip({ active, payload, label, money = true, suffix = '' }) {
  */
 export default function InsightsPanel({ allowBranchFilter = false }) {
   const colors = useChartColors()
-  const [days, setDays] = useState(30)
+  const [range, setRange] = useState({ days: 30 })
+  const sel = (r) => (r.period ? range.period === r.period : !range.period && range.days === r.days)
+  const days = range.days || 31
   const [branchId, setBranchId] = useState('')
 
   const { data: branchesData } = useQuery({
@@ -171,8 +175,8 @@ export default function InsightsPanel({ allowBranchFilter = false }) {
   const branches = (branchesData?.data || []).filter((b) => b.is_salon !== false)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['dashboard-insights', days, branchId],
-    queryFn: () => reportsService.getDashboardInsights({ days, ...(branchId ? { branch_id: branchId } : {}) }).then((r) => r.data),
+    queryKey: ['dashboard-insights', range, branchId],
+    queryFn: () => reportsService.getDashboardInsights({ ...range, ...(branchId ? { branch_id: branchId } : {}) }).then((r) => r.data),
     refetchInterval: 60_000,
     placeholderData: (prev) => prev,
   })
@@ -237,12 +241,12 @@ export default function InsightsPanel({ allowBranchFilter = false }) {
           <div className="inline-flex rounded-full border bg-background p-0.5" role="tablist" aria-label="Period">
             {RANGES.map((r) => (
               <button
-                key={r.days}
+                key={r.period || r.days}
                 type="button"
                 role="tab"
-                aria-selected={days === r.days}
-                onClick={() => setDays(r.days)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${days === r.days ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                aria-selected={sel(r)}
+                onClick={() => setRange(r.period ? { period: r.period } : { days: r.days })}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${sel(r) ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 {r.label}
               </button>
@@ -288,7 +292,7 @@ export default function InsightsPanel({ allowBranchFilter = false }) {
                   <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 11, fill: colors.muted }} tickLine={false} axisLine={false} minTickGap={24} />
                   <YAxis tickFormatter={compact} tick={{ fontSize: 11, fill: colors.muted }} tickLine={false} axisLine={false} width={48} />
                   <Tooltip content={<ChartTip />} labelFormatter={shortDate} cursor={{ stroke: colors.border }} />
-                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke={colors.primary} strokeWidth={2.5} fill="url(#rev-fill)" dot={days <= 7} activeDot={{ r: 5 }} />
+                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke={colors.primary} strokeWidth={2.5} fill="url(#rev-fill)" dot={(data?.range?.days || days) <= 7} activeDot={{ r: 5 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
