@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logout } from '@/store/slices/authSlice'
 import { notificationService } from '@/services/notification.service'
+import { useNotificationSocket } from '@/hooks/useNotificationSocket'
 import { branchService } from '@/services/branch.service'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
@@ -63,10 +64,13 @@ function Header({ onMenuClick }) {
   const fallbackBranchId = branches[0]?.branch_id || null
   const effectiveBranchId = queueBranchId || fallbackBranchId
 
+  const socketConnected = useNotificationSocket(!!user)
+
   const { data: notificationsData } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => notificationService.getNotifications({ limit: 20 }),
-    refetchInterval: 30000,
+    // pushed over the socket; poll slowly only while it is down
+    refetchInterval: socketConnected ? false : 120000,
   })
 
   const notifications = notificationsData?.data?.notifications || []
