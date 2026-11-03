@@ -42,7 +42,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import IncentiveConfigModal from '@/components/modals/IncentiveConfigModal'
-import StaffIncentiveConfig from '@/components/StaffIncentiveConfig'
 import AttendanceApiKeysPanel from '@/components/settings/AttendanceApiKeysPanel'
 import GeofencePanel from '@/components/settings/GeofencePanel'
 import { SelectField } from '@/components/ui/select-field'
@@ -429,10 +428,6 @@ function SettingsPage() {
           <TabsTrigger value="incentives" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             <span className="hidden sm:inline">Incentives</span>
-          </TabsTrigger>
-          <TabsTrigger value="staff-incentives" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            <span className="hidden sm:inline">Staff Incentives</span>
           </TabsTrigger>
           {isOwner && (
             <TabsTrigger value="attendance-api" className="flex items-center gap-2">
@@ -941,10 +936,6 @@ function SettingsPage() {
               editConfig={editConfig}
             />
           </div>
-        </TabsContent>
-
-        <TabsContent value="staff-incentives">
-          <StaffIncentiveConfig />
         </TabsContent>
 
         {isOwner && (
